@@ -117,7 +117,16 @@ pub async fn add_source(
     url: String,
     branch: String,
 ) -> CmdResult<Source> {
-    with_engine(state, move |e| e.add_source(url.trim(), branch.trim())).await
+    let url = expand_home(url.trim(), std::env::var("HOME").ok().as_deref());
+    with_engine(state, move |e| e.add_source(&url, branch.trim())).await
+}
+
+/// git does not expand `~`, but it is how people type local paths.
+fn expand_home(input: &str, home: Option<&str>) -> String {
+    match (input.strip_prefix("~/"), home) {
+        (Some(rest), Some(home)) => format!("{}/{rest}", home.trim_end_matches('/')),
+        _ => input.to_owned(),
+    }
 }
 
 #[tauri::command]
@@ -155,6 +164,18 @@ pub async fn list_widgets(state: State<'_, AppState>) -> CmdResult<Vec<Widget>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expands_a_leading_tilde_only() {
+        let home = Some("/Users/dev/");
+        assert_eq!(expand_home("~/src/repo", home), "/Users/dev/src/repo");
+        assert_eq!(
+            expand_home("git@host:~/repo.git", home),
+            "git@host:~/repo.git"
+        );
+        assert_eq!(expand_home("~other/repo", home), "~other/repo");
+        assert_eq!(expand_home("~/src/repo", None), "~/src/repo");
+    }
 
     #[test]
     fn engine_errors_map_to_kinds() {
