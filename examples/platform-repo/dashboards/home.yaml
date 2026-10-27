@@ -1,0 +1,17 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Dashboard
+metadata:
+  name: home
+  title: Home
+spec:
+  widgets:
+    - { widget: service-catalog, x: 0, y: 0, w: 8, h: 4 }
+    - { widget: k8s-context, x: 8, y: 0, w: 4, h: 2 }
+    - { widget: welcome, x: 8, y: 2, w: 4, h: 2 }
+    - widget: my-pipelines
+      x: 0
+      y: 4
+      w: 12
+      h: 4
+      inputs:
+        project: "acme%2F{{ user.team }}"

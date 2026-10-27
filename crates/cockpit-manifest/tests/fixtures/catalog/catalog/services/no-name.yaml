@@ -1,0 +1,3 @@
+apiVersion: acme/v1
+kind: Service
+metadata: {}

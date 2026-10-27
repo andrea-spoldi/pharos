@@ -1,0 +1,12 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata:
+  name: welcome
+  title: Welcome
+  version: 0.1.0
+spec:
+  view:
+    type: markdown
+    content: |
+      # Welcome to ACME
+      Your cockpit is managed by the platform team. Ask in #platform for help.

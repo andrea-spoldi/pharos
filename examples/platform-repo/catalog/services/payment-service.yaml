@@ -1,0 +1,9 @@
+apiVersion: catalog.acme.dev/v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  owner: payments-team
+  tier: 1
+  repo: gitlab.com/example/payment-service
+  description: Handles card and SEPA payments

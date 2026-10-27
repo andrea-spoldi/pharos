@@ -1,0 +1,6 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata: { name: absolute }
+spec:
+  source: { type: file, path: /etc/passwd }
+  view: { type: raw }

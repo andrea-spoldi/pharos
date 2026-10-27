@@ -1,0 +1,15 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata:
+  name: k8s-context
+  title: Kubernetes Context
+  version: 0.1.0
+spec:
+  source:
+    type: command
+    executable: kubectl
+    args: [config, current-context]
+    timeout: 5s
+  refresh: 30s
+  view:
+    type: raw

@@ -1,0 +1,7 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata: { name: no-columns }
+spec:
+  source: { type: command, executable: date }
+  refresh: fast
+  view: { type: table, columns: [ { field: 'a..b' } ] }

@@ -1,0 +1,15 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Platform
+metadata: { name: test }
+spec:
+  widgets: ../outside/
+  inputs:
+    region: { type: enum }
+    stage: { type: enum, values: [dev, prod], default: qa }
+    team: { type: enum, from: ../../teams/ }
+    name: { type: string, values: [a] }
+    bad-key: { type: string }
+  secrets:
+    - name: token
+    - name: TOKEN
+    - name: TOKEN

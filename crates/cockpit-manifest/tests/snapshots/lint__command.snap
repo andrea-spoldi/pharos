@@ -1,0 +1,9 @@
+---
+source: crates/cockpit-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"command\"))"
+---
+error: widgets/secret-arg/widget.yaml: spec.source.args[2]: secrets can only be used in http url and headers [secret-not-allowed]
+error: widgets/shell/widget.yaml: spec.source.executable: must be a program name or path; arguments go in `args` (no shell is used) [invalid-executable]
+error: widgets/shell/widget.yaml: spec.source.timeout: `5 minutes` is not a duration like 30s, 5m or 1h [invalid-duration]
+error: widgets/templated-exe/widget.yaml: spec.source.executable: executable cannot be templated: it defines the widget's permissions [invalid-executable]
+-- 4 errors, 0 warnings

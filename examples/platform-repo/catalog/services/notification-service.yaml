@@ -1,0 +1,9 @@
+apiVersion: catalog.acme.dev/v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  owner: platform-team
+  tier: 2
+  repo: gitlab.com/example/notification-service
+  description: Email and push notifications

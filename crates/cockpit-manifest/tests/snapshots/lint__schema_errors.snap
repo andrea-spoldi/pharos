@@ -1,0 +1,9 @@
+---
+source: crates/cockpit-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"schema-errors\"))"
+---
+error: widgets/bad-source/widget.yaml:5: spec.source.type: unknown variant `ftp`, expected one of `file`, `command`, `http` [schema]
+error: widgets/bad-view/widget.yaml:5: spec.view.type: unknown variant `tabel`, expected one of `table`, `list`, `card`, `kv`, `raw`, `markdown` [schema]
+error: widgets/missing-view/widget.yaml:5: spec: missing field `view` [schema]
+error: widgets/typo/widget.yaml:5: spec.refesh: unknown field `refesh`, expected one of `source`, `refresh`, `inputs`, `view`, `permissions` [schema]
+-- 4 errors, 0 warnings

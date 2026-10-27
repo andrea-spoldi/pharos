@@ -1,0 +1,6 @@
+apiVersion: catalog.acme.dev/v1
+kind: Team
+metadata:
+  name: platform-team
+spec:
+  slack: "#platform-team"

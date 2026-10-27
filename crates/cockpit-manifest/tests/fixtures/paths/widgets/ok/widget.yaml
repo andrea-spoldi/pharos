@@ -1,0 +1,6 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata: { name: ok }
+spec:
+  source: { type: file, path: ../../data/, glob: '*.yaml' }
+  view: { type: raw }

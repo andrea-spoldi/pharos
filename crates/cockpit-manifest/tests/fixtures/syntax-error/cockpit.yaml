@@ -1,0 +1,5 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Platform
+metadata:
+  name: test
+ bad: indent

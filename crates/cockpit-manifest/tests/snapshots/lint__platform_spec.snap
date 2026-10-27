@@ -1,0 +1,14 @@
+---
+source: crates/cockpit-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"platform-spec\"))"
+---
+error: cockpit.yaml: spec.widgets: `../outside/`: path escapes the repository root [path-escape]
+error: cockpit.yaml: spec.inputs.bad-key: `bad-key` must be letters, digits and `_` [invalid-input-name]
+warning: cockpit.yaml: spec.inputs.name: `values`, `from` and `field` only apply to enum inputs [ignored-field]
+error: cockpit.yaml: spec.inputs.region: enum inputs need `values` or `from` + `field` [enum-without-values]
+error: cockpit.yaml: spec.inputs.stage.default: `qa` is not one of `values` [invalid-default]
+error: cockpit.yaml: spec.inputs.team.field: `from` needs `field` [missing-field]
+error: cockpit.yaml: spec.inputs.team.from: `../../teams/`: path escapes the repository root [path-escape]
+error: cockpit.yaml: spec.secrets[0].name: `token` must be UPPER_SNAKE_CASE [invalid-secret-name]
+error: cockpit.yaml: spec.secrets[2].name: secret `TOKEN` is declared twice [duplicate-secret]
+-- 8 errors, 1 warnings

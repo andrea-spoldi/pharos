@@ -1,0 +1,25 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata:
+  name: my-pipelines
+  title: My Pipelines
+  version: 0.1.0
+spec:
+  inputs:
+    project:
+      type: string
+      required: true
+      label: GitLab project path (URL-encoded)
+  source:
+    type: http
+    url: https://gitlab.com/api/v4/projects/{{ inputs.project }}/pipelines?per_page=10
+    headers:
+      PRIVATE-TOKEN: "{{ secrets.GITLAB_TOKEN }}"
+  refresh: 1m
+  view:
+    type: table
+    columns:
+      - { field: id }
+      - { field: status }
+      - { field: ref }
+      - { field: web_url, label: Link }

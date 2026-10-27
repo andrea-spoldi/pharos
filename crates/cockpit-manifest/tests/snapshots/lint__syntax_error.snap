@@ -1,0 +1,6 @@
+---
+source: crates/cockpit-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"syntax-error\"))"
+---
+error: cockpit.yaml:5: did not find expected key [invalid-yaml]
+-- 1 errors, 0 warnings

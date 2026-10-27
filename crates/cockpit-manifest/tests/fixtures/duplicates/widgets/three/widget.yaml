@@ -1,0 +1,5 @@
+apiVersion: cockpit.dev/v1alpha1
+kind: Widget
+metadata: { name: My_Widget }
+spec:
+  view: { type: markdown, content: hi }

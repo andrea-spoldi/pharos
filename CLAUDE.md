@@ -28,5 +28,6 @@ Desktop "local IDP": Tauri 2 + SolidJS app that renders a platform team's git re
 ## Stack shorthand
 - Rust (Tauri 2, tauri-specta, rusqlite), TS (SolidJS, Vite, @solidjs/router), plain CSS tokens
 - Tests: `cargo test`, `vitest`; lint: `cargo clippy`, `tsc`
-- Commands: `npm run dev` (tauri dev), `cargo test` (also regenerates bindings), `npm test -w app`, `npm run typecheck -w app`
+- Commands: `npm run dev` (tauri dev), `cargo test` (also regenerates bindings), `npm test -w app`, `npm run typecheck -w app`, `cargo run -p cockpit-cli -- lint <repo>`
+- Lint snapshots (insta): `INSTA_UPDATE=always cargo test -p cockpit-manifest`, then review the `git diff`.
 - tauri-specta/specta are pinned `=2.0.0-rc.26` — bump together or not at all.
