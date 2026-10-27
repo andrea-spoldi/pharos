@@ -11,6 +11,7 @@ license = "UNLICENSED"
 all = { level = "deny", priority = -1 }
 
 [workspace.dependencies]
+cockpit-engine = { path = "crates/cockpit-engine" }
 cockpit-manifest = { path = "crates/cockpit-manifest" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

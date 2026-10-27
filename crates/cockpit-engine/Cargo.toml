@@ -1,0 +1,21 @@
+[package]
+name = "cockpit-engine"
+version = "0.1.0"
+description = "Source sync, local state and (later) widget execution (no Tauri dependency)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+cockpit-manifest.workspace = true
+rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite_migration = "2.6"
+serde.workspace = true
+serde_json.workspace = true
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
