@@ -37,3 +37,26 @@ npm run dev
    brings the same review back.
 9. **Approve and apply** → the header gains the short commit and **Widgets** lists four
    cards, e.g. *Kubernetes Context* · `k8s-context` · raw view · command · kubectl.
+
+## Sync now and changelog (part d)
+
+Keep the app open; edit `/tmp/platform` from a terminal between steps.
+
+10. **Sync now** with nothing changed → *Already up to date.* The widget list stays put.
+11. Change a title without touching capabilities:
+    `sed -i '' 's/title: Welcome/title: Hello/' /tmp/platform/widgets/welcome/widget.yaml && git -C /tmp/platform commit -qam retitle`
+    → **Sync now** → no review; a **Synced to `<sha>`** changelog with
+    `Widgets: changed welcome`, and the card now reads *Hello*.
+12. Add a capability:
+    `printf '  permissions:\n    hosts: ["https://status.acme.dev"]\n' >> /tmp/platform/widgets/my-pipelines/widget.yaml && git -C /tmp/platform commit -qam host`
+    → **Sync now** → **Review changes** with my-pipelines *Call* `https://gitlab.com, https://status.acme.dev`
+    (the full set for now; showing only the new host is slice 9)
+    → **Discard** → back to the list, still on the previous commit.
+    **Sync now** again → the same review → **Approve and apply** → changelog.
+13. Break the repo:
+    `sed -i '' 's#../../catalog/services/#../../../../etc#' /tmp/platform/widgets/service-catalog/widget.yaml && git -C /tmp/platform commit -qam break`
+    → **Sync now** → **1 lint error: this version can't be applied** listing
+    `widgets/service-catalog/widget.yaml spec.source.path`, with no apply button.
+    **Discard** → the last good widgets are still listed.
+14. Quit and relaunch → the app syncs on launch without blocking: the widget list shows
+    immediately and the same lint review appears once the fetch is done.

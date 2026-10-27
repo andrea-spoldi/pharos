@@ -131,11 +131,71 @@ describe("Home", () => {
     expect(commands.discardSync).toHaveBeenCalled();
   });
 
-  it("lists the applied widgets once synced", async () => {
-    render(() => <Home source={synced} onSynced={() => {}} />);
-    const list = await screen.findByTestId("widgets");
-    expect(list.textContent).toContain("Kubernetes Context");
-    expect(list.textContent).toContain("command · kubectl");
-    expect(commands.planSync).not.toHaveBeenCalled();
+  describe("once synced", () => {
+    const upToDate: SyncPlan = {
+      ...firstPlan,
+      from_commit: synced.synced_commit,
+      to_commit: synced.synced_commit!,
+      platform_changed: false,
+      widgets: none,
+      dashboards: none,
+      needs_consent: false,
+    };
+    const update: SyncPlan = {
+      ...upToDate,
+      to_commit: "c".repeat(40),
+      widgets: { ...none, changed: ["my-pipelines"] },
+    };
+
+    it("syncs on launch while the widgets stay listed", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      render(() => <Home source={synced} onSynced={() => {}} />);
+
+      const list = await screen.findByTestId("widgets");
+      expect(list.textContent).toContain("Kubernetes Context");
+      expect(list.textContent).toContain("command · kubectl");
+      expect(await screen.findByTestId("up-to-date")).toBeTruthy();
+      expect(commands.planSync).toHaveBeenCalledTimes(1);
+      // The no-op plan is dropped so it is not offered for review later.
+      expect(commands.discardSync).toHaveBeenCalled();
+      expect(commands.applySync).not.toHaveBeenCalled();
+    });
+
+    it("applies unchanged capabilities without asking and shows the changelog", async () => {
+      vi.mocked(commands.planSync).mockResolvedValueOnce(ok(upToDate)).mockResolvedValueOnce(ok(update));
+      const onSynced = vi.fn();
+      render(() => <Home source={synced} onSynced={onSynced} />);
+      await screen.findByTestId("up-to-date");
+
+      fireEvent.click(screen.getByText("Sync now"));
+      const changelog = await screen.findByTestId("changelog");
+      expect(changelog.textContent).toContain("Synced to ccccccc");
+      expect(changelog.textContent).toContain("changed my-pipelines");
+      expect(commands.applySync).toHaveBeenCalledWith(false);
+      expect(onSynced).toHaveBeenCalled();
+      await waitFor(() => expect(commands.listWidgets).toHaveBeenCalledTimes(2));
+    });
+
+    it("asks again when capabilities changed", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok({ ...update, needs_consent: true }));
+      render(() => <Home source={synced} onSynced={() => {}} />);
+
+      expect(await screen.findByText("Review changes")).toBeTruthy();
+      expect(screen.getByText("Approve and apply")).toBeTruthy();
+      expect(commands.applySync).not.toHaveBeenCalled();
+      expect(screen.queryByText("Sync now")).toBeNull();
+    });
+
+    it("keeps the widgets when the sync fails", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue({
+        status: "error",
+        error: { kind: "git", message: "`git fetch --quiet --prune origin main` failed: offline" },
+      });
+      render(() => <Home source={synced} onSynced={() => {}} />);
+
+      expect((await screen.findByRole("alert")).textContent).toContain("offline");
+      expect(await screen.findByTestId("widgets")).toBeTruthy();
+      expect(screen.getByText("Try again")).toBeTruthy();
+    });
   });
 });

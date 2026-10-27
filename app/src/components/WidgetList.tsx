@@ -15,9 +15,12 @@ function sourceSummary(spec: WidgetSpec): string {
   }
 }
 
-/** Widgets of the last applied sync. They run from slice 3 on. */
-export function WidgetList() {
-  const [widgets] = createResource(() => unwrap(commands.listWidgets()));
+/** Widgets of the last applied sync. They run from slice 3 on. Bump `version` to reload. */
+export function WidgetList(props: { version: number }) {
+  const [widgets] = createResource(
+    () => props.version,
+    () => unwrap(commands.listWidgets()),
+  );
 
   return (
     <section class="stack" aria-labelledby="widgets-title">
@@ -29,9 +32,9 @@ export function WidgetList() {
             <pre>{String(widgets.error?.message ?? widgets.error)}</pre>
           </div>
         </Match>
-        <Match when={widgets.state === "ready"}>
+        <Match when={widgets.latest}>
           <ul class="cards" data-testid="widgets">
-            <For each={widgets()} fallback={<li class="muted">The platform repo defines no widgets.</li>}>
+            <For each={widgets.latest} fallback={<li class="muted">The platform repo defines no widgets.</li>}>
               {(w) => (
                 <li class="card">
                   <strong>{w.metadata.title ?? w.metadata.name}</strong>

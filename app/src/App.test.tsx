@@ -4,7 +4,7 @@ import { App } from "./App";
 import { commands } from "./bindings";
 
 vi.mock("./bindings", () => ({
-  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), listWidgets: vi.fn() },
+  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listWidgets: vi.fn() },
 }));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
@@ -25,6 +25,8 @@ describe("App", () => {
     vi.mocked(commands.gitVersion).mockResolvedValue(ok("git version 2.50.0"));
     vi.mocked(commands.pendingSync).mockResolvedValue(ok(null));
     vi.mocked(commands.listWidgets).mockResolvedValue(ok([]));
+    // Home syncs on launch; leave it in flight, the sync flow is covered in Home.test.tsx.
+    vi.mocked(commands.planSync).mockReturnValue(new Promise(() => {}));
   });
 
   it("shows onboarding when no repo is connected", async () => {

@@ -203,3 +203,20 @@ ul.diagnostics {
 .card p {
   margin: var(--space-1) 0 0;
 }
+
+.row.spread {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.changelog {
+  margin-top: var(--space-2);
+}
+
+button.link {
+  padding: 0;
+  margin-top: var(--space-2);
+  border: none;
+  background: none;
+  color: var(--accent);
+}

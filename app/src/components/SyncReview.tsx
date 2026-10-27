@@ -9,7 +9,7 @@ const CAPABILITY_LABELS: [keyof Capabilities, string][] = [
   ["paths", "Read"],
 ];
 
-function ChangeLine(props: { label: string; changes: Changes }) {
+export function ChangeLine(props: { label: string; changes: Changes }) {
   const parts = () =>
     [
       [props.changes.added, "added"],
