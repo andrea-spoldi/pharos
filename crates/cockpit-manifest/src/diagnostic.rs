@@ -3,6 +3,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Severity {
     Error,
     Warning,
@@ -10,6 +11,7 @@ pub enum Severity {
 
 /// One finding, located by repo-relative file and a dotted path into the document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Diagnostic {
     pub severity: Severity,
     pub code: &'static str,
@@ -17,6 +19,7 @@ pub struct Diagnostic {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub line: Option<usize>,
     pub message: String,
 }

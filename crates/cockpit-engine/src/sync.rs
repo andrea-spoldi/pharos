@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 /// Names added, removed or changed between the stored snapshot and the repo.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Changes {
     pub added: Vec<String>,
     pub removed: Vec<String>,
@@ -19,6 +20,7 @@ impl Changes {
 /// What a sync would do. Held by the engine between `plan_sync` and `apply_sync`,
 /// so the frontend reviews it but can never supply or alter it.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SyncPlan {
     pub from_commit: Option<String>,
     pub to_commit: String,

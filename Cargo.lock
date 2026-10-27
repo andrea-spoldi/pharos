@@ -439,10 +439,12 @@ name = "cockpit-engine"
 version = "0.1.0"
 dependencies = [
  "cockpit-manifest",
+ "libc",
  "rusqlite",
  "rusqlite_migration",
  "serde",
  "serde_json",
+ "specta",
  "tempfile",
  "thiserror 2.0.21",
 ]
@@ -458,6 +460,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_yaml_ng",
  "sha2",
+ "specta",
  "tempfile",
  "thiserror 2.0.21",
  "url",
@@ -1913,6 +1916,8 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 name = "local-idp"
 version = "0.1.0"
 dependencies = [
+ "cockpit-engine",
+ "cockpit-manifest",
  "serde",
  "specta",
  "specta-typescript",

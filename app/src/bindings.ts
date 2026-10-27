@@ -5,5 +5,167 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	ping: () => __TAURI_INVOKE<string>("ping"),
+	gitVersion: () => typedError<string, CommandError>(__TAURI_INVOKE("git_version")),
+	getSource: () => typedError<RepoSource | null, CommandError>(__TAURI_INVOKE("get_source")),
+	/**
+	 *  Onboarding: the user types the repo URL or local path. It reaches git only after `--`
+	 *  and git is limited to `file`/`git`/`http(s)`/`ssh` transports (see engine `git.rs`).
+	 */
+	addSource: (url: string, branch: string) => typedError<RepoSource, CommandError>(__TAURI_INVOKE("add_source", { url, branch })),
+	planSync: () => typedError<SyncPlan, CommandError>(__TAURI_INVOKE("plan_sync")),
+	pendingSync: () => typedError<SyncPlan | null, CommandError>(__TAURI_INVOKE("pending_sync")),
+	/**
+	 *  `consent` approves the capabilities of the plan held by the engine, never a set
+	 *  supplied by the frontend (D-014).
+	 */
+	applySync: (consent: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { consent })),
+	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
+	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
 };
+
+/* Types */
+/**  What a widget may touch, derived from its `source` (plus `permissions` widening). */
+export type Capabilities = {
+	/**  Origins, e.g. `https://gitlab.com`. */
+	hosts?: string[],
+	executables?: string[],
+	/**  Repo-relative paths. */
+	paths?: string[],
+};
+
+/**  Capabilities of every widget in a repo, keyed by widget name. This is what users consent to. */
+export type CapabilitySet = { [key in string]: Capabilities };
+
+/**  Names added, removed or changed between the stored snapshot and the repo. */
+export type Changes = {
+	added: string[],
+	removed: string[],
+	changed: string[],
+};
+
+export type Column = {
+	/**  Dot path into each row, e.g. `metadata.name`. */
+	field: string,
+	label?: string | null,
+};
+
+export type CommandError = {
+	kind: ErrorKind,
+	message: string,
+};
+
+/**  One finding, located by repo-relative file and a dotted path into the document. */
+export type Diagnostic = {
+	severity: Severity,
+	code: string,
+	file: string,
+	path?: string | null,
+	line?: number | null,
+	message: string,
+};
+
+/**  What the UI branches on; `message` is for display only. */
+export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "internal";
+
+export type HttpMethod = "GET" | "POST";
+
+export type InputDef = {
+	type: InputType,
+	required?: boolean,
+	label?: string | null,
+	default?: string | null,
+	/**  Static choices for `type: enum`. */
+	values?: string[],
+	/**  Catalog directory feeding the choices for `type: enum` (with `field`). */
+	from?: string | null,
+	field?: string | null,
+};
+
+export type InputType = "string" | "enum";
+
+/**  Kubernetes-style envelope shared by every kind. */
+export type Manifest<S> = {
+	apiVersion: string,
+	kind: string,
+	metadata: Metadata,
+	spec: S,
+};
+
+export type Metadata = {
+	name: string,
+	title?: string | null,
+	version?: string | null,
+	description?: string | null,
+};
+
+export type Permissions = {
+	/**  Extra origins, e.g. `https://gitlab.acme`. */
+	hosts?: string[],
+};
+
+/**  The configured platform repo. */
+export type RepoSource = {
+	id: number,
+	url: string,
+	branch: string,
+	/**  App-owned clone. */
+	local_path: string,
+	/**  `None` until the first sync is applied. */
+	synced_commit: string | null,
+	synced_at: number | null,
+	approved_capability_hash: string | null,
+};
+
+export type Severity = "error" | "warning";
+
+export type Source = { type: "file"; 
+/**  Relative to the widget directory; must stay inside the repo. */
+path: string; glob?: string | null } | { type: "command"; executable: string; args?: string[]; timeout?: string | null } | { type: "http"; url: string; method?: HttpMethod; headers?: { [key in string]: string } };
+
+/**
+ *  What a sync would do. Held by the engine between `plan_sync` and `apply_sync`,
+ *  so the frontend reviews it but can never supply or alter it.
+ */
+export type SyncPlan = {
+	from_commit: string | null,
+	to_commit: string,
+	platform_changed: boolean,
+	widgets: Changes,
+	dashboards: Changes,
+	diagnostics: Diagnostic[],
+	capabilities: CapabilitySet,
+	capability_hash: string,
+	/**  The capability set differs from what the user last approved. */
+	needs_consent: boolean,
+};
+
+export type View = {
+	type: ViewType,
+	columns?: Column[],
+	/**  Static markdown body for `type: markdown` widgets without a source. */
+	content?: string | null,
+};
+
+export type ViewType = "table" | "list" | "card" | "kv" | "raw" | "markdown";
+
+export type WidgetSpec = {
+	/**  Absent for static (view-only) widgets. */
+	source?: Source | null,
+	refresh?: string | null,
+	/**  Per-placement inputs; available as `{{ inputs.<key> }}`. */
+	inputs?: { [key in string]: InputDef },
+	view: View,
+	/**  Only widens what is derived from `source`. */
+	permissions?: Permissions,
+};
+
+/* Tauri Specta runtime */
+async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
+    try {
+        return { status: "ok", data: await result };
+    } catch (e) {
+        if (e instanceof Error) throw e;
+        return { status: "error", error: e as any };
+    }
+}
 

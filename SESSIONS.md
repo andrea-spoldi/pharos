@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**S-003** — Slice 2a engine (T-003a) — **done**. Next: T-003b sync UI (M)
+**S-004** — Slice 2b sync UI (T-003b) — **in progress**
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -13,7 +13,7 @@
 | T-001 | 0 | Scaffold + typed IPC + strict CSP + CI | S | done |
 | T-002 | 1 | Manifest crate + `cockpit lint` | M | done |
 | T-003a | 2 | Engine: clone/sync via git, changelog, consent, snapshot | M | done |
-| T-003b | 2 | UI: Tauri commands, onboarding, consent screen, Sync now | M | pending |
+| T-003b | 2 | UI: Tauri commands, onboarding, consent screen, Sync now | M | in-progress |
 | T-004 | 3 | File executor + table/list/card views | M | pending |
 | T-005 | 4 | Platform dashboards (read-only) | M | pending |
 | T-006 | 5 | User inputs + secrets | M | pending |
@@ -31,18 +31,18 @@
   "project": "developer-cockpit-v2",
   "updated": "2026-10-27",
   "current_session": {
-    "id": "S-003",
-    "goal": "Slice 2a: cockpit-engine crate with source clone/sync via system git, lint, changelog, capability consent and SQLite snapshot",
-    "task_ref": "T-003a",
+    "id": "S-004",
+    "goal": "Slice 2b: Tauri commands over cockpit_engine::Engine (Mutex state, spawn_blocking), specta-exported types, first-run screen, consent screen, widget list, Sync now + changelog, discard; demo docs/demos/02-sync.md",
+    "task_ref": "T-003b",
     "started": "2026-10-27",
-    "status": "done",
+    "status": "in-progress",
     "blocker": null
   },
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
     {"id": "T-002", "title": "Manifest crate + cockpit lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
     {"id": "T-003a", "title": "Engine: source clone/sync, changelog, consent, snapshot", "description": "crates/cockpit-engine: rusqlite_migration schema, system git clone/fetch/reset, plan -> consent -> apply/discard held in the engine, tests against temp git repos", "size": "M", "priority": 3, "status": "done", "tags": ["slice-2", "git", "consent", "engine"]},
-    {"id": "T-003b", "title": "UI: source onboarding + sync screens", "description": "Tauri commands via tauri-specta, first-run screen (URL/path + branch, git check), capability consent, widget list, Sync now + changelog. Demo docs/demos/02-sync.md", "size": "M", "priority": 4, "status": "pending", "tags": ["slice-2", "ui", "consent"]},
+    {"id": "T-003b", "title": "UI: source onboarding + sync screens", "description": "Tauri commands via tauri-specta, first-run screen (URL/path + branch, git check), capability consent, widget list, Sync now + changelog. Demo docs/demos/02-sync.md", "size": "M", "priority": 4, "status": "in-progress", "tags": ["slice-2", "ui", "consent"]},
     {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "pending", "tags": ["slice-3", "engine", "views"]},
     {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "pending", "tags": ["slice-4", "ui"]},
     {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "pending", "tags": ["slice-5", "secrets"]},
@@ -70,7 +70,10 @@
     {"id": "D-012", "date": "2026-10-27", "decision": "File source paths resolve from the widget dir; input `from` and discovery dirs resolve from the repo root; all confined to the repo root (lexical + canonical/symlink check). Dashboard grid is 12 columns", "rationale": "Matches restart-plan examples; confine() is public for the engine to reuse at execution time", "supersedes": null},
     {"id": "D-013", "date": "2026-10-27", "decision": "YAML via serde_yaml_ng + serde_path_to_error; envelope (apiVersion/kind) checked on an untyped Value before the typed parse", "rationale": "serde_yaml is unmaintained; peeking the kind gives 'expected Widget, found Dashboard' instead of field noise", "supersedes": null},
     {"id": "D-014", "date": "2026-10-27", "decision": "The sync plan is held inside the Engine between plan_sync and apply_sync(consent); the frontend only reviews it. apply refuses on lint errors (whole sync, no partial apply), on a moved clone (StalePlan), and on capability drift without consent. discard_sync resets the clone to the last applied commit", "rationale": "Frontend cannot forge what gets stored; files on disk always match the stored snapshot, which the file executor (slice 3) relies on", "supersedes": null},
-    {"id": "D-015", "date": "2026-10-27", "decision": "git runs with GIT_TERMINAL_PROMPT=0; clone uses --single-branch --branch=<b> -- <url>; branch names starting with '-' are rejected", "rationale": "No hanging credential prompts inside the app; no option injection via url/branch", "supersedes": null}
+    {"id": "D-015", "date": "2026-10-27", "decision": "git runs with GIT_TERMINAL_PROMPT=0; clone uses --single-branch --branch=<b> -- <url>; branch names starting with '-' are rejected", "rationale": "No hanging credential prompts inside the app; no option injection via url/branch", "supersedes": null},
+    {"id": "D-016", "date": "2026-10-27", "decision": "specta::Type derives sit behind an optional `specta` feature on cockpit-manifest and cockpit-engine; only src-tauri enables it. The engine's Source is exported to TS as RepoSource (serde container rename)", "rationale": "Bindings use the real domain types without pulling specta into the CLI; name clash with the widget Source", "supersedes": null},
+    {"id": "D-017", "date": "2026-10-27", "decision": "git runs with stdin closed in its own process group, killed after 120s; GIT_ALLOW_PROTOCOL=file:git:http:https:ssh; clone/fetch set GIT_SSH_COMMAND='ssh -o BatchMode=yes' unless GIT_SSH_COMMAND, GIT_SSH or core.sshCommand is set", "rationale": "Closes the T-003a hang gap (host-key/passphrase prompts); repo URLs are user-typed in onboarding, so ext:: must be refused", "supersedes": "D-015"},
+    {"id": "D-018", "date": "2026-10-27", "decision": "tauri-specta export uses disable_serde_phases(); i64/usize fields are exported as u32 via specta(type)", "rationale": "Phased mode left Manifest<S> unresolved for type aliases; unified types are looser (field?: T | null) but a safe superset. Specta forbids bigint-style ints", "supersedes": null}
   ],
   "completed": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "completed_date": "2026-10-27", "session_ref": "S-001", "notes": "pong verified in real app by user. CI workflow written but not yet run on GitHub (no remote). Icons are placeholders."},

@@ -6,6 +6,7 @@ pub const API_VERSION: &str = "cockpit.dev/v1alpha1";
 /// Kubernetes-style envelope shared by every kind.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Manifest<S> {
     pub api_version: String,
     pub kind: String,
@@ -15,6 +16,7 @@ pub struct Manifest<S> {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Metadata {
     pub name: String,
     #[serde(default)]
@@ -33,6 +35,7 @@ pub type Dashboard = Manifest<DashboardSpec>;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PlatformSpec {
     /// Asked once per user; available to widgets as `{{ user.<key> }}`.
     #[serde(default)]
@@ -57,6 +60,7 @@ fn default_dashboards_dir() -> String {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct InputDef {
     #[serde(rename = "type")]
     pub kind: InputType,
@@ -78,6 +82,7 @@ pub struct InputDef {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum InputType {
     String,
     Enum,
@@ -85,6 +90,7 @@ pub enum InputType {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SecretDef {
     pub name: String,
     #[serde(default)]
@@ -95,6 +101,7 @@ pub struct SecretDef {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct WidgetSpec {
     /// Absent for static (view-only) widgets.
     #[serde(default)]
@@ -112,6 +119,7 @@ pub struct WidgetSpec {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase", deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Source {
     File {
         /// Relative to the widget directory; must stay inside the repo.
@@ -137,6 +145,7 @@ pub enum Source {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum HttpMethod {
     #[default]
     Get,
@@ -145,6 +154,7 @@ pub enum HttpMethod {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct View {
     #[serde(rename = "type")]
     pub kind: ViewType,
@@ -157,6 +167,7 @@ pub struct View {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ViewType {
     Table,
     List,
@@ -168,6 +179,7 @@ pub enum ViewType {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Column {
     /// Dot path into each row, e.g. `metadata.name`.
     pub field: String,
@@ -177,6 +189,7 @@ pub struct Column {
 
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Permissions {
     /// Extra origins, e.g. `https://gitlab.acme`.
     #[serde(default)]
@@ -190,6 +203,7 @@ pub const GRID_COLUMNS: u32 = 12;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct DashboardSpec {
     #[serde(default)]
     pub widgets: Vec<Placement>,
@@ -197,6 +211,7 @@ pub struct DashboardSpec {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Placement {
     pub widget: String,
     pub x: u32,

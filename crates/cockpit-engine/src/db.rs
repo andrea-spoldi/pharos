@@ -17,7 +17,12 @@ pub fn open(path: &std::path::Path) -> Result<Connection, crate::EngineError> {
 
 /// The configured platform repo.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+// Only renames the TS type (a widget `Source` already exists); JSON is unaffected.
+#[serde(rename = "RepoSource")]
 pub struct Source {
+    // Row ids and unix seconds stay far below 2^53, so `number` is lossless.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub id: i64,
     pub url: String,
     pub branch: String,
@@ -25,6 +30,7 @@ pub struct Source {
     pub local_path: PathBuf,
     /// `None` until the first sync is applied.
     pub synced_commit: Option<String>,
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub synced_at: Option<i64>,
     pub approved_capability_hash: Option<String>,
 }

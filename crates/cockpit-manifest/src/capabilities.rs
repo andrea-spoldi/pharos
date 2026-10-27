@@ -11,6 +11,7 @@ use url::Url;
 
 /// What a widget may touch, derived from its `source` (plus `permissions` widening).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Capabilities {
     /// Origins, e.g. `https://gitlab.com`.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
@@ -31,6 +32,7 @@ impl Capabilities {
 /// Capabilities of every widget in a repo, keyed by widget name. This is what users consent to.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CapabilitySet {
     pub widgets: BTreeMap<String, Capabilities>,
 }

@@ -1,3 +1,8 @@
+mod commands;
+
+use cockpit_engine::Engine;
+use commands::AppState;
+use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 
 pub const BINDINGS_PATH: &str = "../app/src/bindings.ts";
@@ -10,7 +15,19 @@ fn ping() -> String {
 
 /// Single source of truth for the IPC surface. Bindings are generated from this.
 pub fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![ping])
+    Builder::<tauri::Wry>::new()
+        .disable_serde_phases()
+        .commands(collect_commands![
+            ping,
+            commands::git_version,
+            commands::get_source,
+            commands::add_source,
+            commands::plan_sync,
+            commands::pending_sync,
+            commands::apply_sync,
+            commands::discard_sync,
+            commands::list_widgets,
+        ])
 }
 
 pub fn export_bindings(builder: &Builder<tauri::Wry>, path: &str) {
@@ -29,6 +46,8 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            let engine = Engine::open(&app.path().app_data_dir()?)?;
+            app.manage(AppState::new(engine));
             Ok(())
         })
         .run(tauri::generate_context!())

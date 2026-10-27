@@ -13,9 +13,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
+cockpit-engine = { workspace = true, features = ["specta"] }
+cockpit-manifest = { workspace = true, features = ["specta"] }
 tauri = { version = "2.12", features = [] }
-serde = { version = "1", features = ["derive"] }
-specta = { version = "=2.0.0-rc.26" }
+serde.workspace = true
+specta.workspace = true
 specta-typescript = "0.0.13"
 tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
 
