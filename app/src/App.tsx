@@ -5,7 +5,7 @@ import { Home } from "./screens/Home";
 import { Onboarding } from "./screens/Onboarding";
 
 export function App() {
-  const [source, { mutate }] = createResource(() => unwrap(commands.getSource()));
+  const [source, { mutate, refetch }] = createResource(() => unwrap(commands.getSource()));
 
   return (
     <Switch>
@@ -17,11 +17,12 @@ export function App() {
           </div>
         </main>
       </Match>
-      <Match when={source.loading}>{null}</Match>
+      {/* Only the first load blanks the screen; a refetch after a sync keeps Home mounted. */}
+      <Match when={source.state === "pending"}>{null}</Match>
       <Match when={source() === null}>
         <Onboarding onConnected={(s) => mutate(s)} />
       </Match>
-      <Match when={source()}>{(s) => <Home source={s()} />}</Match>
+      <Match when={source()}>{(s) => <Home source={s()} onSynced={refetch} />}</Match>
     </Switch>
   );
 }

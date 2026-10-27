@@ -22,6 +22,18 @@ npm run dev
    `transport 'ext' not allowed`, and `ls /tmp/pwned` reports no such file.
 4. Enter `/tmp/platform`, branch `-x` → **That branch name isn't valid**.
 5. Branch `main` → **Connect** → the button reads **Cloning…**, then the window shows
-   **Local IDP** with `/tmp/platform · main`.
-6. Quit and run `npm run dev` again → the app opens on that screen, skipping onboarding.
-   (`~/…` paths work too: they are expanded before git sees them.)
+   **Local IDP** with `/tmp/platform · main` (`~/…` paths work too: they are expanded
+   before git sees them).
+6. Quit and run `npm run dev` again → onboarding is skipped.
+
+## Consent and widget list (part c)
+
+7. Right after connecting, and on every launch until something is applied, the app fetches and lints the repo and shows
+   **Review the platform repo**: `Widgets: added k8s-context, my-pipelines, service-catalog, welcome`,
+   `Dashboards: added home`, `Platform settings changed`, and
+   **What these widgets can do on your machine**: k8s-context *Run* `kubectl`,
+   my-pipelines *Call* `https://gitlab.com`, service-catalog *Read* `catalog/services`.
+8. **Discard** → *Nothing from the platform repo is applied yet.* → **Review the repo**
+   brings the same review back.
+9. **Approve and apply** → the header gains the short commit and **Widgets** lists four
+   cards, e.g. *Kubernetes Context* · `k8s-context` · raw view · command · kubectl.

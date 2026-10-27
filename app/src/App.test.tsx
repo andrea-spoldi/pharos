@@ -4,24 +4,27 @@ import { App } from "./App";
 import { commands } from "./bindings";
 
 vi.mock("./bindings", () => ({
-  commands: { getSource: vi.fn(), gitVersion: vi.fn() },
+  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), listWidgets: vi.fn() },
 }));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 
 const source = {
+  // Synced, so Home shows the widget list rather than planning a sync.
   id: 1,
   url: "git@gitlab.acme:platform/cockpit.git",
   branch: "main",
   local_path: "/data/sources/1",
-  synced_commit: null,
-  synced_at: null,
-  approved_capability_hash: null,
+  synced_commit: "a".repeat(40),
+  synced_at: 1_700_000_000,
+  approved_capability_hash: "sha256:x",
 };
 
 describe("App", () => {
   beforeEach(() => {
     vi.mocked(commands.gitVersion).mockResolvedValue(ok("git version 2.50.0"));
+    vi.mocked(commands.pendingSync).mockResolvedValue(ok(null));
+    vi.mocked(commands.listWidgets).mockResolvedValue(ok([]));
   });
 
   it("shows onboarding when no repo is connected", async () => {
@@ -35,6 +38,7 @@ describe("App", () => {
     render(() => <App />);
     expect((await screen.findByTestId("source")).textContent).toContain(source.url);
     expect(screen.queryByText("Connect your platform repo")).toBeNull();
+    expect(await screen.findByText("The platform repo defines no widgets.")).toBeTruthy();
   });
 
   it("reports unreadable local state", async () => {
