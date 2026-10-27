@@ -1,0 +1,13 @@
+{
+  "name": "local-idp-root",
+  "private": true,
+  "workspaces": ["app"],
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "check": "npm run typecheck -w app && npm test -w app"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4"
+  }
+}

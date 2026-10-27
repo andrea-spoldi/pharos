@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = ["src-tauri"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "UNLICENSED"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

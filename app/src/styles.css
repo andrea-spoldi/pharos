@@ -1,0 +1,23 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --font: system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --fg: #e6e6e6;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+}
+
+.app {
+  padding: 2rem;
+}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "session-planner": {
+      "source": "andrea-spoldi/session-planner",
+      "ref": "main",
+      "sourceType": "github",
+      "skillPath": "skills/session-planner/SKILL.md",
+      "computedHash": "d66c6e1261ef38f7f345be812ae36378c062b5b883102e3d0a44eb6d0dea2cf9"
+    }
+  }
+}
