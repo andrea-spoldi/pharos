@@ -65,7 +65,13 @@ export type Diagnostic = {
 };
 
 /**  What the UI branches on; `message` is for display only. */
-export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "internal";
+export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "unknownWidget" | 
+/**  Static widget, or a source type not supported yet. */
+"notRunnable" | 
+/**  Outside the repo or not approved. */
+"permissionDenied" | 
+/**  The widget's files could not be read or parsed. */
+"dataError" | "internal";
 
 export type HttpMethod = "GET" | "POST";
 

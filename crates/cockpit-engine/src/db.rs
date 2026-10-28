@@ -1,4 +1,5 @@
 use crate::sync::{Pending, Snapshot};
+use cockpit_manifest::CapabilitySet;
 use rusqlite::{Connection, OptionalExtension, params};
 use rusqlite_migration::{M, Migrations};
 use serde::Serialize;
@@ -100,6 +101,32 @@ pub fn manifests(
     ))?;
     stmt.query_map([source_id], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect()
+}
+
+/// A widget's repo-relative file and manifest JSON from the stored snapshot.
+pub fn widget(
+    conn: &Connection,
+    source_id: i64,
+    name: &str,
+) -> rusqlite::Result<Option<(String, String)>> {
+    conn.query_row(
+        "SELECT file, manifest FROM widgets WHERE source_id = ?1 AND name = ?2",
+        params![source_id, name],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+    .optional()
+}
+
+/// What the user consented to; empty until they have.
+pub fn approved_capabilities(conn: &Connection, source_id: i64) -> rusqlite::Result<CapabilitySet> {
+    let json: Option<String> = conn.query_row(
+        "SELECT approved_capabilities FROM sources WHERE id = ?1",
+        [source_id],
+        |r| r.get(0),
+    )?;
+    Ok(json
+        .map(|j| serde_json::from_str(&j).expect("stored capabilities are valid JSON"))
+        .unwrap_or_default())
 }
 
 pub fn store_snapshot(

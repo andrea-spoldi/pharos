@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**S-004** — Slice 2b sync UI (T-003b) — **done**. Next: T-004 file executor + views (M)
+**S-005** — Slice 3 file executor + views (T-004) — **in progress**
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -14,7 +14,7 @@
 | T-002 | 1 | Manifest crate + `cockpit lint` | M | done |
 | T-003a | 2 | Engine: clone/sync via git, changelog, consent, snapshot | M | done |
 | T-003b | 2 | UI: Tauri commands, onboarding, consent screen, Sync now | M | done |
-| T-004 | 3 | File executor + table/list/card views | M | pending |
+| T-004 | 3 | File executor + table/list/card views | M | in-progress |
 | T-005 | 4 | Platform dashboards (read-only) | M | pending |
 | T-006 | 5 | User inputs + secrets | M | pending |
 | T-007 | 6 | HTTP executor | S | pending |
@@ -29,13 +29,13 @@
 ```json
 {
   "project": "developer-cockpit-v2",
-  "updated": "2026-10-27",
+  "updated": "2026-10-28",
   "current_session": {
-    "id": "S-004",
-    "goal": "Slice 2b: Tauri commands over cockpit_engine::Engine (Mutex state, spawn_blocking), specta-exported types, first-run screen, consent screen, widget list, Sync now + changelog, discard; demo docs/demos/02-sync.md",
-    "task_ref": "T-003b",
-    "started": "2026-10-27",
-    "status": "done",
+    "id": "S-005",
+    "goal": "Slice 3: file executor in cockpit-engine (run_instance(id) from stored manifest, repo-confined canonicalised paths, glob, _source, 500-file cap, traversal test denies ../../etc), Tauri command, table/list/card views; service catalog renders from catalog/services/*.yaml; demo docs/demos/03-file-executor.md",
+    "task_ref": "T-004",
+    "started": "2026-10-28",
+    "status": "in-progress",
     "blocker": null
   },
   "backlog": [
@@ -43,7 +43,7 @@
     {"id": "T-002", "title": "Manifest crate + cockpit lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
     {"id": "T-003a", "title": "Engine: source clone/sync, changelog, consent, snapshot", "description": "crates/cockpit-engine: rusqlite_migration schema, system git clone/fetch/reset, plan -> consent -> apply/discard held in the engine, tests against temp git repos", "size": "M", "priority": 3, "status": "done", "tags": ["slice-2", "git", "consent", "engine"]},
     {"id": "T-003b", "title": "UI: source onboarding + sync screens", "description": "Tauri commands via tauri-specta, first-run screen (URL/path + branch, git check), capability consent, widget list, Sync now + changelog. Demo docs/demos/02-sync.md", "size": "M", "priority": 4, "status": "done", "tags": ["slice-2", "ui", "consent"]},
-    {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "pending", "tags": ["slice-3", "engine", "views"]},
+    {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "in-progress", "tags": ["slice-3", "engine", "views"]},
     {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "pending", "tags": ["slice-4", "ui"]},
     {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "pending", "tags": ["slice-5", "secrets"]},
     {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "S", "priority": 7, "status": "pending", "tags": ["slice-6", "engine"]},

@@ -2,7 +2,7 @@
 //! the engine shells out to git and holds a SQLite connection, and the lock must never
 //! be taken on the main thread.
 
-use cockpit_engine::{Engine, EngineError, GitError, Source, SyncPlan};
+use cockpit_engine::{Engine, EngineError, FileError, GitError, Source, SyncPlan};
 use cockpit_manifest::Widget;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
@@ -34,6 +34,13 @@ pub enum ErrorKind {
     LintErrors,
     ConsentRequired,
     StalePlan,
+    UnknownWidget,
+    /// Static widget, or a source type not supported yet.
+    NotRunnable,
+    /// Outside the repo or not approved.
+    PermissionDenied,
+    /// The widget's files could not be read or parsed.
+    DataError,
     Internal,
 }
 
@@ -56,6 +63,16 @@ impl From<EngineError> for CommandError {
             EngineError::LintErrors(_) => ErrorKind::LintErrors,
             EngineError::ConsentRequired => ErrorKind::ConsentRequired,
             EngineError::StalePlan => ErrorKind::StalePlan,
+            EngineError::UnknownWidget(_) => ErrorKind::UnknownWidget,
+            EngineError::NoDataSource(_) | EngineError::SourceNotSupported(_) => {
+                ErrorKind::NotRunnable
+            }
+            EngineError::File(FileError::Denied { .. } | FileError::NotApproved(_)) => {
+                ErrorKind::PermissionDenied
+            }
+            EngineError::File(
+                FileError::Glob(_) | FileError::Read { .. } | FileError::Parse { .. },
+            ) => ErrorKind::DataError,
             EngineError::Db(_) | EngineError::Migration(_) | EngineError::Io(_) => {
                 ErrorKind::Internal
             }

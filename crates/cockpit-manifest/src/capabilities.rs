@@ -4,13 +4,14 @@ use crate::load::{Loaded, Repo};
 use crate::paths::{confine, display_relative};
 use crate::template;
 use crate::validate::executable_problem;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use url::Url;
 
 /// What a widget may touch, derived from its `source` (plus `permissions` widening).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Capabilities {
     /// Origins, e.g. `https://gitlab.com`.
@@ -30,7 +31,7 @@ impl Capabilities {
 }
 
 /// Capabilities of every widget in a repo, keyed by widget name. This is what users consent to.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CapabilitySet {

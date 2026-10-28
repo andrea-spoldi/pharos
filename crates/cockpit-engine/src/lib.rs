@@ -6,6 +6,7 @@
 
 mod db;
 mod git;
+mod run;
 mod sync;
 
 use cockpit_manifest::{Dashboard, Widget};
@@ -17,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 pub use db::Source;
 pub use git::GitError;
+pub use run::{FileData, FileError, MAX_FILES};
 use sync::Pending;
 pub use sync::{Changes, SyncPlan};
 
@@ -44,6 +46,14 @@ pub enum EngineError {
     ConsentRequired,
     #[error("the local clone changed after the sync was planned; plan it again")]
     StalePlan,
+    #[error("no widget named `{0}`")]
+    UnknownWidget(String),
+    #[error("widget `{0}` has no data source")]
+    NoDataSource(String),
+    #[error("{0} sources are not supported yet")]
+    SourceNotSupported(&'static str),
+    #[error(transparent)]
+    File(#[from] FileError),
 }
 
 pub type Result<T> = std::result::Result<T, EngineError>;
@@ -193,6 +203,42 @@ impl Engine {
     /// Platform dashboards of the last applied sync, by name.
     pub fn dashboard_templates(&self) -> Result<Vec<Dashboard>> {
         self.load_manifests("dashboard_templates")
+    }
+
+    /// Runs a widget as of the last applied sync, within the capabilities the user approved.
+    pub fn run_widget(&self, name: &str) -> Result<FileData> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let (file, manifest) = db::widget(&self.conn, source.id, name)?
+            .ok_or_else(|| EngineError::UnknownWidget(name.into()))?;
+        let widget: Widget =
+            serde_json::from_str(&manifest).expect("stored manifests are valid JSON");
+        match widget.spec.source {
+            None => Err(EngineError::NoDataSource(name.into())),
+            Some(cockpit_manifest::Source::File { path, glob }) => {
+                let root = fs::canonicalize(&source.local_path)?;
+                let dir = root.join(&file);
+                let dir = dir.parent().expect("widget file has a parent");
+                let approved = db::approved_capabilities(&self.conn, source.id)?
+                    .widgets
+                    .remove(name)
+                    .map(|caps| caps.paths)
+                    .unwrap_or_default();
+                Ok(run::read_files(
+                    &root,
+                    dir,
+                    &path,
+                    glob.as_deref(),
+                    &approved,
+                    MAX_FILES,
+                )?)
+            }
+            Some(cockpit_manifest::Source::Command { .. }) => {
+                Err(EngineError::SourceNotSupported("command"))
+            }
+            Some(cockpit_manifest::Source::Http { .. }) => {
+                Err(EngineError::SourceNotSupported("http"))
+            }
+        }
     }
 
     fn load_manifests<T: DeserializeOwned>(&self, table: &str) -> Result<Vec<T>> {

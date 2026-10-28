@@ -439,11 +439,13 @@ name = "cockpit-engine"
 version = "0.1.0"
 dependencies = [
  "cockpit-manifest",
+ "globset",
  "libc",
  "rusqlite",
  "rusqlite_migration",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "specta",
  "tempfile",
  "thiserror 2.0.21",
