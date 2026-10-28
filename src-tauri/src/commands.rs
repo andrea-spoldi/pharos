@@ -2,8 +2,10 @@
 //! the engine shells out to git and holds a SQLite connection, and the lock must never
 //! be taken on the main thread.
 
-use cockpit_engine::{Engine, EngineError, FileData, FileError, GitError, Source, SyncPlan};
-use cockpit_manifest::Widget;
+use cockpit_engine::{
+    DashboardView, Engine, EngineError, FileData, FileError, GitError, Source, SyncPlan,
+};
+use cockpit_manifest::{Platform, Widget};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -176,6 +178,20 @@ pub async fn discard_sync(state: State<'_, AppState>) -> CmdResult<()> {
 #[specta::specta]
 pub async fn list_widgets(state: State<'_, AppState>) -> CmdResult<Vec<Widget>> {
     with_engine(state, |e| e.widgets()).await
+}
+
+/// Platform dashboards of the last applied sync, with each placement's status.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_dashboards(state: State<'_, AppState>) -> CmdResult<Vec<DashboardView>> {
+    with_engine(state, |e| e.dashboards()).await
+}
+
+/// `cockpit.yaml` of the last applied sync; `None` before the first apply.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_platform(state: State<'_, AppState>) -> CmdResult<Option<Platform>> {
+    with_engine(state, |e| e.platform()).await
 }
 
 /// The frontend names the widget only; what is read, and from where, comes from the
