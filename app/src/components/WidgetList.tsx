@@ -1,6 +1,7 @@
-import { createResource, For, Match, Switch } from "solid-js";
+import { createResource, For, Match, Show, Switch } from "solid-js";
 import { commands, type WidgetSpec } from "../bindings";
 import { unwrap } from "../ipc";
+import { WidgetData } from "./WidgetData";
 
 function sourceSummary(spec: WidgetSpec): string {
   const s = spec.source;
@@ -15,7 +16,7 @@ function sourceSummary(spec: WidgetSpec): string {
   }
 }
 
-/** Widgets of the last applied sync. They run from slice 3 on. Bump `version` to reload. */
+/** Widgets of the last applied sync; file widgets run and show their data. Bump `version` to reload. */
 export function WidgetList(props: { version: number }) {
   const [widgets] = createResource(
     () => props.version,
@@ -42,6 +43,9 @@ export function WidgetList(props: { version: number }) {
                   <p class="muted">
                     <code>{w.metadata.name}</code> · {w.spec.view.type} view · {sourceSummary(w.spec)}
                   </p>
+                  <Show when={w.spec.source?.type === "file"}>
+                    <WidgetData widget={w} version={props.version} />
+                  </Show>
                 </li>
               )}
             </For>
