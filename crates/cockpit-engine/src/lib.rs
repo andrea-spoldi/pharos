@@ -4,6 +4,7 @@
 //! against the stored snapshot; the plan stays inside the engine until `apply_sync`
 //! (with consent if capabilities changed) or `discard_sync`.
 
+mod dashboard;
 mod db;
 mod git;
 mod run;
@@ -16,6 +17,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub use dashboard::{DashboardView, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
 pub use run::{FileData, FileError, MAX_FILES};
