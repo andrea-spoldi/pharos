@@ -21,6 +21,7 @@ export const commands = {
 	applySync: (consent: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { consent })),
 	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
+	listDashboards: () => typedError<Manifest<DashboardSpec>[], CommandError>(__TAURI_INVOKE("list_dashboards")),
 	/**
 	 *  The frontend names the widget only; what is read, and from where, comes from the
 	 *  stored manifest and the approved capabilities.
@@ -57,6 +58,10 @@ export type Column = {
 export type CommandError = {
 	kind: ErrorKind,
 	message: string,
+};
+
+export type DashboardSpec = {
+	widgets?: Placement[],
 };
 
 /**  One finding, located by repo-relative file and a dotted path into the document. */
@@ -127,6 +132,15 @@ export type Metadata = {
 export type Permissions = {
 	/**  Extra origins, e.g. `https://gitlab.acme`. */
 	hosts?: string[],
+};
+
+export type Placement = {
+	widget: string,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	inputs?: { [key in string]: string },
 };
 
 /**  The configured platform repo. */

@@ -3,7 +3,7 @@
 //! be taken on the main thread.
 
 use cockpit_engine::{Engine, EngineError, FileData, FileError, GitError, Source, SyncPlan};
-use cockpit_manifest::Widget;
+use cockpit_manifest::{Dashboard, Widget};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -176,6 +176,12 @@ pub async fn discard_sync(state: State<'_, AppState>) -> CmdResult<()> {
 #[specta::specta]
 pub async fn list_widgets(state: State<'_, AppState>) -> CmdResult<Vec<Widget>> {
     with_engine(state, |e| e.widgets()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_dashboards(state: State<'_, AppState>) -> CmdResult<Vec<Dashboard>> {
+    with_engine(state, |e| e.dashboard_templates()).await
 }
 
 /// The frontend names the widget only; what is read, and from where, comes from the

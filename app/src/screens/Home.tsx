@@ -2,7 +2,7 @@ import { createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { ChangeLine, shortCommit, SyncReview } from "../components/SyncReview";
-import { WidgetList } from "../components/WidgetList";
+import { Dashboards } from "../components/Dashboard";
 
 const errorCount = (plan: SyncPlan) => plan.diagnostics.filter((d) => d.severity === "error").length;
 
@@ -89,8 +89,8 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
   });
 
   return (
-    <main class="screen">
-      <header class="row spread">
+    <main class="screen wide">
+      <header class="row spread topbar">
         <div>
           <h1>Local IDP</h1>
           <p class="muted" data-testid="source">
@@ -172,7 +172,7 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
           )}
         </Match>
         <Match when={!neverSynced()}>
-          <WidgetList version={widgetsVersion()} />
+          <Dashboards version={widgetsVersion()} />
         </Match>
         <Match when={!busy() && !error()}>
           <div class="notice">
