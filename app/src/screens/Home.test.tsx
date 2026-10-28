@@ -1,7 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { fireEvent, render as renderUi, screen, waitFor } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commands, type RepoSource, type SyncPlan } from "../bindings";
+import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
 import { Home } from "./Home";
+
+window.scrollTo = vi.fn() as typeof window.scrollTo;
+
+/** Home lives inside the router (`#/d/:name`), as in index.tsx. */
+const render = (ui: () => JSX.Element) =>
+  renderUi(() => (
+    <MemoryRouter history={createMemoryHistory()}>
+      <Route path={["/", "/d/:name"]} component={ui} />
+    </MemoryRouter>
+  ));
 
 vi.mock("../bindings", () => ({
   commands: {
@@ -9,7 +21,9 @@ vi.mock("../bindings", () => ({
     planSync: vi.fn(),
     applySync: vi.fn(),
     discardSync: vi.fn(),
-    listWidgets: vi.fn(),
+    listDashboards: vi.fn(),
+    getPlatform: vi.fn(),
+    runWidget: vi.fn(),
   },
 }));
 
@@ -42,17 +56,37 @@ const firstPlan: SyncPlan = {
   needs_consent: true,
 };
 
-const widget = {
+const home: DashboardView = {
+  metadata: { name: "home", title: "Home", version: null, description: null },
+  placements: [
+    {
+      widget: "k8s-context",
+      x: 0,
+      y: 0,
+      w: 4,
+      h: 2,
+      manifest: {
+        apiVersion: "cockpit.dev/v1alpha1",
+        kind: "Widget",
+        metadata: { name: "k8s-context", title: "Kubernetes Context", version: null, description: null },
+        spec: {
+          source: { type: "command", executable: "kubectl", args: [], timeout: null },
+          refresh: null,
+          inputs: {},
+          view: { type: "kv", columns: [], content: null },
+          permissions: { hosts: [] },
+        },
+      },
+      status: { kind: "notAvailable", feature: "command sources" },
+      reads: null,
+    },
+  ],
+};
+const platform = {
   apiVersion: "cockpit.dev/v1alpha1",
-  kind: "Widget",
-  metadata: { name: "k8s-context", title: "Kubernetes Context", version: null, description: null },
-  spec: {
-    source: { type: "command" as const, executable: "kubectl", args: [], timeout: null },
-    refresh: null,
-    inputs: {},
-    view: { type: "kv" as const, columns: [], content: null },
-    permissions: { hosts: [] },
-  },
+  kind: "Platform",
+  metadata: { name: "acme-platform", title: "ACME Developer Portal", version: null, description: null },
+  spec: { inputs: {}, secrets: [], widgets: "widgets/", dashboards: "dashboards/" },
 };
 
 describe("Home", () => {
@@ -62,7 +96,8 @@ describe("Home", () => {
     vi.mocked(commands.planSync).mockResolvedValue(ok(firstPlan));
     vi.mocked(commands.applySync).mockResolvedValue(ok(null));
     vi.mocked(commands.discardSync).mockResolvedValue(ok(null));
-    vi.mocked(commands.listWidgets).mockResolvedValue(ok([widget]));
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([home]));
+    vi.mocked(commands.getPlatform).mockResolvedValue(ok(platform));
   });
 
   it("plans the first sync and asks consent for capabilities by widget", async () => {
@@ -147,13 +182,12 @@ describe("Home", () => {
       widgets: { ...none, changed: ["my-pipelines"] },
     };
 
-    it("syncs on launch while the widgets stay listed", async () => {
+    it("syncs on launch while the dashboard stays shown", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
       render(() => <Home source={synced} onSynced={() => {}} />);
 
-      const list = await screen.findByTestId("widgets");
-      expect(list.textContent).toContain("Kubernetes Context");
-      expect(list.textContent).toContain("command · kubectl");
+      expect(await screen.findByText("Kubernetes Context")).toBeTruthy();
+      expect(screen.getByText("command sources arrive in a later version.")).toBeTruthy();
       expect(await screen.findByTestId("up-to-date")).toBeTruthy();
       expect(commands.planSync).toHaveBeenCalledTimes(1);
       // The no-op plan is dropped so it is not offered for review later.
@@ -173,7 +207,7 @@ describe("Home", () => {
       expect(changelog.textContent).toContain("changed my-pipelines");
       expect(commands.applySync).toHaveBeenCalledWith(false);
       expect(onSynced).toHaveBeenCalled();
-      await waitFor(() => expect(commands.listWidgets).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
     });
 
     it("asks again when capabilities changed", async () => {
@@ -186,7 +220,7 @@ describe("Home", () => {
       expect(screen.queryByText("Sync now")).toBeNull();
     });
 
-    it("keeps the widgets when the sync fails", async () => {
+    it("keeps the dashboard when the sync fails", async () => {
       vi.mocked(commands.planSync).mockResolvedValue({
         status: "error",
         error: { kind: "git", message: "`git fetch --quiet --prune origin main` failed: offline" },
@@ -194,8 +228,22 @@ describe("Home", () => {
       render(() => <Home source={synced} onSynced={() => {}} />);
 
       expect((await screen.findByRole("alert")).textContent).toContain("offline");
-      expect(await screen.findByTestId("widgets")).toBeTruthy();
+      expect(await screen.findByRole("navigation", { name: "Dashboards" })).toBeTruthy();
       expect(screen.getByText("Try again")).toBeTruthy();
+    });
+
+    it("shows the platform title", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      render(() => <Home source={synced} onSynced={() => {}} />);
+      expect(await screen.findByRole("heading", { level: 1, name: "ACME Developer Portal" })).toBeTruthy();
+    });
+
+    it("falls back to Local IDP", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      vi.mocked(commands.getPlatform).mockResolvedValue(ok(null));
+      render(() => <Home source={synced} onSynced={() => {}} />);
+      await screen.findByTestId("up-to-date");
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Local IDP");
     });
   });
 });

@@ -1,16 +1,27 @@
-import { render, screen } from "@solidjs/testing-library";
+import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { render as renderUi, screen } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { commands } from "./bindings";
 
+window.scrollTo = vi.fn() as typeof window.scrollTo;
+
+const render = (ui: () => JSX.Element) =>
+  renderUi(() => (
+    <MemoryRouter history={createMemoryHistory()}>
+      <Route path={["/", "/d/:name"]} component={ui} />
+    </MemoryRouter>
+  ));
+
 vi.mock("./bindings", () => ({
-  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listWidgets: vi.fn() },
+  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listDashboards: vi.fn(), getPlatform: vi.fn() },
 }));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 
 const source = {
-  // Synced, so Home shows the widget list rather than planning a sync.
+  // Synced, so Home shows the dashboards rather than planning a sync.
   id: 1,
   url: "git@gitlab.acme:platform/cockpit.git",
   branch: "main",
@@ -24,7 +35,8 @@ describe("App", () => {
   beforeEach(() => {
     vi.mocked(commands.gitVersion).mockResolvedValue(ok("git version 2.50.0"));
     vi.mocked(commands.pendingSync).mockResolvedValue(ok(null));
-    vi.mocked(commands.listWidgets).mockResolvedValue(ok([]));
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([]));
+    vi.mocked(commands.getPlatform).mockResolvedValue(ok(null));
     // Home syncs on launch; leave it in flight, the sync flow is covered in Home.test.tsx.
     vi.mocked(commands.planSync).mockReturnValue(new Promise(() => {}));
   });
@@ -40,7 +52,7 @@ describe("App", () => {
     render(() => <App />);
     expect((await screen.findByTestId("source")).textContent).toContain(source.url);
     expect(screen.queryByText("Connect your platform repo")).toBeNull();
-    expect(await screen.findByText("The platform repo defines no widgets.")).toBeTruthy();
+    expect(await screen.findByText("The platform repo defines no dashboards yet.")).toBeTruthy();
   });
 
   it("reports unreadable local state", async () => {
