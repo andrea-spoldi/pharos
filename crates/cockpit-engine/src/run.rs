@@ -12,11 +12,31 @@ use std::path::{Path, PathBuf};
 pub const MAX_FILES: usize = 500;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FileData {
     /// One per file (one per item for a top-level list), each with `_source`: the
     /// repo-relative file it came from. Non-object values are wrapped as `{ value }`.
+    #[cfg_attr(
+        feature = "specta",
+        specta(type = Vec<std::collections::BTreeMap<String, JsonValue>>)
+    )]
     pub rows: Vec<Value>,
     pub truncated: bool,
+}
+
+/// TS shape of `serde_json::Value`, which specta refuses for its i64 numbers (D-018).
+/// Only used for the bindings.
+#[cfg(feature = "specta")]
+#[derive(Serialize, specta::Type)]
+#[serde(untagged)]
+#[allow(dead_code)]
+pub enum JsonValue {
+    Null,
+    Bool(bool),
+    Number(f64),
+    String(String),
+    Array(Vec<JsonValue>),
+    Object(std::collections::BTreeMap<String, JsonValue>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

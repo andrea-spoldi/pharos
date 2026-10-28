@@ -2,7 +2,7 @@
 //! the engine shells out to git and holds a SQLite connection, and the lock must never
 //! be taken on the main thread.
 
-use cockpit_engine::{Engine, EngineError, FileError, GitError, Source, SyncPlan};
+use cockpit_engine::{Engine, EngineError, FileData, FileError, GitError, Source, SyncPlan};
 use cockpit_manifest::Widget;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
@@ -178,6 +178,14 @@ pub async fn list_widgets(state: State<'_, AppState>) -> CmdResult<Vec<Widget>> 
     with_engine(state, |e| e.widgets()).await
 }
 
+/// The frontend names the widget only; what is read, and from where, comes from the
+/// stored manifest and the approved capabilities.
+#[tauri::command]
+#[specta::specta]
+pub async fn run_widget(state: State<'_, AppState>, name: String) -> CmdResult<FileData> {
+    with_engine(state, move |e| e.run_widget(&name)).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,6 +209,33 @@ mod tests {
             (EngineError::ConsentRequired, ErrorKind::ConsentRequired),
             (EngineError::StalePlan, ErrorKind::StalePlan),
             (EngineError::LintErrors(2), ErrorKind::LintErrors),
+            (
+                EngineError::UnknownWidget("w".into()),
+                ErrorKind::UnknownWidget,
+            ),
+            (
+                EngineError::NoDataSource("w".into()),
+                ErrorKind::NotRunnable,
+            ),
+            (
+                EngineError::SourceNotSupported("http"),
+                ErrorKind::NotRunnable,
+            ),
+            (
+                EngineError::File(FileError::NotApproved("data".into())),
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                EngineError::File(FileError::Denied {
+                    path: "../../etc".into(),
+                    reason: cockpit_manifest::ConfineError::Escapes,
+                }),
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                EngineError::File(FileError::Glob("bad".into())),
+                ErrorKind::DataError,
+            ),
         ];
         for (err, kind) in cases {
             let message = err.to_string();

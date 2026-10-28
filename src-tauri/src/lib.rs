@@ -27,6 +27,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::apply_sync,
             commands::discard_sync,
             commands::list_widgets,
+            commands::run_widget,
         ])
 }
 

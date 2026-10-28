@@ -21,6 +21,11 @@ export const commands = {
 	applySync: (consent: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { consent })),
 	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
+	/**
+	 *  The frontend names the widget only; what is read, and from where, comes from the
+	 *  stored manifest and the approved capabilities.
+	 */
+	runWidget: (name: string) => typedError<FileData, CommandError>(__TAURI_INVOKE("run_widget", { name })),
 };
 
 /* Types */
@@ -73,6 +78,15 @@ export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | 
 /**  The widget's files could not be read or parsed. */
 "dataError" | "internal";
 
+export type FileData = {
+	/**
+	 *  One per file (one per item for a top-level list), each with `_source`: the
+	 *  repo-relative file it came from. Non-object values are wrapped as `{ value }`.
+	 */
+	rows: { [key in string]: JsonValue }[],
+	truncated: boolean,
+};
+
 export type HttpMethod = "GET" | "POST";
 
 export type InputDef = {
@@ -88,6 +102,12 @@ export type InputDef = {
 };
 
 export type InputType = "string" | "enum";
+
+/**
+ *  TS shape of `serde_json::Value`, which specta refuses for its i64 numbers (D-018).
+ *  Only used for the bindings.
+ */
+export type JsonValue = null | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
 
 /**  Kubernetes-style envelope shared by every kind. */
 export type Manifest<S> = {
