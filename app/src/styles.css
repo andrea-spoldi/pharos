@@ -274,3 +274,146 @@ h3 {
   margin: 0;
   word-break: break-word;
 }
+
+/* Dashboards: tabs, grid, widget frame */
+.screen.wide {
+  max-width: none;
+  padding: var(--space-3) var(--space-4);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab[aria-current="page"] {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.more {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  z-index: 1;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 80px;
+  gap: var(--space-3);
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.widget-head {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.widget-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: var(--muted);
+}
+
+.state p {
+  margin: var(--space-1) 0 0;
+  max-width: 28rem;
+}
+
+.state.danger strong {
+  color: var(--danger);
+}
+
+.state.setup strong {
+  color: var(--accent);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeleton span {
+  height: 0.9rem;
+  border-radius: var(--radius);
+  background: var(--border);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton span:nth-child(2) {
+  width: 80%;
+}
+
+.skeleton span:nth-child(3) {
+  width: 60%;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.markdown h3 {
+  margin: 0 0 var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+
+  .widget {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    max-height: 24rem;
+  }
+}
