@@ -38,6 +38,38 @@ function renderAt(path: string, version: () => number = () => 0) {
   return history;
 }
 
+const rows = { rows: [{ metadata: { name: "payment-service" }, _source: "p.yaml" }], truncated: false };
+
+/** A fresh list with one runnable file widget; new objects on every call, as after a sync. */
+function runnableHome(): DashboardView {
+  return {
+    metadata: { name: "home", title: "Home", version: null, description: null },
+    placements: [
+      {
+        widget: "service-catalog",
+        x: 0,
+        y: 0,
+        w: 8,
+        h: 4,
+        manifest: {
+          apiVersion: "cockpit.dev/v1alpha1",
+          kind: "Widget",
+          metadata: { name: "service-catalog", title: "Service Catalog", version: null, description: null },
+          spec: {
+            source: { type: "file", path: "../../catalog/services/", glob: "*.yaml" },
+            refresh: null,
+            inputs: {},
+            view: { type: "table", columns: [{ field: "metadata.name", label: "Service" }], content: null },
+            permissions: { hosts: [] },
+          },
+        },
+        status: { kind: "runnable" },
+        reads: "catalog/services/*.yaml",
+      },
+    ],
+  };
+}
+
 const tab = (name: string) => screen.getByRole("button", { name });
 
 describe("Dashboards", () => {
@@ -106,5 +138,42 @@ describe("Dashboards", () => {
     setVersion(1);
     await waitFor(() => expect(history.get()).toBe("/d/home"));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
+  });
+
+  it("keeps widget data visible across a re-sync", async () => {
+    vi.mocked(commands.listDashboards).mockImplementation(async () => ok([runnableHome()]));
+    vi.mocked(commands.runWidget).mockReset().mockResolvedValue(ok(rows));
+    const [version, setVersion] = createSignal(0);
+    renderAt("/d/home", version);
+    await screen.findByText("payment-service");
+
+    vi.mocked(commands.runWidget).mockReturnValue(new Promise(() => {}));
+    setVersion(1);
+    await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(commands.runWidget).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByText("payment-service")).toBeTruthy();
+    expect(screen.queryByLabelText("Loading")).toBeNull();
+    expect(commands.runWidget).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a failed load", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue({
+      status: "error",
+      error: { kind: "internal", message: "database is locked" },
+    });
+    renderAt("/");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Could not load dashboards");
+    expect(alert.textContent).toContain("database is locked");
+  });
+
+  it("marks More as active when the current dashboard is in the menu", async () => {
+    const names = ["home", "a", "b", "c", "d", "e", "f"];
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
+    renderAt("/d/e");
+    const more = await screen.findByRole("button", { name: "More ▾" });
+    expect(more.classList.contains("active")).toBe(true);
+    expect(tab("Home").getAttribute("aria-current")).toBeNull();
   });
 });

@@ -86,9 +86,10 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
 
 /** Keyed on the sync version; a re-run keeps the previous rows on screen (no skeleton flash). */
 function Run(props: { widget: Manifest<WidgetSpec>; reads: string | null; version: number }) {
+  // A string key, so a new manifest object with the same name and version doesn't re-run.
   const [data] = createResource(
-    () => [props.widget.metadata.name, props.version] as const,
-    ([name]) => unwrap(commands.runWidget(name)),
+    () => `${props.version}:${props.widget.metadata.name}`,
+    (key) => unwrap(commands.runWidget(key.slice(key.indexOf(":") + 1))),
   );
   const view = () => views[props.widget.spec.view.type as keyof typeof views];
 

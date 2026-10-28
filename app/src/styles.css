@@ -302,7 +302,8 @@ h3 {
   cursor: pointer;
 }
 
-.tab[aria-current="page"] {
+.tab[aria-current="page"],
+.tab.active {
   color: var(--fg);
   border-bottom-color: var(--accent);
   font-weight: 600;

@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { createEffect, createResource, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
+import { createEffect, createResource, createSignal, For, Index, Match, onCleanup, Show, Switch } from "solid-js";
 import { commands, type DashboardView } from "../bindings";
 import { unwrap } from "../ipc";
 import { WidgetFrame } from "../components/WidgetFrame";
@@ -24,6 +24,7 @@ export function Dashboards(props: { version: number }) {
   const open = (name: string) => navigate(`/d/${encodeURIComponent(name)}`);
 
   createEffect(() => {
+    if (dashboards.error) return;
     const list = dashboards.latest;
     if (list?.length && !current()) navigate(`/d/${encodeURIComponent(list[0].metadata.name)}`, { replace: true });
   });
@@ -54,9 +55,11 @@ export function Dashboards(props: { version: number }) {
               }
             >
               <div class="grid">
-                <For each={[...d().placements].sort((a, b) => a.y - b.y || a.x - b.x)}>
-                  {(p) => <WidgetFrame placement={p} version={props.version} />}
-                </For>
+                {/* Index, not For: a sync returns new objects, and keying by identity would
+                    remount every widget and flash its skeleton. */}
+                <Index each={[...d().placements].sort((a, b) => a.y - b.y || a.x - b.x)}>
+                  {(p) => <WidgetFrame placement={p()} version={props.version} />}
+                </Index>
               </div>
             </Show>
           </section>
@@ -95,7 +98,13 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (na
       <For each={props.dashboards.slice(0, MAX_TABS)}>{tab}</For>
       <Show when={props.dashboards.length > MAX_TABS}>
         <div class="more" ref={more}>
-          <button type="button" class="tab" aria-expanded={menuOpen()} onClick={() => setMenuOpen((o) => !o)}>
+          <button
+            type="button"
+            class="tab"
+            classList={{ active: props.dashboards.slice(MAX_TABS).some((d) => d.metadata.name === props.current) }}
+            aria-expanded={menuOpen()}
+            onClick={() => setMenuOpen((o) => !o)}
+          >
             More ▾
           </button>
           <Show when={menuOpen()}>
