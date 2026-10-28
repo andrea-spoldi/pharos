@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-None. Last closed: **S-005** — Slice 3 file executor + views (T-004). Next up: T-005.
+**S-006** (in progress, 2026-10-28) — T-005 slice 4: platform dashboards (read-only, switcher, shared states).
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -17,7 +17,7 @@ None. Last closed: **S-005** — Slice 3 file executor + views (T-004). Next up:
 | T-004 | 3 | File executor + table/list/card views | M | done |
 | T-015 | — | Lint: refuse catalog files that symlink out of the repo | S | pending |
 | T-016 | — | Decide: block widget runs while a sync is pending review | S | pending |
-| T-005 | 4 | Platform dashboards (read-only) | M | pending |
+| T-005 | 4 | Platform dashboards (read-only) | M | in-progress |
 | T-006 | 5 | User inputs + secrets | M | pending |
 | T-007 | 6 | HTTP executor | S | pending |
 | T-008 | 7 | Command executor | S | pending |
@@ -32,14 +32,14 @@ None. Last closed: **S-005** — Slice 3 file executor + views (T-004). Next up:
 {
   "project": "developer-cockpit-v2",
   "updated": "2026-10-28",
-  "current_session": null,
+  "current_session": {"id": "S-006", "goal": "Slice 4: render kind: Dashboard read-only, dashboard switcher, shared empty/loading/error/needs-setup widget states", "task_ref": "T-005", "started": "2026-10-28", "status": "in-progress", "blocker": null},
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
     {"id": "T-002", "title": "Manifest crate + cockpit lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
     {"id": "T-003a", "title": "Engine: source clone/sync, changelog, consent, snapshot", "description": "crates/cockpit-engine: rusqlite_migration schema, system git clone/fetch/reset, plan -> consent -> apply/discard held in the engine, tests against temp git repos", "size": "M", "priority": 3, "status": "done", "tags": ["slice-2", "git", "consent", "engine"]},
     {"id": "T-003b", "title": "UI: source onboarding + sync screens", "description": "Tauri commands via tauri-specta, first-run screen (URL/path + branch, git check), capability consent, widget list, Sync now + changelog. Demo docs/demos/02-sync.md", "size": "M", "priority": 4, "status": "done", "tags": ["slice-2", "ui", "consent"]},
     {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "done", "tags": ["slice-3", "engine", "views"]},
-    {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "pending", "tags": ["slice-4", "ui"]},
+    {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "in-progress", "tags": ["slice-4", "ui"]},
     {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "pending", "tags": ["slice-5", "secrets"]},
     {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "S", "priority": 7, "status": "pending", "tags": ["slice-6", "engine"]},
     {"id": "T-008", "title": "Command executor", "description": "Executable + args, no shell, timeout, stderr/exit code", "size": "S", "priority": 8, "status": "pending", "tags": ["slice-7", "engine"]},
