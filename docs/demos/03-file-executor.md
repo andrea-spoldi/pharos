@@ -3,7 +3,7 @@
 ## Setup
 
 ```sh
-rm -rf ~/Library/Application\ Support/dev.cockpit.local-idp
+rm -rf ~/Library/Application\ Support/io.pharos.desktop
 rm -rf /tmp/platform /tmp/outside.yaml && cp -r examples/platform-repo /tmp/platform
 git -C /tmp/platform init -q -b main && git -C /tmp/platform add -A && git -C /tmp/platform commit -qm init
 npm run dev
@@ -39,7 +39,7 @@ Connect `/tmp/platform` (branch `main`) and **Approve and apply** the review, as
 
 ## Confinement holds at run time
 
-5. Link a catalog file outside the repo. It is catalog-shaped, so `cockpit lint` accepts it:
+5. Link a catalog file outside the repo. It is catalog-shaped, so `pharos lint` accepts it:
    `printf 'apiVersion: v1\nkind: Service\nmetadata: { name: secret }\n' > /tmp/outside.yaml && ln -s /tmp/outside.yaml /tmp/platform/catalog/services/evil.yaml && git -C /tmp/platform add -A && git -C /tmp/platform commit -qm evil`
    → **Sync now** → the *Service Catalog* card shows a red **Access denied** notice:
    `` `catalog/services/evil.yaml`: path leaves the repository root through a symlink ``. No `secret` row appears.
@@ -47,4 +47,4 @@ Connect `/tmp/platform` (branch `main`) and **Approve and apply** the review, as
    → **Sync now** → the table is back.
 
 Unreadable files, the 500-file cap and unsupported views are covered by `vitest` and
-`cargo test -p cockpit-engine`.
+`cargo test -p pharos-engine`.

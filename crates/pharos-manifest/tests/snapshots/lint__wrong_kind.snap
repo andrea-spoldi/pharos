@@ -1,0 +1,9 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"wrong-kind\"))"
+---
+error: widgets/a/widget.yaml: kind: expected `Widget` here, found `Dashboard` [wrong-kind]
+error: widgets/b/widget.yaml: apiVersion: expected `pharos.io/v1alpha1`, found `v1` [api-version]
+error: widgets/c/widget.yaml: expected a mapping with apiVersion, kind, metadata and spec [not-a-mapping]
+warning: widgets/no-manifest: directory has no widget.yaml and is ignored [missing-widget-manifest]
+-- 3 errors, 1 warnings

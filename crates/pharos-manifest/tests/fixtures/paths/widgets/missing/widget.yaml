@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: missing }
+spec:
+  source: { type: file, path: nope/, glob: '[' }
+  view: { type: raw }

@@ -1,0 +1,16 @@
+apiVersion: pharos.io/v1alpha1
+kind: Platform
+metadata:
+  name: acme-platform
+  title: ACME Developer Portal
+spec:
+  inputs:
+    team:
+      type: enum
+      from: catalog/teams/
+      field: metadata.name
+      required: true
+      label: Your team
+  secrets:
+    - name: GITLAB_TOKEN
+      description: Personal access token (read_api)

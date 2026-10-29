@@ -1,6 +1,6 @@
 mod commands;
 
-use cockpit_engine::Engine;
+use pharos_engine::Engine;
 use commands::AppState;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};

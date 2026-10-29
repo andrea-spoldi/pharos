@@ -1,0 +1,8 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"catalog\"))"
+---
+error: catalog/services/list.yaml: catalog entries must be a mapping with apiVersion, kind and metadata.name [catalog-shape]
+error: catalog/services/no-name.yaml: metadata.name: missing or not a string [catalog-shape]
+error: catalog/teams/broken.yml:3: did not find expected node content [invalid-yaml]
+-- 3 errors, 0 warnings

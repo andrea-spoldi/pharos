@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: typo }
+spec:
+  refesh: 5m
+  view: { type: markdown, content: hi }

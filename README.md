@@ -1,4 +1,4 @@
-# Local IDP
+# Pharos
 
 A desktop "internal developer portal" that runs on the developer's machine. A platform
 team keeps one git repo of widgets, dashboards and catalog YAML; the app clones it,
@@ -8,12 +8,12 @@ No server: git is both the control plane and the data plane.
 ```
  Platform team                          Developer laptop
  ─────────────                          ─────────────────────────────────────
- platform repo (git)  ── git fetch ──▶  Local IDP app
-  ├─ cockpit.yaml                         ├─ clones the repo into app data
+ platform repo (git)  ── git fetch ──▶  Pharos app
+  ├─ pharos.yaml                         ├─ clones the repo into app data
   ├─ widgets/*/widget.yaml                ├─ lints it and shows what changed
   ├─ dashboards/*.yaml                    ├─ asks consent for capabilities
   └─ catalog/**/*.yaml                    └─ renders dashboards, runs widgets
- CI: `cockpit lint` on every PR
+ CI: `pharos lint` on every PR
 ```
 
 Built with Tauri 2 (Rust) and SolidJS. Design and rationale: [`docs/restart-plan.md`](docs/restart-plan.md).
@@ -23,7 +23,7 @@ Built with Tauri 2 (Rust) and SolidJS. Design and rationale: [`docs/restart-plan
 | Slice | What | State |
 |---|---|---|
 | 0 | Scaffold, typed IPC, strict CSP, CI | done |
-| 1 | Manifest crate + `cockpit lint` | done |
+| 1 | Manifest crate + `pharos lint` | done |
 | 2 | Onboarding, sync, capability consent, widget list, Sync now + changelog | done (demo below) |
 | 3 | File executor + table/list/card views | done ([demo](docs/demos/03-file-executor.md)) |
 | 4 | Platform dashboards: tabs, 12-column grid, shared widget states, markdown | done ([demo](docs/demos/04-dashboards.md)) |
@@ -55,14 +55,14 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
 ## 2. Setup
 
 ```sh
-git clone <this repo> developer-cockpit-v2 && cd developer-cockpit-v2
+git clone <this repo> pharos && cd pharos
 npm install                 # root (Tauri CLI) + the app workspace
 npm run build -w app        # once: `cargo test` embeds app/dist via tauri::generate_context!
 cargo test                  # all Rust tests; also regenerates app/src/bindings.ts
 npm run dev                 # starts Vite + the Tauri window (first build takes a few minutes)
 ```
 
-`npm run dev` opens a window titled **Local IDP**. On a fresh install it shows
+`npm run dev` opens a window titled **Pharos**. On a fresh install it shows
 **Connect your platform repo**.
 
 ## 3. Everyday commands
@@ -76,8 +76,8 @@ npm run dev                 # starts Vite + the Tauri window (first build takes 
 | `npm test -w app` | Frontend tests (vitest) |
 | `npm run typecheck -w app` | `tsc --noEmit` |
 | `npm run check` | Typecheck + frontend tests |
-| `cargo run -p cockpit-cli -- lint <repo> [--format json]` | Validate a platform repo, as platform CI would |
-| `INSTA_UPDATE=always cargo test -p cockpit-manifest` | Accept lint snapshot changes, then review `git diff` |
+| `cargo run -p pharos-cli -- lint <repo> [--format json]` | Validate a platform repo, as platform CI would |
+| `INSTA_UPDATE=always cargo test -p pharos-manifest` | Accept lint snapshot changes, then review `git diff` |
 
 CI (`.github/workflows/ci.yml`) runs all of the above on macOS and Ubuntu and fails if
 `app/src/bindings.ts` differs from what `cargo test` generates. Never edit that file by hand.
@@ -91,9 +91,9 @@ app/                        SolidJS frontend
   src/screens/              Onboarding, Home
   src/components/           SyncReview (changelog + consent), WidgetList
 src-tauri/                  Tauri shell; src/commands.rs is the whole IPC surface
-crates/cockpit-manifest/    kinds, parsing, validation, capability derivation (no Tauri)
-crates/cockpit-engine/      git sync, SQLite state, plan → consent → apply (no Tauri)
-crates/cockpit-cli/         `cockpit lint`
+crates/pharos-manifest/    kinds, parsing, validation, capability derivation (no Tauri)
+crates/pharos-engine/      git sync, SQLite state, plan → consent → apply (no Tauri)
+crates/pharos-cli/         `pharos lint`
 examples/platform-repo/     a complete platform repo used by tests and the demo
 docs/demos/                 per-slice acceptance scripts
 SESSIONS.md                 backlog, decisions (D-001…), session log
@@ -107,12 +107,12 @@ The demo plays both roles: the **platform team** writing and linting the repo, a
 **developer** connecting to it in the app. It takes about 10 minutes. Paths below use
 `/tmp/platform` as the platform repo; any directory works.
 
-### 5.1 The platform repo and `cockpit lint`
+### 5.1 The platform repo and `pharos lint`
 
 `examples/platform-repo` is what a platform team would maintain:
 
 ```
-cockpit.yaml                         kind: Platform (inputs, secrets, discovery dirs)
+pharos.yaml                         kind: Platform (inputs, secrets, discovery dirs)
 widgets/welcome/widget.yaml          static markdown, no data source
 widgets/k8s-context/widget.yaml      runs `kubectl`
 widgets/my-pipelines/widget.yaml     calls the GitLab API
@@ -124,7 +124,7 @@ catalog/services, catalog/teams      catalog data as YAML
 1. Lint it:
 
    ```sh
-   cargo run -q -p cockpit-cli -- lint examples/platform-repo
+   cargo run -q -p pharos-cli -- lint examples/platform-repo
    ```
 
    → `4 widgets, 1 dashboard, 4 catalog files: 0 errors, 0 warnings`, followed by the
@@ -138,7 +138,7 @@ catalog/services, catalog/teams      catalog data as YAML
    ```sh
    rm -rf /tmp/broken && cp -r examples/platform-repo /tmp/broken
    sed -i '' 's#../../catalog/services/#../../../../etc#' /tmp/broken/widgets/service-catalog/widget.yaml
-   cargo run -q -p cockpit-cli -- lint /tmp/broken; echo "exit $?"
+   cargo run -q -p pharos-cli -- lint /tmp/broken; echo "exit $?"
    ```
 
    → `error: widgets/service-catalog/widget.yaml: spec.source.path: `../../../../etc`: path escapes the repository root [path-escape]`
@@ -155,8 +155,8 @@ rm -rf /tmp/platform && cp -r examples/platform-repo /tmp/platform
 git -C /tmp/platform init -q -b main
 git -C /tmp/platform add -A && git -C /tmp/platform commit -qm init
 
-# Dev builds keep their state here (Linux: ~/.local/share/dev.cockpit.local-idp)
-rm -rf ~/Library/Application\ Support/dev.cockpit.local-idp
+# Dev builds keep their state here (Linux: ~/.local/share/io.pharos.desktop)
+rm -rf ~/Library/Application\ Support/io.pharos.desktop
 
 npm run dev
 ```

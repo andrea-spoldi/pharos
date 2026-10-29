@@ -1,11 +1,11 @@
-//! IPC surface over `cockpit_engine::Engine`. Every command runs on a blocking thread:
+//! IPC surface over `pharos_engine::Engine`. Every command runs on a blocking thread:
 //! the engine shells out to git and holds a SQLite connection, and the lock must never
 //! be taken on the main thread.
 
-use cockpit_engine::{
+use pharos_engine::{
     DashboardView, Engine, EngineError, FileData, FileError, GitError, Source, SyncPlan,
 };
-use cockpit_manifest::{Platform, Widget};
+use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -99,7 +99,7 @@ fn internal(message: impl Into<String>) -> CommandError {
 async fn with_engine<T, F>(state: State<'_, AppState>, f: F) -> CmdResult<T>
 where
     T: Send + 'static,
-    F: FnOnce(&mut Engine) -> cockpit_engine::Result<T> + Send + 'static,
+    F: FnOnce(&mut Engine) -> pharos_engine::Result<T> + Send + 'static,
 {
     let engine = Arc::clone(&state.engine);
     tauri::async_runtime::spawn_blocking(move || {
@@ -187,7 +187,7 @@ pub async fn list_dashboards(state: State<'_, AppState>) -> CmdResult<Vec<Dashbo
     with_engine(state, |e| e.dashboards()).await
 }
 
-/// `cockpit.yaml` of the last applied sync; `None` before the first apply.
+/// `pharos.yaml` of the last applied sync; `None` before the first apply.
 #[tauri::command]
 #[specta::specta]
 pub async fn get_platform(state: State<'_, AppState>) -> CmdResult<Option<Platform>> {
@@ -244,7 +244,7 @@ mod tests {
             (
                 EngineError::File(FileError::Denied {
                     path: "../../etc".into(),
-                    reason: cockpit_manifest::ConfineError::Escapes,
+                    reason: pharos_manifest::ConfineError::Escapes,
                 }),
                 ErrorKind::PermissionDenied,
             ),

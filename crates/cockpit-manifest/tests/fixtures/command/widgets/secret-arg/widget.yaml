@@ -1,9 +1,0 @@
-apiVersion: cockpit.dev/v1alpha1
-kind: Widget
-metadata: { name: secret-arg }
-spec:
-  source:
-    type: command
-    executable: gh
-    args: [api, "-H", "Authorization: {{ secrets.TOKEN }}", "{{ user.team }}"]
-  view: { type: raw }

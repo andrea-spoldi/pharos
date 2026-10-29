@@ -1,0 +1,15 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"views\"))"
+---
+error: widgets/empty-table/widget.yaml: spec.view.columns: table views need at least one column [missing-columns]
+warning: widgets/hosts/widget.yaml: spec.view.content: `content` is only used by widgets without a source [ignored-field]
+error: widgets/hosts/widget.yaml: spec.permissions.hosts[0]: `gitlab.acme`: not a valid URL: relative URL without a base [invalid-host]
+error: widgets/hosts/widget.yaml: spec.permissions.hosts[2]: `https://x.acme/api`: expected a bare origin like `https://gitlab.acme` [invalid-host]
+warning: widgets/hosts/widget.yaml: spec.permissions.hosts: extra hosts only apply to http sources [unused-permission]
+error: widgets/no-columns/widget.yaml: spec.refresh: `fast` is not a duration like 30s, 5m or 1h [invalid-duration]
+error: widgets/no-columns/widget.yaml: spec.view.columns[0].field: `a..b` is not a dot path like `metadata.name` [invalid-field]
+error: widgets/static-empty/widget.yaml: spec.view.content: static markdown widgets need `content` [missing-content]
+warning: widgets/static-table/widget.yaml: spec.refresh: widgets without a source never refresh [refresh-without-source]
+error: widgets/static-table/widget.yaml: spec.view.type: widgets without a source must use a markdown view [static-view]
+-- 7 errors, 3 warnings

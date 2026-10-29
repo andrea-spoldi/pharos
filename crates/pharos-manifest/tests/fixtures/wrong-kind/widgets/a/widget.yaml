@@ -1,0 +1,4 @@
+apiVersion: pharos.io/v1alpha1
+kind: Dashboard
+metadata: { name: a }
+spec: {}

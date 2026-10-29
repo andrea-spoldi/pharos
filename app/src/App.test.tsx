@@ -23,7 +23,7 @@ const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 const source = {
   // Synced, so Home shows the dashboards rather than planning a sync.
   id: 1,
-  url: "git@gitlab.acme:platform/cockpit.git",
+  url: "git@gitlab.acme:platform/pharos.git",
   branch: "main",
   local_path: "/data/sources/1",
   synced_commit: "a".repeat(40),

@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: insecure }
+spec:
+  source: { type: http, url: "http://intranet.acme/status" }
+  view: { type: raw }

@@ -66,7 +66,7 @@ const home: DashboardView = {
       w: 4,
       h: 2,
       manifest: {
-        apiVersion: "cockpit.dev/v1alpha1",
+        apiVersion: "pharos.io/v1alpha1",
         kind: "Widget",
         metadata: { name: "k8s-context", title: "Kubernetes Context", version: null, description: null },
         spec: {
@@ -83,7 +83,7 @@ const home: DashboardView = {
   ],
 };
 const platform = {
-  apiVersion: "cockpit.dev/v1alpha1",
+  apiVersion: "pharos.io/v1alpha1",
   kind: "Platform",
   metadata: { name: "acme-platform", title: "ACME Developer Portal", version: null, description: null },
   spec: { inputs: {}, secrets: [], widgets: "widgets/", dashboards: "dashboards/" },
@@ -238,12 +238,12 @@ describe("Home", () => {
       expect(await screen.findByRole("heading", { level: 1, name: "ACME Developer Portal" })).toBeTruthy();
     });
 
-    it("falls back to Local IDP", async () => {
+    it("falls back to Pharos", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
       vi.mocked(commands.getPlatform).mockResolvedValue(ok(null));
       render(() => <Home source={synced} onSynced={() => {}} />);
       await screen.findByTestId("up-to-date");
-      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Local IDP");
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Pharos");
     });
   });
 });

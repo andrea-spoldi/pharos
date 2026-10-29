@@ -23,7 +23,7 @@ export const commands = {
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
 	/**  Platform dashboards of the last applied sync, with each placement's status. */
 	listDashboards: () => typedError<DashboardView[], CommandError>(__TAURI_INVOKE("list_dashboards")),
-	/**  `cockpit.yaml` of the last applied sync; `None` before the first apply. */
+	/**  `pharos.yaml` of the last applied sync; `None` before the first apply. */
 	getPlatform: () => typedError<Manifest<PlatformSpec> | null, CommandError>(__TAURI_INVOKE("get_platform")),
 	/**
 	 *  The frontend names the widget only; what is read, and from where, comes from the

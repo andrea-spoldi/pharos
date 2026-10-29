@@ -1,6 +1,6 @@
 import type { Column, JsonValue } from "../bindings";
 
-/** Mirrors `cockpit_engine::MAX_FILES`. */
+/** Mirrors `pharos_engine::MAX_FILES`. */
 export const MAX_FILES = 500;
 
 export type Row = { [key in string]: JsonValue };

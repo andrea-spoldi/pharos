@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: bad-source }
+spec:
+  source: { type: ftp, path: x }
+  view: { type: raw }

@@ -93,7 +93,7 @@ export function SyncReview(props: {
             <For each={errors()}>{(d) => <DiagnosticItem d={d} />}</For>
           </ul>
           <p class="muted">
-            Ask the platform team to fix the repo (<code>cockpit lint</code> shows the same list), then
+            Ask the platform team to fix the repo (<code>pharos lint</code> shows the same list), then
             review again.
           </p>
         </div>

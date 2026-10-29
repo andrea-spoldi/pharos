@@ -1,5 +1,0 @@
-apiVersion: cockpit.dev/v1alpha1
-kind: Widget
-metadata: { name: bad-view }
-spec:
-  view: { type: tabel }

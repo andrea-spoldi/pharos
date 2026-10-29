@@ -1,0 +1,21 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: report.capabilities
+---
+{
+  "k8s-context": {
+    "executables": [
+      "kubectl"
+    ]
+  },
+  "my-pipelines": {
+    "hosts": [
+      "https://gitlab.com"
+    ]
+  },
+  "service-catalog": {
+    "paths": [
+      "catalog/services"
+    ]
+  }
+}

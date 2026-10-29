@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Local IDP",
+  "productName": "Pharos",
   "version": "0.1.0",
-  "identifier": "dev.cockpit.local-idp",
+  "identifier": "io.pharos.desktop",
   "build": {
     "beforeDevCommand": "npm run dev -w app",
     "devUrl": "http://localhost:1420",
@@ -10,7 +10,7 @@
     "frontendDist": "../app/dist"
   },
   "app": {
-    "windows": [{ "title": "Local IDP", "width": 1200, "height": 800 }],
+    "windows": [{ "title": "Pharos", "width": 1200, "height": 800 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost",
       "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost ws://localhost:1420"

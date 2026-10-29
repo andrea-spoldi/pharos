@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: escape }
+spec:
+  source: { type: file, path: ../../../etc }
+  view: { type: raw }

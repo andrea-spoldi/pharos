@@ -1,8 +1,0 @@
----
-source: crates/cockpit-manifest/tests/lint.rs
-expression: "render(concat! (\"tests/fixtures/\", \"duplicates\"))"
----
-error: dashboards/b.yml: metadata.name: dashboard `home` is already defined in dashboards/a.yaml [duplicate-name]
-error: widgets/three/widget.yaml: metadata.name: `My_Widget` must be lowercase letters, digits and `-` (max 63) [invalid-name]
-error: widgets/two/widget.yaml: metadata.name: widget `same` is already defined in widgets/one/widget.yaml [duplicate-name]
--- 3 errors, 0 warnings

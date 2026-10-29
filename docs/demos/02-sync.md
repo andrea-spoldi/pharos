@@ -4,7 +4,7 @@
 
 ```sh
 # Start from a fresh install (dev builds keep their state here).
-rm -rf ~/Library/Application\ Support/dev.cockpit.local-idp
+rm -rf ~/Library/Application\ Support/io.pharos.desktop
 # A platform repo to connect to.
 rm -rf /tmp/platform && cp -r examples/platform-repo /tmp/platform
 git -C /tmp/platform init -q -b main && git -C /tmp/platform add -A && git -C /tmp/platform commit -qm init
@@ -22,7 +22,7 @@ npm run dev
    `transport 'ext' not allowed`, and `ls /tmp/pwned` reports no such file.
 4. Enter `/tmp/platform`, branch `-x` → **That branch name isn't valid**.
 5. Branch `main` → **Connect** → the button reads **Cloning…**, then the window shows
-   **Local IDP** with `/tmp/platform · main` (`~/…` paths work too: they are expanded
+   **Pharos** with `/tmp/platform · main` (`~/…` paths work too: they are expanded
    before git sees them).
 6. Quit and run `npm run dev` again → onboarding is skipped.
 

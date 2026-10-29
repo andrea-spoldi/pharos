@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: templated-exe }
+spec:
+  source: { type: command, executable: "{{ user.team }}" }
+  view: { type: raw }
