@@ -177,16 +177,6 @@ fn now() -> i64 {
         .unwrap_or_default()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn migrations_are_valid() {
-        MIGRATIONS.validate().unwrap();
-    }
-}
-
 // ── Settings (keyed by platform name) ───────────────────────────────────────
 
 pub fn set_input(
@@ -242,4 +232,14 @@ pub fn all_secrets(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>>
         conn.prepare("SELECT platform, name FROM secrets_meta ORDER BY platform, name")?;
     stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migrations_are_valid() {
+        MIGRATIONS.validate().unwrap();
+    }
 }

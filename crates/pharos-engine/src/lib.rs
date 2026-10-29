@@ -24,7 +24,9 @@ pub use db::Source;
 pub use git::GitError;
 pub use run::{FileData, FileError, MAX_FILES};
 pub use secrets::{KEYRING_SERVICE, KeyringStore, SecretStore};
-pub use settings::StoredKind;
+pub use settings::{
+    InputView, PlatformRef, SecretView, SettingsView, SetupState, StoredKind, StoredRef,
+};
 use sync::Pending;
 pub use sync::{Changes, SyncPlan};
 
@@ -235,6 +237,7 @@ impl Engine {
             return Ok(Vec::new());
         };
         let root = fs::canonicalize(&source.local_path)?;
+        let setup = self.settings()?.setup_state();
         let mut dashboards: Vec<Dashboard> = self.dashboard_templates()?;
         dashboards.sort_by_key(|d| d.metadata.name != "home");
         dashboards
@@ -250,7 +253,7 @@ impl Engine {
                             serde_json::from_str::<Widget>(json)
                                 .expect("stored manifests are valid JSON")
                         });
-                        let status = dashboard::placement_status(manifest.as_ref(), p);
+                        let status = dashboard::placement_status(manifest.as_ref(), p, &setup);
                         let reads = match (&status, &stored, &manifest) {
                             (PlacementStatus::Runnable, Some((file, _)), Some(w)) => {
                                 file_reads(&root, file, w)
@@ -285,6 +288,23 @@ impl Engine {
         Ok(db::snapshot(&self.conn, source.id)?
             .platform
             .map(|json| serde_json::from_str(&json).expect("stored manifests are valid JSON")))
+    }
+
+    /// Inputs and secrets of the applied platform, with what is stored, for Settings.
+    pub fn settings(&self) -> Result<SettingsView> {
+        let source = self.source()?;
+        let platform = self.platform()?;
+        let root = match (&source, &platform) {
+            (Some(s), Some(_)) => fs::canonicalize(&s.local_path).ok(),
+            _ => None,
+        };
+        Ok(settings::view(
+            source,
+            platform.as_ref(),
+            root.as_deref(),
+            &db::all_inputs(&self.conn)?,
+            &db::all_secrets(&self.conn)?,
+        ))
     }
 
     /// Sets (or, for `None` or blank, clears) a Platform input declared in `spec.inputs`.

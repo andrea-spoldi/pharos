@@ -1,5 +1,6 @@
 //! Platform dashboards as the UI renders them: each placement with its widget and status.
 
+use crate::settings::SetupState;
 use pharos_manifest::{Metadata, Namespace, Placement, Source, ViewType, Widget, template_refs};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -46,12 +47,19 @@ pub struct DashboardView {
     pub placements: Vec<PlacementView>,
 }
 
-/// Precedence: missing, needs setup, not available, static, runnable.
-pub(crate) fn placement_status(widget: Option<&Widget>, placement: &Placement) -> PlacementStatus {
+/// Precedence: missing, needs setup, not available, static, runnable. `needsSetup` lists
+/// only what `setup` doesn't provide yet.
+pub(crate) fn placement_status(
+    widget: Option<&Widget>,
+    placement: &Placement,
+    setup: &SetupState,
+) -> PlacementStatus {
     let Some(widget) = widget else {
         return PlacementStatus::Missing;
     };
-    let (inputs, secrets) = setup_refs(widget, placement);
+    let (mut inputs, mut secrets) = setup_refs(widget, placement);
+    inputs.retain(|k| !setup.inputs.contains(k));
+    secrets.retain(|k| !setup.secrets.contains(k));
     if !inputs.is_empty() || !secrets.is_empty() {
         return PlacementStatus::NeedsSetup {
             inputs: inputs.into_iter().collect(),
@@ -151,7 +159,7 @@ mod tests {
     #[test]
     fn missing_widget_is_missing() {
         assert_eq!(
-            placement_status(None, &placement(&[])),
+            placement_status(None, &placement(&[]), &SetupState::default()),
             PlacementStatus::Missing
         );
     }
@@ -167,7 +175,7 @@ mod tests {
         ));
         let p = placement(&[("project", "acme%2F{{ user.team }}")]);
         assert_eq!(
-            placement_status(Some(&w), &p),
+            placement_status(Some(&w), &p, &SetupState::default()),
             PlacementStatus::NeedsSetup {
                 inputs: vec!["team".into()],
                 secrets: vec!["GITLAB_TOKEN".into()],
@@ -183,7 +191,7 @@ mod tests {
             ("b", "{{ user.team }}"),
         ]);
         assert_eq!(
-            placement_status(Some(&w), &p),
+            placement_status(Some(&w), &p, &SetupState::default()),
             PlacementStatus::NeedsSetup {
                 inputs: vec!["team".into(), "zed".into()],
                 secrets: vec![],
@@ -200,11 +208,11 @@ mod tests {
         );
         let p = placement(&[]);
         assert_eq!(
-            placement_status(Some(&cmd), &p),
+            placement_status(Some(&cmd), &p, &SetupState::default()),
             not_available("command sources")
         );
         assert_eq!(
-            placement_status(Some(&http), &p),
+            placement_status(Some(&http), &p, &SetupState::default()),
             not_available("http sources")
         );
     }
@@ -215,11 +223,11 @@ mod tests {
         let md = widget("  source: { type: file, path: data/ }\n  view: { type: markdown }\n");
         let p = placement(&[]);
         assert_eq!(
-            placement_status(Some(&kv), &p),
+            placement_status(Some(&kv), &p, &SetupState::default()),
             not_available("the kv view")
         );
         assert_eq!(
-            placement_status(Some(&md), &p),
+            placement_status(Some(&md), &p, &SetupState::default()),
             not_available("markdown from a data source")
         );
     }
@@ -229,14 +237,48 @@ mod tests {
         let md = widget("  view: { type: markdown, content: \"# Hi\" }\n");
         let table = widget("  view: { type: table }\n");
         let p = placement(&[]);
-        assert_eq!(placement_status(Some(&md), &p), PlacementStatus::Static);
         assert_eq!(
-            placement_status(Some(&table), &p),
+            placement_status(Some(&md), &p, &SetupState::default()),
+            PlacementStatus::Static
+        );
+        assert_eq!(
+            placement_status(Some(&table), &p, &SetupState::default()),
             not_available("the table view")
         );
         assert_eq!(
-            placement_status(Some(&widget(FILE_TABLE)), &p),
+            placement_status(Some(&widget(FILE_TABLE)), &p, &SetupState::default()),
             PlacementStatus::Runnable
+        );
+    }
+
+    #[test]
+    fn set_refs_are_not_needed() {
+        let w = widget(concat!(
+            "  source:\n",
+            "    type: http\n",
+            "    url: \"https://g.example/{{ inputs.project }}\"\n",
+            "    headers: { PRIVATE-TOKEN: \"{{ secrets.GITLAB_TOKEN }}\" }\n",
+            "  view: { type: table }\n",
+        ));
+        let p = placement(&[("project", "acme%2F{{ user.team }}")]);
+        let all = SetupState {
+            inputs: ["team".to_string()].into(),
+            secrets: ["GITLAB_TOKEN".to_string()].into(),
+        };
+        assert_eq!(
+            placement_status(Some(&w), &p, &all),
+            not_available("http sources")
+        );
+        let team_only = SetupState {
+            inputs: ["team".to_string()].into(),
+            ..SetupState::default()
+        };
+        assert_eq!(
+            placement_status(Some(&w), &p, &team_only),
+            PlacementStatus::NeedsSetup {
+                inputs: vec![],
+                secrets: vec!["GITLAB_TOKEN".into()],
+            }
         );
     }
 }

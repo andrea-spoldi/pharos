@@ -3,7 +3,8 @@
 mod common;
 
 use common::{Fixture, MemoryStore};
-use pharos_engine::{Engine, EngineError};
+use pharos_engine::{Engine, EngineError, PlacementStatus, StoredKind, StoredRef};
+use pharos_manifest::InputType;
 use rusqlite::Connection;
 use std::fs;
 
@@ -163,4 +164,186 @@ fn nothing_before_first_apply() {
 
     let err = engine.set_input("team", Some("platform-team")).unwrap_err();
     assert!(matches!(err, EngineError::NoPlatform), "{err:?}");
+    let view = engine.settings().unwrap();
+    assert!(view.source.is_some());
+    assert!(view.platform.is_none());
+    assert!(view.inputs.is_empty() && view.secrets.is_empty());
+}
+
+fn pipelines_status(engine: &Engine) -> PlacementStatus {
+    engine.dashboards().unwrap()[0]
+        .placements
+        .iter()
+        .find(|p| p.widget == "my-pipelines")
+        .unwrap()
+        .status
+        .clone()
+}
+
+#[test]
+fn settings_lists_inputs_secrets_and_choices() {
+    let f = Fixture::new();
+    let engine = f.synced_engine_with(MemoryStore::default());
+
+    let view = engine.settings().unwrap();
+
+    let platform = view.platform.unwrap();
+    assert_eq!(platform.name, "acme-platform");
+    assert_eq!(platform.title.as_deref(), Some("ACME Developer Portal"));
+    let team = &view.inputs[0];
+    assert_eq!(team.key, "team");
+    assert_eq!(team.kind, InputType::Enum);
+    assert!(team.required);
+    assert_eq!(team.label.as_deref(), Some("Your team"));
+    assert_eq!(team.choices, ["payments-team", "platform-team"]);
+    assert_eq!(team.value, None);
+    assert!(!team.stale);
+    assert_eq!(view.secrets.len(), 1);
+    assert_eq!(view.secrets[0].name, "GITLAB_TOKEN");
+    assert_eq!(
+        view.secrets[0].description.as_deref(),
+        Some("Personal access token (read_api)")
+    );
+    assert!(!view.secrets[0].set);
+    assert!(view.unused.is_empty());
+}
+
+#[test]
+fn setting_everything_clears_needs_setup() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine_with(MemoryStore::default());
+
+    engine.set_input("team", Some("payments-team")).unwrap();
+    engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
+    assert_eq!(
+        pipelines_status(&engine),
+        PlacementStatus::NotAvailable {
+            feature: "http sources".into()
+        }
+    );
+    assert!(engine.settings().unwrap().secrets[0].set);
+
+    engine.remove_secret("GITLAB_TOKEN").unwrap();
+    assert_eq!(
+        pipelines_status(&engine),
+        PlacementStatus::NeedsSetup {
+            inputs: vec![],
+            secrets: vec!["GITLAB_TOKEN".into()],
+        }
+    );
+}
+
+#[test]
+fn a_default_counts_as_set() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine_with(MemoryStore::default());
+    let platform = fs::read_to_string(f.origin.join("pharos.yaml")).unwrap();
+    f.write(
+        "pharos.yaml",
+        &platform.replace(
+            "      required: true\n",
+            "      required: true\n      default: platform-team\n",
+        ),
+    );
+    f.resync(&mut engine, "default team");
+
+    assert_eq!(
+        pipelines_status(&engine),
+        PlacementStatus::NeedsSetup {
+            inputs: vec![],
+            secrets: vec!["GITLAB_TOKEN".into()],
+        }
+    );
+    assert_eq!(
+        engine.settings().unwrap().inputs[0].default.as_deref(),
+        Some("platform-team")
+    );
+}
+
+#[test]
+fn a_removed_choice_goes_stale() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine_with(MemoryStore::default());
+    engine.set_input("team", Some("payments-team")).unwrap();
+
+    f.delete("catalog/teams/payments-team.yaml");
+    f.resync(&mut engine, "drop payments");
+
+    let team = &engine.settings().unwrap().inputs[0];
+    assert_eq!(team.value.as_deref(), Some("payments-team"));
+    assert!(team.stale);
+    assert_eq!(
+        pipelines_status(&engine),
+        PlacementStatus::NeedsSetup {
+            inputs: vec!["team".into()],
+            secrets: vec!["GITLAB_TOKEN".into()],
+        }
+    );
+}
+
+#[test]
+fn enum_with_missing_catalog_has_no_choices() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine_with(MemoryStore::default());
+    let platform = fs::read_to_string(f.origin.join("pharos.yaml")).unwrap();
+    f.write(
+        "pharos.yaml",
+        &platform.replace("from: catalog/teams/", "from: catalog/nowhere/"),
+    );
+    f.commit("nowhere");
+    let plan = engine.plan_sync().unwrap();
+    if plan
+        .diagnostics
+        .iter()
+        .any(|d| d.severity == pharos_manifest::Severity::Error)
+    {
+        // Lint refuses a missing catalog directory, so an empty one stands in for it.
+        engine.discard_sync().unwrap();
+        f.write(
+            "pharos.yaml",
+            &platform.replace("from: catalog/teams/", "from: catalog/empty/"),
+        );
+        f.write("catalog/empty/README.md", "no teams yet\n");
+        f.commit("empty");
+        engine.plan_sync().unwrap();
+    }
+    engine.apply_sync(true).unwrap();
+
+    assert!(engine.settings().unwrap().inputs[0].choices.is_empty());
+    let err = engine.set_input("team", Some("platform-team")).unwrap_err();
+    assert!(matches!(err, EngineError::InvalidValue { .. }), "{err:?}");
+}
+
+#[test]
+fn undeclared_rows_are_listed_as_unused() {
+    let f = Fixture::new();
+    let store = MemoryStore::default();
+    let mut engine = f.synced_engine_with(store.clone());
+    engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
+    let platform = fs::read_to_string(f.origin.join("pharos.yaml")).unwrap();
+    let without = &platform[..platform.find("  secrets:").unwrap()];
+    f.write("pharos.yaml", without);
+    // my-pipelines still references the secret, so drop that widget from the repo too.
+    f.remove("widgets/my-pipelines");
+    let home = fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
+    f.write(
+        "dashboards/home.yaml",
+        &home[..home.find("    - widget: my-pipelines").unwrap()],
+    );
+    f.resync(&mut engine, "no secrets");
+
+    let unused = engine.settings().unwrap().unused;
+    assert_eq!(
+        unused,
+        [StoredRef {
+            platform: "acme-platform".into(),
+            kind: StoredKind::Secret,
+            key: "GITLAB_TOKEN".into(),
+        }]
+    );
+    engine
+        .remove_stored("acme-platform", StoredKind::Secret, "GITLAB_TOKEN")
+        .unwrap();
+    assert!(engine.settings().unwrap().unused.is_empty());
+    assert_eq!(store.get(ACCOUNT), None);
 }
