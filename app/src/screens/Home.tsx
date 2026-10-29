@@ -1,8 +1,8 @@
-import { createSignal, Match, onMount, Show, Switch } from "solid-js";
+import { createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { ChangeLine, shortCommit, SyncReview } from "../components/SyncReview";
-import { WidgetList } from "../components/WidgetList";
+import { Dashboards } from "./Dashboards";
 
 const errorCount = (plan: SyncPlan) => plan.diagnostics.filter((d) => d.severity === "error").length;
 
@@ -17,6 +17,7 @@ const isUpToDate = (plan: SyncPlan) =>
  * Connected state. Syncs on launch and on demand (D-004), never blocking the widget list.
  * A plan with unchanged capabilities and no lint errors is applied without asking and
  * reported as a changelog (restart-plan §3); anything else is reviewed first.
+ * The header names the platform (`cockpit.yaml` title, else name, else "Local IDP").
  */
 export function Home(props: { source: RepoSource; onSynced: () => void }) {
   const [plan, setPlan] = createSignal<SyncPlan | null>(null);
@@ -27,6 +28,11 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
   const [upToDate, setUpToDate] = createSignal(false);
   const [widgetsVersion, setWidgetsVersion] = createSignal(0);
   const neverSynced = () => props.source.synced_commit == null;
+  const [platform] = createResource(
+    () => widgetsVersion(),
+    () => unwrap(commands.getPlatform()).catch(() => null),
+  );
+  const title = () => platform.latest?.metadata.title ?? platform.latest?.metadata.name ?? "Local IDP";
 
   const run = async (label: string, step: () => Promise<void>) => {
     setBusy(label);
@@ -89,10 +95,10 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
   });
 
   return (
-    <main class="screen">
-      <header class="row spread">
+    <main class="screen wide">
+      <header class="row spread topbar">
         <div>
-          <h1>Local IDP</h1>
+          <h1>{title()}</h1>
           <p class="muted" data-testid="source">
             {props.source.url} · {props.source.branch}
             <Show when={props.source.synced_commit}>
@@ -172,7 +178,7 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
           )}
         </Match>
         <Match when={!neverSynced()}>
-          <WidgetList version={widgetsVersion()} />
+          <Dashboards version={widgetsVersion()} />
         </Match>
         <Match when={!busy() && !error()}>
           <div class="notice">

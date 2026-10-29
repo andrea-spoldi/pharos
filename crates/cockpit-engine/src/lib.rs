@@ -4,18 +4,20 @@
 //! against the stored snapshot; the plan stays inside the engine until `apply_sync`
 //! (with consent if capabilities changed) or `discard_sync`.
 
+mod dashboard;
 mod db;
 mod git;
 mod run;
 mod sync;
 
-use cockpit_manifest::{Dashboard, Widget};
+use cockpit_manifest::{Dashboard, Platform, Widget};
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub use dashboard::{DashboardView, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
 pub use run::{FileData, FileError, MAX_FILES};
@@ -205,6 +207,65 @@ impl Engine {
         self.load_manifests("dashboard_templates")
     }
 
+    /// Platform dashboards as the UI renders them: `home` first, then by name, each
+    /// placement with its widget manifest and status.
+    pub fn dashboards(&self) -> Result<Vec<DashboardView>> {
+        let Some(source) = self.source()? else {
+            return Ok(Vec::new());
+        };
+        let root = fs::canonicalize(&source.local_path)?;
+        let mut dashboards: Vec<Dashboard> = self.dashboard_templates()?;
+        dashboards.sort_by_key(|d| d.metadata.name != "home");
+        dashboards
+            .into_iter()
+            .map(|d| {
+                let placements = d
+                    .spec
+                    .widgets
+                    .iter()
+                    .map(|p| {
+                        let stored = db::widget(&self.conn, source.id, &p.widget)?;
+                        let manifest = stored.as_ref().map(|(_, json)| {
+                            serde_json::from_str::<Widget>(json)
+                                .expect("stored manifests are valid JSON")
+                        });
+                        let status = dashboard::placement_status(manifest.as_ref(), p);
+                        let reads = match (&status, &stored, &manifest) {
+                            (PlacementStatus::Runnable, Some((file, _)), Some(w)) => {
+                                file_reads(&root, file, w)
+                            }
+                            _ => None,
+                        };
+                        Ok(PlacementView {
+                            widget: p.widget.clone(),
+                            x: p.x,
+                            y: p.y,
+                            w: p.w,
+                            h: p.h,
+                            manifest,
+                            status,
+                            reads,
+                        })
+                    })
+                    .collect::<Result<_>>()?;
+                Ok(DashboardView {
+                    metadata: d.metadata,
+                    placements,
+                })
+            })
+            .collect()
+    }
+
+    /// The platform manifest (`cockpit.yaml`) of the last applied sync.
+    pub fn platform(&self) -> Result<Option<Platform>> {
+        let Some(source) = self.source()? else {
+            return Ok(None);
+        };
+        Ok(db::snapshot(&self.conn, source.id)?
+            .platform
+            .map(|json| serde_json::from_str(&json).expect("stored manifests are valid JSON")))
+    }
+
     /// Runs a widget as of the last applied sync, within the capabilities the user approved.
     pub fn run_widget(&self, name: &str) -> Result<FileData> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
@@ -250,6 +311,21 @@ impl Engine {
             .map(|json| serde_json::from_str(json).expect("stored manifests are valid JSON"))
             .collect())
     }
+}
+
+/// A file source's path and glob as seen from the repo root, e.g. `catalog/services/*.yaml`.
+fn file_reads(root: &Path, widget_file: &str, widget: &Widget) -> Option<String> {
+    let Some(cockpit_manifest::Source::File { path, glob }) = &widget.spec.source else {
+        return None;
+    };
+    let joined = root.join(widget_file);
+    let dir = joined.parent()?;
+    let resolved = cockpit_manifest::confine(root, dir, path).ok()?;
+    let shown = cockpit_manifest::display_relative(root, &resolved);
+    Some(match glob {
+        Some(glob) => format!("{}/{glob}", shown.trim_end_matches('/')),
+        None => shown,
+    })
 }
 
 fn to_json<T: serde::Serialize>(value: &T) -> String {

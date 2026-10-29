@@ -4,13 +4,11 @@ import { columnsFor, display, field, MAX_FILES } from "./fields";
 
 export type ViewProps = { columns?: Column[]; data: FileData };
 
-/** Empty and truncated states shared by every view. */
+/** Truncation note shared by every view; the widget frame owns the empty state. */
 function Frame(props: { data: FileData; children: JSX.Element }) {
   return (
     <div class="view">
-      <Show when={props.data.rows.length} fallback={<p class="muted">No data.</p>}>
-        {props.children}
-      </Show>
+      {props.children}
       <Show when={props.data.truncated}>
         <p class="muted">Only the first {MAX_FILES} files are shown.</p>
       </Show>

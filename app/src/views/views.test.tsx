@@ -28,11 +28,6 @@ describe("TableView", () => {
     ]);
   });
 
-  it("says when there are no rows", () => {
-    render(() => <TableView columns={columns} data={{ rows: [], truncated: false }} />);
-    expect(screen.getByText("No data.")).toBeTruthy();
-  });
-
   it("says when files were left out", () => {
     render(() => <TableView columns={columns} data={{ ...data, truncated: true }} />);
     expect(screen.getByText(/Only the first 500 files are shown/)).toBeTruthy();

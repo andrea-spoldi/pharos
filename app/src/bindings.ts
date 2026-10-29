@@ -21,6 +21,10 @@ export const commands = {
 	applySync: (consent: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { consent })),
 	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
+	/**  Platform dashboards of the last applied sync, with each placement's status. */
+	listDashboards: () => typedError<DashboardView[], CommandError>(__TAURI_INVOKE("list_dashboards")),
+	/**  `cockpit.yaml` of the last applied sync; `None` before the first apply. */
+	getPlatform: () => typedError<Manifest<PlatformSpec> | null, CommandError>(__TAURI_INVOKE("get_platform")),
 	/**
 	 *  The frontend names the widget only; what is read, and from where, comes from the
 	 *  stored manifest and the approved capabilities.
@@ -57,6 +61,11 @@ export type Column = {
 export type CommandError = {
 	kind: ErrorKind,
 	message: string,
+};
+
+export type DashboardView = {
+	metadata: Metadata,
+	placements: PlacementView[],
 };
 
 /**  One finding, located by repo-relative file and a dotted path into the document. */
@@ -129,6 +138,39 @@ export type Permissions = {
 	hosts?: string[],
 };
 
+/**  What a placement can show, decided here so the frontend never decides what runs. */
+export type PlacementStatus = 
+/**  The dashboard names a widget that is not in the snapshot. */
+{ kind: "missing" } | 
+/**  `user.*` inputs and secrets the placement or its source refers to. */
+{ kind: "needsSetup"; inputs: string[]; secrets: string[] } | 
+/**  A part this version cannot run or render yet, e.g. `command sources`. */
+{ kind: "notAvailable"; feature: string } | 
+/**  No source; the view renders the manifest's own content. */
+{ kind: "static" } | { kind: "runnable" };
+
+export type PlacementView = {
+	widget: string,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	manifest: Manifest<WidgetSpec> | null,
+	status: PlacementStatus,
+	/**  For runnable file widgets: what is read, relative to the repo root. */
+	reads: string | null,
+};
+
+export type PlatformSpec = {
+	/**  Asked once per user; available to widgets as `{{ user.<key> }}`. */
+	inputs?: { [key in string]: InputDef },
+	secrets?: SecretDef[],
+	/**  Widget discovery root, relative to the repo root. */
+	widgets?: string,
+	/**  Dashboard discovery root, relative to the repo root. */
+	dashboards?: string,
+};
+
 /**  The configured platform repo. */
 export type RepoSource = {
 	id: number,
@@ -140,6 +182,11 @@ export type RepoSource = {
 	synced_commit: string | null,
 	synced_at: number | null,
 	approved_capability_hash: string | null,
+};
+
+export type SecretDef = {
+	name: string,
+	description?: string | null,
 };
 
 export type Severity = "error" | "warning";

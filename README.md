@@ -12,7 +12,7 @@ No server: git is both the control plane and the data plane.
   ├─ cockpit.yaml                         ├─ clones the repo into app data
   ├─ widgets/*/widget.yaml                ├─ lints it and shows what changed
   ├─ dashboards/*.yaml                    ├─ asks consent for capabilities
-  └─ catalog/**/*.yaml                    └─ lists (later: runs) the widgets
+  └─ catalog/**/*.yaml                    └─ renders dashboards, runs widgets
  CI: `cockpit lint` on every PR
 ```
 
@@ -25,9 +25,11 @@ Built with Tauri 2 (Rust) and SolidJS. Design and rationale: [`docs/restart-plan
 | 0 | Scaffold, typed IPC, strict CSP, CI | done |
 | 1 | Manifest crate + `cockpit lint` | done |
 | 2 | Onboarding, sync, capability consent, widget list, Sync now + changelog | done (demo below) |
-| 3+ | Widget execution (file, http, command), dashboards, inputs/secrets, … | planned |
+| 3 | File executor + table/list/card views | done ([demo](docs/demos/03-file-executor.md)) |
+| 4 | Platform dashboards: tabs, 12-column grid, shared widget states, markdown | done ([demo](docs/demos/04-dashboards.md)) |
+| 5+ | Inputs/secrets, http and command executors, user dashboards, … | planned |
 
-Widgets are **listed but not executed** yet; execution starts in slice 3.
+Only **file** widgets run so far; command and http widgets show *Not available yet*.
 
 ---
 

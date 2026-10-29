@@ -21,7 +21,7 @@ pub use duration::parse_duration;
 pub use kinds::*;
 pub use load::{Loaded, Repo, load};
 pub use paths::{ConfineError, confine, display_relative};
-pub use template::{Namespace, TemplateError, TemplateRef};
+pub use template::{Namespace, TemplateError, TemplateRef, refs as template_refs};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Summary {
