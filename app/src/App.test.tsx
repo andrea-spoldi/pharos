@@ -10,7 +10,7 @@ window.scrollTo = vi.fn() as typeof window.scrollTo;
 const render = (ui: () => JSX.Element) =>
   renderUi(() => (
     <MemoryRouter history={createMemoryHistory()}>
-      <Route path={["/", "/d/:name"]} component={ui} />
+      <Route path={["/", "/d/:name", "/settings"]} component={ui} />
     </MemoryRouter>
   ));
 

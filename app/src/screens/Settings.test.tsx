@@ -1,0 +1,162 @@
+import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { commands, type RepoSource, type SettingsView } from "../bindings";
+import { Settings } from "./Settings";
+
+vi.mock("../bindings", () => ({
+  commands: {
+    getSettings: vi.fn(),
+    setInput: vi.fn(),
+    setSecret: vi.fn(),
+    removeSecret: vi.fn(),
+    removeStored: vi.fn(),
+    disconnect: vi.fn(),
+  },
+}));
+
+window.scrollTo = vi.fn() as typeof window.scrollTo;
+Element.prototype.scrollIntoView = vi.fn();
+
+const ok = <T,>(data: T) => ({ status: "ok" as const, data });
+
+const source: RepoSource = {
+  id: 1,
+  url: "git@gitlab.acme:platform/pharos.git",
+  branch: "main",
+  local_path: "/data/sources/1",
+  synced_commit: "a".repeat(40),
+  synced_at: Math.floor(Date.now() / 1000) - 120,
+  approved_capability_hash: "sha256:x",
+};
+
+function view(over: Partial<SettingsView> = {}): SettingsView {
+  return {
+    source,
+    platform: { name: "acme-platform", title: "ACME Developer Portal" },
+    inputs: [
+      {
+        key: "team",
+        label: "Your team",
+        type: "enum",
+        required: true,
+        value: null,
+        default: null,
+        choices: ["payments-team", "platform-team"],
+        stale: false,
+      },
+    ],
+    secrets: [{ name: "GITLAB_TOKEN", description: "Personal access token (read_api)", set: false }],
+    unused: [],
+    ...over,
+  };
+}
+
+function renderAt(path = "/settings", onChanged = vi.fn()) {
+  const history = createMemoryHistory();
+  history.set({ value: path });
+  render(() => (
+    <MemoryRouter history={history}>
+      <Route
+        path="/settings"
+        component={() => <Settings source={source} onChanged={onChanged} onDisconnected={() => {}} />}
+      />
+    </MemoryRouter>
+  ));
+  return { history, onChanged };
+}
+
+describe("Settings", () => {
+  beforeEach(() => {
+    for (const fn of Object.values(commands)) vi.mocked(fn).mockReset();
+    vi.mocked(commands.getSettings).mockResolvedValue(ok(view()));
+    vi.mocked(commands.setInput).mockResolvedValue(ok(null));
+    vi.mocked(commands.setSecret).mockResolvedValue(ok(null));
+    vi.mocked(commands.removeSecret).mockResolvedValue(ok(null));
+    vi.mocked(commands.removeStored).mockResolvedValue(ok(null));
+  });
+
+  it("shows the three sections", async () => {
+    renderAt();
+    expect(await screen.findByRole("heading", { name: "Repository" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Your details" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Secrets" })).toBeTruthy();
+    expect(document.body.textContent).toContain("git@gitlab.acme:platform/pharos.git · main · aaaaaaa");
+  });
+
+  it("before the first sync", async () => {
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok(view({ platform: null, inputs: [], secrets: [], source: { ...source, synced_commit: null, synced_at: null } })),
+    );
+    renderAt();
+    await screen.findByRole("heading", { name: "Repository" });
+    expect(screen.getAllByText("Available after the first sync")).toHaveLength(2);
+    expect(screen.getByText(/Not synced yet/)).toBeTruthy();
+  });
+
+  it("enum select lists the choices and saves on change", async () => {
+    const { onChanged } = renderAt();
+    const select = (await screen.findByLabelText(/Your team/)) as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(["", "payments-team", "platform-team"]);
+    fireEvent.change(select, { target: { value: "payments-team" } });
+    await waitFor(() => expect(commands.setInput).toHaveBeenCalledWith("team", "payments-team"));
+    expect(await screen.findByText("Saved")).toBeTruthy();
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("stale value shows the warning", async () => {
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok(view({ inputs: [{ ...view().inputs[0], value: "gone-team", stale: true }] })),
+    );
+    renderAt();
+    expect(await screen.findByText(/gone-team is no longer offered, pick another/)).toBeTruthy();
+  });
+
+  it("secret flow", async () => {
+    renderAt();
+    const row = await screen.findByTestId("secret-GITLAB_TOKEN");
+    expect(within(row).getByText("Not set")).toBeTruthy();
+    const input = within(row).getByLabelText("GITLAB_TOKEN value") as HTMLInputElement;
+    expect(input.type).toBe("password");
+    fireEvent.input(input, { target: { value: "tok" } });
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok(view({ secrets: [{ ...view().secrets[0], set: true }] })),
+    );
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(commands.setSecret).toHaveBeenCalledWith("GITLAB_TOKEN", "tok"));
+    expect(await within(row).findByText("Set")).toBeTruthy();
+    expect(within(row).queryByLabelText("GITLAB_TOKEN value")).toBeNull();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Remove" }));
+    const dialog = screen.getByRole("dialog", { name: "Remove GITLAB_TOKEN?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(commands.removeSecret).toHaveBeenCalledWith("GITLAB_TOKEN"));
+  });
+
+  it("clears the password field after saving", async () => {
+    renderAt();
+    const row = await screen.findByTestId("secret-GITLAB_TOKEN");
+    const input = within(row).getByLabelText("GITLAB_TOKEN value") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "tok" } });
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(commands.setSecret).toHaveBeenCalled());
+    await waitFor(() => expect(input.value).toBe(""));
+  });
+
+  it("no longer used rows are removable", async () => {
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok(view({ unused: [{ platform: "acme-platform", kind: "secret", key: "OLD" }] })),
+    );
+    renderAt();
+    const section = await screen.findByTestId("unused");
+    expect(section.textContent).toContain("OLD · acme-platform");
+    fireEvent.click(within(section).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(commands.removeStored).toHaveBeenCalledWith("acme-platform", "secret", "OLD"));
+  });
+
+  it("focuses the field from the link", async () => {
+    renderAt("/settings?focus=secret:GITLAB_TOKEN");
+    const row = await screen.findByTestId("secret-GITLAB_TOKEN");
+    await waitFor(() => expect(document.activeElement).toBe(within(row).getByLabelText("GITLAB_TOKEN value")));
+  });
+});

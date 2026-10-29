@@ -22,7 +22,7 @@ export function App() {
       <Match when={source() === null}>
         <Onboarding onConnected={(s) => mutate(s)} />
       </Match>
-      <Match when={source()}>{(s) => <Home source={s()} onSynced={refetch} />}</Match>
+      <Match when={source()}>{(s) => <Home source={s()} onSynced={refetch} onDisconnected={() => mutate(null)} />}</Match>
     </Switch>
   );
 }
