@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**S-007** (in progress, 2026-10-29) — T-019: rename local-idp / cockpit to Pharos. Last closed: **S-006** — slice 4 platform dashboards (T-005), PR #1.
+**S-007** (2026-10-29) — T-019 rename to Pharos done (PR #2). Last closed: **S-006** — slice 4 platform dashboards (T-005), PR #1. Next up: T-006 (slice 5).
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -19,7 +19,7 @@
 | T-016 | — | Decide: block widget runs while a sync is pending review | S | pending |
 | T-017 | — | Feed widget: multi-source news aggregator (after T-007) | M | pending |
 | T-018 | — | Decide: personal todo widget | S | pending |
-| T-019 | — | Rename local-idp / cockpit to Pharos | S | in-progress |
+| T-019 | — | Rename local-idp / cockpit to Pharos | S | done |
 | T-005 | 4 | Platform dashboards (read-only) | M | done |
 | T-006 | 5 | User inputs + secrets | M | pending |
 | T-007 | 6 | HTTP executor | S | pending |
@@ -34,8 +34,8 @@
 ```json
 {
   "project": "pharos",
-  "updated": "2026-10-28",
-  "current_session": {"id": "S-007", "goal": "Rename local-idp / cockpit to Pharos, including the platform repo contract", "task_ref": "T-019", "started": "2026-10-29", "status": "in-progress", "blocker": null},
+  "updated": "2026-10-29",
+  "current_session": {"id": "S-007", "goal": "Rename local-idp / cockpit to Pharos, including the platform repo contract", "task_ref": "T-019", "started": "2026-10-29", "status": "done", "blocker": null},
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
     {"id": "T-002", "title": "Manifest crate + pharos lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
@@ -56,7 +56,7 @@
     {"id": "T-016", "title": "Decide: block widget runs while a sync is pending review", "description": "While a plan awaits review the clone is at the planned commit, so run_widget reads newer data files with the old manifest and approved paths (path approval still enforced). Deferred by user in S-005", "size": "S", "priority": 16, "status": "pending", "tags": ["engine", "consent"]},
     {"id": "T-017", "title": "Feed widget: multi-source news aggregator", "description": "After T-007. One widget pulling from external sources (JIRA, GitHub/GitLab releases, pipelines, alerts, the external service catalog), merged into one timeline sorted by time, each item tagged with its origin. Events are never stored as YAML in the repo; git only configures the sources. Needs a design for multi-source widgets (S-006)", "size": "M", "priority": 17, "status": "pending", "tags": ["widgets", "feed"]},
     {"id": "T-018", "title": "Decide: personal todo widget", "description": "User-written data; conflicts with D-003 (no personal widgets) and read-only widgets. Raised in S-006 as part of the Monday-morning start page", "size": "S", "priority": 18, "status": "pending", "tags": ["product"]},
-    {"id": "T-019", "title": "Rename local-idp / cockpit to Pharos", "description": "Crates pharos-manifest/engine/cli, Tauri package pharos (pharos_lib), product name Pharos, identifier io.pharos.desktop, CLI `pharos lint`, contract apiVersion pharos.io/v1alpha1 and pharos.yaml", "size": "S", "priority": 19, "status": "in-progress", "tags": ["naming"]}
+    {"id": "T-019", "title": "Rename local-idp / cockpit to Pharos", "description": "Crates pharos-manifest/engine/cli, Tauri package pharos (pharos_lib), product name Pharos, identifier io.pharos.desktop, CLI `pharos lint`, contract apiVersion pharos.io/v1alpha1 and pharos.yaml", "size": "S", "priority": 19, "status": "done", "tags": ["naming"]}
   ],
   "decisions": [
     {"id": "D-001", "date": "2026-10-27", "decision": "Shell out to system git; no credential handling in app", "rationale": "Inherits user's SSH agent / credential helpers (restart-plan D1)", "supersedes": null},
@@ -88,6 +88,7 @@
     {"id": "D-027", "date": "2026-10-29", "decision": "The product is Pharos. Crates pharos-manifest/pharos-engine/pharos-cli, binary `pharos`, Tauri package pharos (lib pharos_lib), identifier io.pharos.desktop (app data moves; old dev.cockpit.local-idp state is orphaned), db pharos.db. Platform repo contract: apiVersion pharos.io/v1alpha1, root file pharos.yaml. Dated records (docs/superpowers/*, decision and completed history) and the April prototype docs keep the old names", "rationale": "No platform repo outside this one depends on the contract yet, so one clean break is cheapest now", "supersedes": null}
   ],
   "completed": [
+    {"id": "T-019", "title": "Rename local-idp / cockpit to Pharos", "completed_date": "2026-10-29", "session_ref": "S-007", "notes": "PR #2 (merge 2b02650), D-027. 135 files, 83 renames; 69 Rust + 49 vitest green, lint snapshots unchanged apart from names. App data now under io.pharos.desktop (old dev.cockpit.local-idp state orphaned). Repo on GitHub: andrea-spoldi/pharos; GitHub Actions has not run yet (likely disabled on the new repo)"},
     {"id": "T-005", "title": "Platform dashboards", "completed_date": "2026-10-29", "session_ref": "S-006", "notes": "PR #1 (merge b10672c). Engine-decided placement status (D-024), hash routing (D-025), AST markdown (D-026). 69 Rust + 49 vitest green; final review fixed a re-sync remount (skeleton flash, double run). Demo docs/demos/04-dashboards.md not yet clicked through in the real app. Deferred minors: More-menu focus after Escape, undecoded route params (latent), missing clone fails all dashboards, blank first load, listeners without More"},
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "completed_date": "2026-10-27", "session_ref": "S-001", "notes": "pong verified in real app by user. CI workflow written but not yet run on GitHub (no remote). Icons are placeholders."},
     {"id": "T-002", "title": "Manifest crate + pharos lint", "completed_date": "2026-10-27", "session_ref": "S-002", "notes": "crates/pharos-manifest (Tauri-free) + crates/pharos-cli (`pharos lint`, text/json). 12 fixtures + insta snapshots, examples/platform-repo lints clean. No line numbers for semantic errors (path only). Manifest types not yet specta-exported."},
