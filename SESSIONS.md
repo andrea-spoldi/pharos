@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**S-007** (2026-10-29) — T-019 rename to Pharos done (PR #2). Last closed: **S-006** — slice 4 platform dashboards (T-005), PR #1. Next up: T-006 (slice 5).
+**S-008** (in progress, 2026-10-29) — T-006 slice 5: Settings with inputs, secrets and repo connection. Last closed: **S-007** — rename to Pharos (T-019), PR #2.
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -21,7 +21,7 @@
 | T-018 | — | Decide: personal todo widget | S | pending |
 | T-019 | — | Rename local-idp / cockpit to Pharos | S | done |
 | T-005 | 4 | Platform dashboards (read-only) | M | done |
-| T-006 | 5 | User inputs + secrets | M | pending |
+| T-006 | 5 | User inputs + secrets | M | in-progress |
 | T-007 | 6 | HTTP executor | S | pending |
 | T-008 | 7 | Command executor | S | pending |
 | T-009 | 8 | User dashboards + Customize fork | M | pending |
@@ -35,7 +35,7 @@
 {
   "project": "pharos",
   "updated": "2026-10-29",
-  "current_session": {"id": "S-007", "goal": "Rename local-idp / cockpit to Pharos, including the platform repo contract", "task_ref": "T-019", "started": "2026-10-29", "status": "done", "blocker": null},
+  "current_session": {"id": "S-008", "goal": "Slice 5: Settings screen with Platform inputs, keyring secrets and the repo connection (disconnect/reconnect)", "task_ref": "T-006", "started": "2026-10-29", "status": "in-progress", "blocker": null},
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
     {"id": "T-002", "title": "Manifest crate + pharos lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
@@ -43,7 +43,7 @@
     {"id": "T-003b", "title": "UI: source onboarding + sync screens", "description": "Tauri commands via tauri-specta, first-run screen (URL/path + branch, git check), capability consent, widget list, Sync now + changelog. Demo docs/demos/02-sync.md", "size": "M", "priority": 4, "status": "done", "tags": ["slice-2", "ui", "consent"]},
     {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "done", "tags": ["slice-3", "engine", "views"]},
     {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "done", "tags": ["slice-4", "ui"]},
-    {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "pending", "tags": ["slice-5", "secrets"]},
+    {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "in-progress", "tags": ["slice-5", "secrets"]},
     {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "S", "priority": 7, "status": "pending", "tags": ["slice-6", "engine"]},
     {"id": "T-008", "title": "Command executor", "description": "Executable + args, no shell, timeout, stderr/exit code", "size": "S", "priority": 8, "status": "pending", "tags": ["slice-7", "engine"]},
     {"id": "T-009", "title": "User dashboards", "description": "Create/rename/delete via in-app dialogs, Customize fork, add from Catalog, auto-placement", "size": "M", "priority": 9, "status": "pending", "tags": ["slice-8", "ui"]},
