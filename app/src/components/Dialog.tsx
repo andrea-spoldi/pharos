@@ -1,6 +1,9 @@
 import { createEffect, createUniqueId, type JSX, onCleanup, Show } from "solid-js";
 
-/** In-app modal (never `confirm()`): labelled by its title, Escape closes, focus moves in. */
+/**
+ * In-app modal (never `confirm()`): labelled by its title, Escape closes. Focus moves to the
+ * dialog itself, not its first button, so Enter can't trigger a destructive action by accident.
+ */
 export function Dialog(props: {
   title: string;
   open: boolean;
@@ -16,7 +19,7 @@ export function Dialog(props: {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
     document.addEventListener("keydown", onKey);
     onCleanup(() => document.removeEventListener("keydown", onKey));
-    (box?.querySelector<HTMLElement>("input, button") ?? box)?.focus();
+    box?.focus();
   });
 
   return (

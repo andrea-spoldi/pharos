@@ -1,6 +1,6 @@
 import { useSearchParams } from "@solidjs/router";
 import { createEffect, createResource, createSignal, For, Index, Match, on, Show, Switch } from "solid-js";
-import { commands, type InputView, type PlatformRef, type RepoSource, type SecretView } from "../bindings";
+import { commands, type InputView, type PlatformRef, type RepoSource, type SecretView, type StoredRef } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { Dialog } from "../components/Dialog";
 import { shortCommit } from "../components/SyncReview";
@@ -23,18 +23,25 @@ export function Settings(props: {
   onChanged: () => void;
   onDisconnected: (prev: { url: string; branch: string }) => void;
 }) {
-  const [settings, { refetch }] = createResource(() => unwrap(commands.getSettings()));
+  // Keyed on the applied commit: a sync applied while Settings is open reloads it.
+  const [settings, { refetch }] = createResource(
+    () => ({ commit: props.source.synced_commit }),
+    () => unwrap(commands.getSettings()),
+  );
   const [params] = useSearchParams<{ focus?: string }>();
   const changed = async () => {
     props.onChanged();
     await refetch();
   };
 
+  // Once per visit: refetches after each save must not pull focus back to the linked field.
+  let focused = false;
   createEffect(
     on(
       () => settings.latest,
       (s) => {
-        if (!s || !params.focus) return;
+        if (focused || !s || !params.focus) return;
+        focused = true;
         const [kind, key] = params.focus.split(":");
         const field = document.querySelector<HTMLElement>(`#setting-${kind}-${CSS.escape(key ?? "")} :is(input, select)`);
         field?.scrollIntoView({ block: "center" });
@@ -44,7 +51,7 @@ export function Settings(props: {
     ),
   );
 
-  const src = () => settings.latest?.source ?? props.source;
+  const src = () => props.source;
   const [disconnecting, setDisconnecting] = createSignal(false);
 
   return (
@@ -110,24 +117,7 @@ export function Settings(props: {
                 <h2 id="settings-unused">No longer used</h2>
                 <p class="muted">Stored for a platform or setting the repo no longer declares.</p>
                 <ul class="plain">
-                  <For each={s().unused}>
-                    {(u) => (
-                      <li class="row spread">
-                        <span>
-                          <code>{u.key}</code> · {u.platform}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await unwrap(commands.removeStored(u.platform, u.kind, u.key));
-                            await changed();
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    )}
-                  </For>
+                  <For each={s().unused}>{(u) => <UnusedRow row={u} onChanged={changed} />}</For>
                 </ul>
               </section>
             </Show>
@@ -145,6 +135,8 @@ function InputField(props: { input: InputView; onChanged: () => Promise<void> })
   const shown = () => props.input.value ?? props.input.default ?? "";
 
   const save = async (value: string) => {
+    // Leaving a field untouched must not pin the default as the user's own value.
+    if (value.trim() === shown()) return;
     setError(undefined);
     setSaved(false);
     try {
@@ -340,5 +332,31 @@ function DisconnectDialog(props: {
       </Show>
       <Show when={error()}>{(e) => <p class="danger-text">{e().message}</p>}</Show>
     </Dialog>
+  );
+}
+
+function UnusedRow(props: { row: StoredRef; onChanged: () => Promise<void> }) {
+  const [error, setError] = createSignal<IpcError>();
+  const remove = async () => {
+    setError(undefined);
+    try {
+      await unwrap(commands.removeStored(props.row.platform, props.row.kind, props.row.key));
+      await props.onChanged();
+    } catch (err) {
+      setError(toIpcError(err));
+    }
+  };
+  return (
+    <li class="stack">
+      <div class="row spread">
+        <span>
+          <code>{props.row.key}</code> · {props.row.platform}
+        </span>
+        <button type="button" onClick={remove}>
+          Remove
+        </button>
+      </div>
+      <Show when={error()}>{(e) => <p class="danger-text">{e().message}</p>}</Show>
+    </li>
   );
 }

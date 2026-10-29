@@ -420,3 +420,63 @@ fn disconnect_drops_a_pending_plan() {
     engine.add_source(&f.url(), "main").unwrap();
     assert!(engine.pending_sync().is_none());
 }
+
+#[test]
+fn a_stale_value_counts_as_missing_even_with_a_default() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine_with(MemoryStore::default());
+    let platform = fs::read_to_string(f.origin.join("pharos.yaml")).unwrap();
+    f.write(
+        "pharos.yaml",
+        &platform.replace(
+            "      required: true\n",
+            "      required: true\n      default: platform-team\n",
+        ),
+    );
+    f.resync(&mut engine, "default team");
+    engine.set_input("team", Some("payments-team")).unwrap();
+
+    f.delete("catalog/teams/payments-team.yaml");
+    f.resync(&mut engine, "drop payments");
+
+    assert!(engine.settings().unwrap().inputs[0].stale);
+    assert_eq!(
+        pipelines_status(&engine),
+        PlacementStatus::NeedsSetup {
+            inputs: vec!["team".into()],
+            secrets: vec!["GITLAB_TOKEN".into()],
+        }
+    );
+}
+
+#[test]
+fn a_partly_failed_forget_keeps_records_in_step_with_the_store() {
+    let f = Fixture::new();
+    let store = MemoryStore::default();
+    let mut engine = f.synced_engine_with(store.clone());
+    let platform = fs::read_to_string(f.origin.join("pharos.yaml")).unwrap();
+    f.write("pharos.yaml", &format!("{platform}    - name: OTHER\n"));
+    f.resync(&mut engine, "second secret");
+    engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
+    engine.set_secret("OTHER", "other").unwrap();
+    store.fail_on("acme-platform/OTHER");
+
+    let err = engine.disconnect(true).unwrap_err();
+
+    assert!(
+        matches!(err, EngineError::Keyring { ref name, .. } if name == "OTHER"),
+        "{err:?}"
+    );
+    assert!(engine.source().unwrap().is_some());
+    // GITLAB_TOKEN is gone from the store, so it must not still be recorded as set.
+    assert_eq!(store.get(ACCOUNT), None);
+    assert_eq!(secret_rows(&f), ["OTHER"]);
+    let secrets = engine.settings().unwrap().secrets;
+    assert!(
+        !secrets
+            .iter()
+            .find(|s| s.name == "GITLAB_TOKEN")
+            .unwrap()
+            .set
+    );
+}

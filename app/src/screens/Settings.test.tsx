@@ -1,5 +1,6 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type RepoSource, type SettingsView } from "../bindings";
 import { Settings } from "./Settings";
@@ -52,14 +53,14 @@ function view(over: Partial<SettingsView> = {}): SettingsView {
   };
 }
 
-function renderAt(path = "/settings", onChanged = vi.fn(), onDisconnected = vi.fn()) {
+function renderAt(path = "/settings", onChanged = vi.fn(), onDisconnected = vi.fn(), src: RepoSource = source) {
   const history = createMemoryHistory();
   history.set({ value: path });
   render(() => (
     <MemoryRouter history={history}>
       <Route
         path="/settings"
-        component={() => <Settings source={source} onChanged={onChanged} onDisconnected={onDisconnected} />}
+        component={() => <Settings source={src} onChanged={onChanged} onDisconnected={onDisconnected} />}
       />
     </MemoryRouter>
   ));
@@ -85,10 +86,9 @@ describe("Settings", () => {
   });
 
   it("before the first sync", async () => {
-    vi.mocked(commands.getSettings).mockResolvedValue(
-      ok(view({ platform: null, inputs: [], secrets: [], source: { ...source, synced_commit: null, synced_at: null } })),
-    );
-    renderAt();
+    const unsynced = { ...source, synced_commit: null, synced_at: null };
+    vi.mocked(commands.getSettings).mockResolvedValue(ok(view({ platform: null, inputs: [], secrets: [], source: unsynced })));
+    renderAt("/settings", vi.fn(), vi.fn(), unsynced);
     await screen.findByRole("heading", { name: "Repository" });
     expect(screen.getAllByText("Available after the first sync")).toHaveLength(2);
     expect(screen.getByText(/Not synced yet/)).toBeTruthy();
@@ -199,5 +199,68 @@ describe("Settings", () => {
     expect(await within(dialog).findByText(/locked/)).toBeTruthy();
     expect(screen.getByRole("dialog", { name: "Disconnect" })).toBeTruthy();
     expect(onDisconnected).not.toHaveBeenCalled();
+  });
+
+  it("focuses the linked field only once", async () => {
+    vi.mocked(commands.getSettings).mockImplementation(async () => ok(view()));
+    renderAt("/settings?focus=input:team");
+    const select = (await screen.findByLabelText(/Your team/)) as HTMLSelectElement;
+    await waitFor(() => expect(document.activeElement).toBe(select));
+    const secret = screen.getByLabelText("GITLAB_TOKEN value");
+    secret.focus();
+    fireEvent.change(select, { target: { value: "payments-team" } });
+    await waitFor(() => expect(commands.getSettings).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(secret);
+  });
+
+  it("does not save an untouched default on blur", async () => {
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok(
+        view({
+          inputs: [
+            { key: "region", label: "Region", type: "string", required: false, value: null, default: "eu", choices: [], stale: false },
+          ],
+        }),
+      ),
+    );
+    renderAt();
+    const field = (await screen.findByLabelText("Region")) as HTMLInputElement;
+    expect(field.value).toBe("eu");
+    fireEvent.blur(field);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(commands.setInput).not.toHaveBeenCalled();
+    fireEvent.input(field, { target: { value: "us" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(commands.setInput).toHaveBeenCalledWith("region", "us"));
+  });
+
+  it("reloads after a sync applies a new commit", async () => {
+    const [src, setSrc] = createSignal(source);
+    const history = createMemoryHistory();
+    history.set({ value: "/settings" });
+    render(() => (
+      <MemoryRouter history={history}>
+        <Route path="/settings" component={() => <Settings source={src()} onChanged={() => {}} onDisconnected={() => {}} />} />
+      </MemoryRouter>
+    ));
+    await screen.findByRole("heading", { name: "Repository" });
+    setSrc({ ...source, synced_commit: "b".repeat(40) });
+    await waitFor(() => expect(commands.getSettings).toHaveBeenCalledTimes(2));
+    expect(document.body.textContent).toContain("bbbbbbb");
+  });
+
+  it("explains a failed removal of an unused row", async () => {
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok(view({ unused: [{ platform: "acme-platform", kind: "secret", key: "OLD" }] })),
+    );
+    vi.mocked(commands.removeStored).mockResolvedValue({
+      status: "error",
+      error: { kind: "keyring", message: "could not update secret `OLD` in the OS keyring: locked" },
+    });
+    renderAt();
+    const section = await screen.findByTestId("unused");
+    fireEvent.click(within(section).getByRole("button", { name: "Remove" }));
+    expect(await within(section).findByText(/locked/)).toBeTruthy();
   });
 });

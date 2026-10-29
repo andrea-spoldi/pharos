@@ -7,8 +7,9 @@ import { commands } from "./bindings";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
+let history = createMemoryHistory();
 function atPath(path: string) {
-  const history = createMemoryHistory();
+  history = createMemoryHistory();
   history.set({ value: path });
   return history;
 }
@@ -72,6 +73,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     expect(await screen.findByText("Connect your platform repo")).toBeTruthy();
     await waitFor(() => expect(document.querySelector("input[name=url]")).toHaveProperty("value", source.url));
+    // After reconnecting, the first sync should land on the dashboards, not back in Settings.
+    expect(history.get()).toBe("/");
   });
 
   it("reports unreadable local state", async () => {

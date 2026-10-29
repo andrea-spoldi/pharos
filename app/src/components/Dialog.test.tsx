@@ -21,7 +21,8 @@ describe("Dialog", () => {
     ));
     const dialog = screen.getByRole("dialog", { name: "Remove it?" });
     expect(dialog.getAttribute("aria-modal")).toBe("true");
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    // The dialog itself, not its first (often destructive) button.
+    expect(document.activeElement).toBe(dialog);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
   });

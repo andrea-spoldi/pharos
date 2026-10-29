@@ -174,13 +174,17 @@ pub(crate) fn view(
 }
 
 impl SettingsView {
-    /// Inputs with a valid value or a default, and secrets that are set.
+    /// Inputs with a valid value, or no value and a default; secrets that are set. A stale
+    /// value counts as missing even when there is a default (it would be used otherwise).
     pub(crate) fn setup_state(&self) -> SetupState {
         SetupState {
             inputs: self
                 .inputs
                 .iter()
-                .filter(|i| (i.value.is_some() && !i.stale) || i.default.is_some())
+                .filter(|i| match &i.value {
+                    Some(_) => !i.stale,
+                    None => i.default.is_some(),
+                })
                 .map(|i| i.key.clone())
                 .collect(),
             secrets: self

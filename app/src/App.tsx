@@ -1,3 +1,4 @@
+import { useNavigate } from "@solidjs/router";
 import { createResource, createSignal, Match, Switch } from "solid-js";
 import { commands } from "./bindings";
 import { unwrap } from "./ipc";
@@ -8,6 +9,7 @@ export function App() {
   const [source, { mutate, refetch }] = createResource(() => unwrap(commands.getSource()));
   // The repo the user just disconnected from, to pre-fill Onboarding.
   const [prefill, setPrefill] = createSignal<{ url: string; branch: string }>();
+  const navigate = useNavigate();
 
   return (
     <Switch>
@@ -26,6 +28,8 @@ export function App() {
       </Match>
       <Match when={source()}>{(s) => <Home source={s()} onSynced={refetch} onDisconnected={(prev) => {
               setPrefill(prev);
+              // The next connection should land on the dashboards, not back in Settings.
+              navigate("/", { replace: true });
               mutate(null);
             }} />}</Match>
     </Switch>

@@ -381,8 +381,9 @@ impl Engine {
     }
 
     /// Forgets the platform repo: its row, snapshot, approval, pending plan and clone. With
-    /// `forget`, also the applied platform's inputs and secrets, secrets first: a store
-    /// failure stops before anything changes, so no secret is left behind silently (D-028).
+    /// `forget`, also the applied platform's inputs and secrets, secrets first. A store
+    /// failure stops with the repo still connected; secrets already deleted lose their
+    /// record too, so Settings never shows "Set" for a value that is gone (D-028).
     pub fn disconnect(&mut self, forget: bool) -> Result<()> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
         if forget && let Some(platform) = self.platform()? {
@@ -399,6 +400,7 @@ impl Engine {
                         name: secret.clone(),
                         message,
                     })?;
+                db::delete_secret_meta(&self.conn, name, secret)?;
             }
             db::forget_platform(&self.conn, name)?;
         }

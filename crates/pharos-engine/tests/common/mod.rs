@@ -15,6 +15,8 @@ use std::sync::{Arc, Mutex};
 pub struct MemoryStore {
     pub entries: Arc<Mutex<BTreeMap<String, String>>>,
     pub fail: Arc<AtomicBool>,
+    /// Fail only calls for this account.
+    pub fail_on: Arc<Mutex<Option<String>>>,
 }
 
 impl MemoryStore {
@@ -25,11 +27,19 @@ impl MemoryStore {
     pub fn set_failing(&self, fail: bool) {
         self.fail.store(fail, Ordering::SeqCst);
     }
+
+    pub fn fail_on(&self, account: &str) {
+        *self.fail_on.lock().unwrap() = Some(account.into());
+    }
+
+    fn fails(&self, account: &str) -> bool {
+        self.fail.load(Ordering::SeqCst) || self.fail_on.lock().unwrap().as_deref() == Some(account)
+    }
 }
 
 impl SecretStore for MemoryStore {
     fn set(&self, account: &str, value: &str) -> Result<(), String> {
-        if self.fail.load(Ordering::SeqCst) {
+        if self.fails(account) {
             return Err("store unavailable".into());
         }
         self.entries
@@ -40,7 +50,7 @@ impl SecretStore for MemoryStore {
     }
 
     fn delete(&self, account: &str) -> Result<(), String> {
-        if self.fail.load(Ordering::SeqCst) {
+        if self.fails(account) {
             return Err("store unavailable".into());
         }
         self.entries.lock().unwrap().remove(account);
