@@ -1,8 +1,0 @@
-apiVersion: cockpit.dev/v1alpha1
-kind: Platform
-metadata: { name: test }
-spec:
-  inputs:
-    team: { type: string, required: true }
-  secrets:
-    - name: TOKEN

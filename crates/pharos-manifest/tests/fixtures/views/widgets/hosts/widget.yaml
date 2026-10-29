@@ -1,0 +1,7 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: hosts }
+spec:
+  source: { type: command, executable: date }
+  view: { type: raw, content: ignored }
+  permissions: { hosts: [gitlab.acme, 'https://ok.acme', 'https://x.acme/api'] }

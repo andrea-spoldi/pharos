@@ -1,5 +1,5 @@
 {
-  "name": "local-idp-root",
+  "name": "pharos-root",
   "private": true,
   "workspaces": ["app"],
   "scripts": {

@@ -1,0 +1,12 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"dashboard\"))"
+---
+error: dashboards/home.yaml: spec.widgets[1]: overlaps spec.widgets[0] (`a`) [overlap]
+error: dashboards/home.yaml: spec.widgets[2]: x + w = 14 exceeds the 12-column grid [out-of-grid]
+error: dashboards/home.yaml: spec.widgets[3]: w and h must be at least 1 [invalid-size]
+error: dashboards/home.yaml: spec.widgets[4].inputs: required input `project` of widget `a` is not set [missing-input]
+error: dashboards/home.yaml: spec.widgets[5].inputs.nope: widget `a` has no input `nope` [unknown-input]
+error: dashboards/home.yaml: spec.widgets[5].inputs.project: `inputs.*` is only available inside widgets [template-not-allowed]
+error: dashboards/home.yaml: spec.widgets[6].widget: no widget named `ghost` [unknown-widget]
+-- 7 errors, 0 warnings

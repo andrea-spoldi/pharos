@@ -1,6 +1,0 @@
-apiVersion: cockpit.dev/v1alpha1
-kind: Widget
-metadata: { name: templated-host }
-spec:
-  source: { type: http, url: "https://{{ user.team }}.gitlab.acme/api" }
-  view: { type: raw }

@@ -20,7 +20,7 @@ function placement(
     w: 8,
     h: 4,
     manifest: {
-      apiVersion: "cockpit.dev/v1alpha1",
+      apiVersion: "pharos.io/v1alpha1",
       kind: "Widget",
       metadata: { name: "service-catalog", title: "Service Catalog", version: null, description: null },
       spec: { source, refresh: null, inputs: {}, view, permissions: { hosts: [] } },

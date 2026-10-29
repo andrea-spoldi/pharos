@@ -1,9 +1,0 @@
-apiVersion: cockpit.dev/v1alpha1
-kind: Widget
-metadata: { name: shell }
-spec:
-  source:
-    type: command
-    executable: "kubectl get pods | grep api"
-    timeout: 5 minutes
-  view: { type: raw }

@@ -17,7 +17,7 @@ const isUpToDate = (plan: SyncPlan) =>
  * Connected state. Syncs on launch and on demand (D-004), never blocking the widget list.
  * A plan with unchanged capabilities and no lint errors is applied without asking and
  * reported as a changelog (restart-plan §3); anything else is reviewed first.
- * The header names the platform (`cockpit.yaml` title, else name, else "Local IDP").
+ * The header names the platform (`pharos.yaml` title, else name, else "Pharos").
  */
 export function Home(props: { source: RepoSource; onSynced: () => void }) {
   const [plan, setPlan] = createSignal<SyncPlan | null>(null);
@@ -32,7 +32,7 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
     () => widgetsVersion(),
     () => unwrap(commands.getPlatform()).catch(() => null),
   );
-  const title = () => platform.latest?.metadata.title ?? platform.latest?.metadata.name ?? "Local IDP";
+  const title = () => platform.latest?.metadata.title ?? platform.latest?.metadata.name ?? "Pharos";
 
   const run = async (label: string, step: () => Promise<void>) => {
     setBusy(label);

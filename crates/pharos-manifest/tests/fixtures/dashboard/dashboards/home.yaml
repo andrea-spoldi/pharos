@@ -1,0 +1,12 @@
+apiVersion: pharos.io/v1alpha1
+kind: Dashboard
+metadata: { name: home }
+spec:
+  widgets:
+    - { widget: a, x: 0, y: 0, w: 6, h: 2, inputs: { project: "{{ user.team }}" } }
+    - { widget: a, x: 4, y: 1, w: 4, h: 2, inputs: { project: x } }
+    - { widget: a, x: 10, y: 5, w: 4, h: 1, inputs: { project: x } }
+    - { widget: a, x: 0, y: 9, w: 0, h: 1, inputs: { project: x } }
+    - { widget: a, x: 0, y: 3, w: 2, h: 1 }
+    - { widget: a, x: 2, y: 3, w: 2, h: 1, inputs: { project: "{{ inputs.x }}", nope: y } }
+    - { widget: ghost, x: 6, y: 3, w: 2, h: 1 }

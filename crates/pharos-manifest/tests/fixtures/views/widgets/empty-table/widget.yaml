@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: empty-table }
+spec:
+  source: { type: command, executable: date }
+  view: { type: table }

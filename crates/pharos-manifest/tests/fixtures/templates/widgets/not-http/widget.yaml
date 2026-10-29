@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: not-http }
+spec:
+  source: { type: http, url: "file:///etc/passwd" }
+  view: { type: raw }

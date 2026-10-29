@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: static-table }
+spec:
+  refresh: 5m
+  view: { type: table, columns: [ { field: a } ] }

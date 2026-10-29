@@ -1,5 +1,0 @@
-apiVersion: cockpit.dev/v1alpha1
-kind: Widget
-metadata: { name: missing-view }
-spec:
-  refresh: 5m

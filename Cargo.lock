@@ -426,49 +426,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
-name = "cockpit-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "cockpit-manifest",
- "serde_json",
-]
-
-[[package]]
-name = "cockpit-engine"
-version = "0.1.0"
-dependencies = [
- "cockpit-manifest",
- "globset",
- "libc",
- "rusqlite",
- "rusqlite_migration",
- "serde",
- "serde_json",
- "serde_yaml_ng",
- "specta",
- "tempfile",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "cockpit-manifest"
-version = "0.1.0"
-dependencies = [
- "globset",
- "insta",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "serde_yaml_ng",
- "sha2",
- "specta",
- "tempfile",
- "thiserror 2.0.21",
- "url",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1915,20 +1872,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
-name = "local-idp"
-version = "0.1.0"
-dependencies = [
- "cockpit-engine",
- "cockpit-manifest",
- "serde",
- "specta",
- "specta-typescript",
- "tauri",
- "tauri-build",
- "tauri-specta",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2373,6 +2316,63 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pharos"
+version = "0.1.0"
+dependencies = [
+ "pharos-engine",
+ "pharos-manifest",
+ "serde",
+ "specta",
+ "specta-typescript",
+ "tauri",
+ "tauri-build",
+ "tauri-specta",
+]
+
+[[package]]
+name = "pharos-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pharos-manifest",
+ "serde_json",
+]
+
+[[package]]
+name = "pharos-engine"
+version = "0.1.0"
+dependencies = [
+ "globset",
+ "libc",
+ "pharos-manifest",
+ "rusqlite",
+ "rusqlite_migration",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "specta",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pharos-manifest"
+version = "0.1.0"
+dependencies = [
+ "globset",
+ "insta",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_yaml_ng",
+ "sha2",
+ "specta",
+ "tempfile",
+ "thiserror 2.0.21",
+ "url",
+]
 
 [[package]]
 name = "phf"

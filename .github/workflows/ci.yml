@@ -38,7 +38,7 @@ jobs:
       - run: cargo clippy --all-targets
       - run: cargo test
       - name: Example platform repo lints clean
-        run: cargo run -q -p cockpit-cli -- lint examples/platform-repo
+        run: cargo run -q -p pharos-cli -- lint examples/platform-repo
       - name: Bindings are up to date
         run: git diff --exit-code -- app/src/bindings.ts
 

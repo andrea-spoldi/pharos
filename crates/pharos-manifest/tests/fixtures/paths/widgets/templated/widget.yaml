@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: templated }
+spec:
+  source: { type: file, path: '../../{{ user.team }}/' }
+  view: { type: raw }

@@ -1,0 +1,19 @@
+[package]
+name = "pharos-cli"
+version = "0.1.0"
+description = "`pharos lint` for platform repo CI"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pharos"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+pharos-manifest.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

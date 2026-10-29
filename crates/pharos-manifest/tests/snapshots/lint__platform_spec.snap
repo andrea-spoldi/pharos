@@ -1,0 +1,14 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"platform-spec\"))"
+---
+error: pharos.yaml: spec.widgets: `../outside/`: path escapes the repository root [path-escape]
+error: pharos.yaml: spec.inputs.bad-key: `bad-key` must be letters, digits and `_` [invalid-input-name]
+warning: pharos.yaml: spec.inputs.name: `values`, `from` and `field` only apply to enum inputs [ignored-field]
+error: pharos.yaml: spec.inputs.region: enum inputs need `values` or `from` + `field` [enum-without-values]
+error: pharos.yaml: spec.inputs.stage.default: `qa` is not one of `values` [invalid-default]
+error: pharos.yaml: spec.inputs.team.field: `from` needs `field` [missing-field]
+error: pharos.yaml: spec.inputs.team.from: `../../teams/`: path escapes the repository root [path-escape]
+error: pharos.yaml: spec.secrets[0].name: `token` must be UPPER_SNAKE_CASE [invalid-secret-name]
+error: pharos.yaml: spec.secrets[2].name: secret `TOKEN` is declared twice [duplicate-secret]
+-- 8 errors, 1 warnings

@@ -1,4 +1,4 @@
-apiVersion: cockpit.dev/v1alpha1
+apiVersion: pharos.io/v1alpha1
 kind: Widget
 metadata:
   name: welcome
@@ -9,4 +9,4 @@ spec:
     type: markdown
     content: |
       # Welcome to ACME
-      Your cockpit is managed by the platform team. Ask in #platform for help.
+      Pharos is managed by the platform team. Ask in #platform for help.

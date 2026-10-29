@@ -1,20 +1,20 @@
 [package]
-name = "local-idp"
+name = "pharos"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [lib]
-name = "local_idp_lib"
+name = "pharos_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
-cockpit-engine = { workspace = true, features = ["specta"] }
-cockpit-manifest = { workspace = true, features = ["specta"] }
+pharos-engine = { workspace = true, features = ["specta"] }
+pharos-manifest = { workspace = true, features = ["specta"] }
 tauri = { version = "2.12", features = [] }
 serde.workspace = true
 specta.workspace = true

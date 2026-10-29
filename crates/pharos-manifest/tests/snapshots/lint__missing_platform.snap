@@ -1,0 +1,6 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"missing-platform\"))"
+---
+error: pharos.yaml: missing: every platform repo needs one at its root (kind: Platform) [missing-platform]
+-- 1 errors, 0 warnings

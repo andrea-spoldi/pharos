@@ -41,7 +41,7 @@ export function Onboarding(props: { onConnected: (source: RepoSource) => void })
       <header>
         <h1>Connect your platform repo</h1>
         <p class="muted">
-          Local IDP shows the widgets and dashboards your platform team keeps in a git repo. It
+          Pharos shows the widgets and dashboards your platform team keeps in a git repo. It
           clones the repo into its own data folder and never writes back to it.
         </p>
       </header>
@@ -55,7 +55,7 @@ export function Onboarding(props: { onConnected: (source: RepoSource) => void })
             <div class="notice danger" role="alert">
               <strong>git was not found</strong>
               <p>
-                Local IDP uses the git on your PATH, with your SSH keys and credential helpers.
+                Pharos uses the git on your PATH, with your SSH keys and credential helpers.
                 Install git (on macOS: <code>xcode-select --install</code>), then check again.
               </p>
               <button type="button" onClick={refetch}>
@@ -79,7 +79,7 @@ export function Onboarding(props: { onConnected: (source: RepoSource) => void })
               name="url"
               value={url()}
               onInput={(e) => setUrl(e.currentTarget.value)}
-              placeholder="git@gitlab.acme:platform/cockpit.git or ~/src/platform-repo"
+              placeholder="git@gitlab.acme:platform/pharos.git or ~/src/platform-repo"
               autofocus
               autocomplete="off"
               autocapitalize="off"
