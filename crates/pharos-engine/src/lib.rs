@@ -380,6 +380,35 @@ impl Engine {
         }
     }
 
+    /// Forgets the platform repo: its row, snapshot, approval, pending plan and clone. With
+    /// `forget`, also the applied platform's inputs and secrets, secrets first: a store
+    /// failure stops before anything changes, so no secret is left behind silently (D-028).
+    pub fn disconnect(&mut self, forget: bool) -> Result<()> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        if forget && let Some(platform) = self.platform()? {
+            let name = &platform.metadata.name;
+            let secrets: Vec<String> = db::all_secrets(&self.conn)?
+                .into_iter()
+                .filter(|(p, _)| p == name)
+                .map(|(_, n)| n)
+                .collect();
+            for secret in &secrets {
+                self.store
+                    .delete(&secrets::account(name, secret))
+                    .map_err(|message| EngineError::Keyring {
+                        name: secret.clone(),
+                        message,
+                    })?;
+            }
+            db::forget_platform(&self.conn, name)?;
+        }
+        self.pending = None;
+        db::delete_source(&self.conn, source.id)?;
+        // App-owned; `add_source` replaces a leftover destination anyway.
+        let _ = fs::remove_dir_all(&source.local_path);
+        Ok(())
+    }
+
     /// The applied platform manifest and the canonical clone root.
     fn applied_platform(&self) -> Result<(Platform, PathBuf)> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;

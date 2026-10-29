@@ -347,3 +347,76 @@ fn undeclared_rows_are_listed_as_unused() {
     assert!(engine.settings().unwrap().unused.is_empty());
     assert_eq!(store.get(ACCOUNT), None);
 }
+
+fn reconnect(f: &Fixture, engine: &mut Engine) {
+    engine.add_source(&f.url(), "main").unwrap();
+    engine.plan_sync().unwrap();
+    engine.apply_sync(true).unwrap();
+}
+
+#[test]
+fn disconnect_keeps_details_for_the_same_platform() {
+    let f = Fixture::new();
+    let store = MemoryStore::default();
+    let mut engine = f.synced_engine_with(store.clone());
+    engine.set_input("team", Some("payments-team")).unwrap();
+    engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
+    let clone = engine.source().unwrap().unwrap().local_path;
+
+    engine.disconnect(false).unwrap();
+
+    assert!(engine.source().unwrap().is_none());
+    assert!(!clone.exists());
+    reconnect(&f, &mut engine);
+    let view = engine.settings().unwrap();
+    assert_eq!(view.inputs[0].value.as_deref(), Some("payments-team"));
+    assert!(view.secrets[0].set);
+    assert_eq!(store.get(ACCOUNT).as_deref(), Some("tok"));
+}
+
+#[test]
+fn disconnect_with_forget_clears_everything() {
+    let f = Fixture::new();
+    let store = MemoryStore::default();
+    let mut engine = f.synced_engine_with(store.clone());
+    engine.set_input("team", Some("payments-team")).unwrap();
+    engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
+
+    engine.disconnect(true).unwrap();
+
+    assert!(stored_inputs(&f).is_empty());
+    assert!(secret_rows(&f).is_empty());
+    assert_eq!(store.get(ACCOUNT), None);
+}
+
+#[test]
+fn disconnect_with_forget_stops_on_keyring_failure() {
+    let f = Fixture::new();
+    let store = MemoryStore::default();
+    let mut engine = f.synced_engine_with(store.clone());
+    engine.set_input("team", Some("payments-team")).unwrap();
+    engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
+    store.set_failing(true);
+
+    let err = engine.disconnect(true).unwrap_err();
+
+    assert!(matches!(err, EngineError::Keyring { .. }), "{err:?}");
+    assert!(engine.source().unwrap().is_some());
+    assert_eq!(stored_inputs(&f).len(), 1);
+    assert_eq!(secret_rows(&f), ["GITLAB_TOKEN"]);
+    assert_eq!(store.get(ACCOUNT).as_deref(), Some("tok"));
+}
+
+#[test]
+fn disconnect_drops_a_pending_plan() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine_with(MemoryStore::default());
+    f.write("dashboards/extra.yaml", "apiVersion: pharos.io/v1alpha1\nkind: Dashboard\nmetadata: { name: extra }\nspec: { widgets: [] }\n");
+    f.commit("extra");
+    engine.plan_sync().unwrap();
+
+    engine.disconnect(false).unwrap();
+
+    engine.add_source(&f.url(), "main").unwrap();
+    assert!(engine.pending_sync().is_none());
+}

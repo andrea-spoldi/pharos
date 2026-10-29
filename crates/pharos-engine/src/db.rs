@@ -218,6 +218,13 @@ pub fn delete_secret_meta(conn: &Connection, platform: &str, name: &str) -> rusq
     .map(drop)
 }
 
+/// Deletes a platform's stored inputs and secret names.
+pub fn forget_platform(conn: &Connection, platform: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM user_inputs WHERE platform = ?1", [platform])?;
+    conn.execute("DELETE FROM secrets_meta WHERE platform = ?1", [platform])
+        .map(drop)
+}
+
 /// Every stored input as (platform, key, value).
 pub fn all_inputs(conn: &Connection) -> rusqlite::Result<Vec<(String, String, String)>> {
     let mut stmt =
