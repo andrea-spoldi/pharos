@@ -8,6 +8,8 @@ mod dashboard;
 mod db;
 mod git;
 mod run;
+mod secrets;
+mod settings;
 mod sync;
 
 use pharos_manifest::{Dashboard, Platform, Widget};
@@ -21,6 +23,8 @@ pub use dashboard::{DashboardView, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
 pub use run::{FileData, FileError, MAX_FILES};
+pub use secrets::{KEYRING_SERVICE, KeyringStore, SecretStore};
+pub use settings::StoredKind;
 use sync::Pending;
 pub use sync::{Changes, SyncPlan};
 
@@ -56,6 +60,15 @@ pub enum EngineError {
     SourceNotSupported(&'static str),
     #[error(transparent)]
     File(#[from] FileError),
+    #[error("`{0}` is not declared in pharos.yaml")]
+    Undeclared(String),
+    #[error("invalid value for `{key}`: {reason}")]
+    InvalidValue { key: String, reason: String },
+    #[error("nothing is applied yet; settings are available after the first sync")]
+    NoPlatform,
+    /// `message` comes from the store and never contains the value.
+    #[error("could not update secret `{name}` in the OS keyring: {message}")]
+    Keyring { name: String, message: String },
 }
 
 pub type Result<T> = std::result::Result<T, EngineError>;
@@ -64,17 +77,25 @@ pub struct Engine {
     conn: Connection,
     data_dir: PathBuf,
     pending: Option<Pending>,
+    store: Box<dyn SecretStore>,
 }
 
 impl Engine {
-    /// Opens (and migrates) the state in `data_dir`, creating it if needed.
+    /// Opens (and migrates) the state in `data_dir`, creating it if needed. Secrets go to
+    /// the OS keyring.
     pub fn open(data_dir: &Path) -> Result<Self> {
+        Self::open_with(data_dir, Box::new(KeyringStore))
+    }
+
+    /// Like [`Engine::open`], keeping secret values in `store`.
+    pub fn open_with(data_dir: &Path, store: Box<dyn SecretStore>) -> Result<Self> {
         fs::create_dir_all(data_dir)?;
         let conn = db::open(&data_dir.join("pharos.db"))?;
         Ok(Self {
             conn,
             data_dir: data_dir.to_path_buf(),
             pending: None,
+            store,
         })
     }
 
@@ -264,6 +285,86 @@ impl Engine {
         Ok(db::snapshot(&self.conn, source.id)?
             .platform
             .map(|json| serde_json::from_str(&json).expect("stored manifests are valid JSON")))
+    }
+
+    /// Sets (or, for `None` or blank, clears) a Platform input declared in `spec.inputs`.
+    /// Enum values must be one of the current choices.
+    pub fn set_input(&mut self, key: &str, value: Option<&str>) -> Result<()> {
+        let (platform, root) = self.applied_platform()?;
+        let def = platform
+            .spec
+            .inputs
+            .get(key)
+            .ok_or_else(|| EngineError::Undeclared(key.into()))?;
+        let name = &platform.metadata.name;
+        let Some(value) = value.map(str::trim).filter(|v| !v.is_empty()) else {
+            return Ok(db::delete_input(&self.conn, name, key)?);
+        };
+        if def.kind == pharos_manifest::InputType::Enum
+            && !settings::choices(&root, def).iter().any(|c| c == value)
+        {
+            return Err(EngineError::InvalidValue {
+                key: key.into(),
+                reason: "not one of the choices".into(),
+            });
+        }
+        Ok(db::set_input(&self.conn, name, key, value)?)
+    }
+
+    /// Stores a declared secret's value in the secret store (trimmed) and records its name.
+    /// A store failure records nothing.
+    pub fn set_secret(&mut self, name: &str, value: &str) -> Result<()> {
+        let (platform, _) = self.applied_platform()?;
+        if !platform.spec.secrets.iter().any(|s| s.name == name) {
+            return Err(EngineError::Undeclared(name.into()));
+        }
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(EngineError::InvalidValue {
+                key: name.into(),
+                reason: "empty".into(),
+            });
+        }
+        let platform = &platform.metadata.name;
+        self.store
+            .set(&secrets::account(platform, name), value)
+            .map_err(|message| EngineError::Keyring {
+                name: name.into(),
+                message,
+            })?;
+        Ok(db::set_secret_meta(&self.conn, platform, name)?)
+    }
+
+    /// Removes a declared secret from the store and its record.
+    pub fn remove_secret(&mut self, name: &str) -> Result<()> {
+        let (platform, _) = self.applied_platform()?;
+        if !platform.spec.secrets.iter().any(|s| s.name == name) {
+            return Err(EngineError::Undeclared(name.into()));
+        }
+        self.remove_stored(&platform.metadata.name, StoredKind::Secret, name)
+    }
+
+    /// Removes any stored input or secret, declared or not (removal only ever deletes).
+    pub fn remove_stored(&mut self, platform: &str, kind: StoredKind, key: &str) -> Result<()> {
+        match kind {
+            StoredKind::Input => Ok(db::delete_input(&self.conn, platform, key)?),
+            StoredKind::Secret => {
+                self.store
+                    .delete(&secrets::account(platform, key))
+                    .map_err(|message| EngineError::Keyring {
+                        name: key.into(),
+                        message,
+                    })?;
+                Ok(db::delete_secret_meta(&self.conn, platform, key)?)
+            }
+        }
+    }
+
+    /// The applied platform manifest and the canonical clone root.
+    fn applied_platform(&self) -> Result<(Platform, PathBuf)> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let platform = self.platform()?.ok_or(EngineError::NoPlatform)?;
+        Ok((platform, fs::canonicalize(&source.local_path)?))
     }
 
     /// Runs a widget as of the last applied sync, within the capabilities the user approved.

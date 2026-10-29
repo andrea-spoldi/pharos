@@ -3,8 +3,8 @@
 
 mod common;
 
-use pharos_engine::{Engine, EngineError, GitError};
 use common::{Fixture, git};
+use pharos_engine::{Engine, EngineError, GitError};
 use std::fs;
 
 const STATUS_WIDGET: &str = "apiVersion: pharos.io/v1alpha1

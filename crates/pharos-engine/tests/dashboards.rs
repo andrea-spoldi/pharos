@@ -2,8 +2,8 @@
 
 mod common;
 
-use pharos_engine::{Engine, PlacementStatus};
 use common::Fixture;
+use pharos_engine::{Engine, PlacementStatus};
 
 #[test]
 fn home_placements_have_status_and_reads() {

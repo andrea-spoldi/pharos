@@ -78,6 +78,11 @@ impl From<EngineError> for CommandError {
             EngineError::Db(_) | EngineError::Migration(_) | EngineError::Io(_) => {
                 ErrorKind::Internal
             }
+            // Mapped to their own kinds in slice 5 part d.
+            EngineError::Undeclared(_)
+            | EngineError::InvalidValue { .. }
+            | EngineError::NoPlatform
+            | EngineError::Keyring { .. } => ErrorKind::Internal,
         };
         Self {
             kind,

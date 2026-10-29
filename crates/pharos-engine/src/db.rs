@@ -6,7 +6,10 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const MIGRATION_LIST: &[M<'_>] = &[M::up(include_str!("migrations/001_sources.sql"))];
+const MIGRATION_LIST: &[M<'_>] = &[
+    M::up(include_str!("migrations/001_sources.sql")),
+    M::up(include_str!("migrations/002_settings.sql")),
+];
 const MIGRATIONS: Migrations<'_> = Migrations::from_slice(MIGRATION_LIST);
 
 pub fn open(path: &std::path::Path) -> Result<Connection, crate::EngineError> {
@@ -182,4 +185,61 @@ mod tests {
     fn migrations_are_valid() {
         MIGRATIONS.validate().unwrap();
     }
+}
+
+// ── Settings (keyed by platform name) ───────────────────────────────────────
+
+pub fn set_input(
+    conn: &Connection,
+    platform: &str,
+    key: &str,
+    value: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO user_inputs (platform, key, value) VALUES (?1, ?2, ?3)
+         ON CONFLICT (platform, key) DO UPDATE SET value = excluded.value",
+        params![platform, key, value],
+    )
+    .map(drop)
+}
+
+pub fn delete_input(conn: &Connection, platform: &str, key: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "DELETE FROM user_inputs WHERE platform = ?1 AND key = ?2",
+        params![platform, key],
+    )
+    .map(drop)
+}
+
+pub fn set_secret_meta(conn: &Connection, platform: &str, name: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO secrets_meta (platform, name, set_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (platform, name) DO UPDATE SET set_at = excluded.set_at",
+        params![platform, name, now()],
+    )
+    .map(drop)
+}
+
+pub fn delete_secret_meta(conn: &Connection, platform: &str, name: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "DELETE FROM secrets_meta WHERE platform = ?1 AND name = ?2",
+        params![platform, name],
+    )
+    .map(drop)
+}
+
+/// Every stored input as (platform, key, value).
+pub fn all_inputs(conn: &Connection) -> rusqlite::Result<Vec<(String, String, String)>> {
+    let mut stmt =
+        conn.prepare("SELECT platform, key, value FROM user_inputs ORDER BY platform, key")?;
+    stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect()
+}
+
+/// Every stored secret name as (platform, name).
+pub fn all_secrets(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>> {
+    let mut stmt =
+        conn.prepare("SELECT platform, name FROM secrets_meta ORDER BY platform, name")?;
+    stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect()
 }
