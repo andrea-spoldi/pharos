@@ -1,3 +1,4 @@
+import { useNavigate } from "@solidjs/router";
 import { createResource, type JSX, Match, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
@@ -38,6 +39,12 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
     "grid-row": `${p().y + 1} / span ${p().h}`,
   });
   const status = () => p().status;
+  const navigate = useNavigate();
+  /** Settings, focused on the first missing input, else the first missing secret. */
+  const openSettings = (s: { inputs: string[]; secrets: string[] }) => {
+    const focus = s.inputs.length ? `input:${s.inputs[0]}` : `secret:${s.secrets[0]}`;
+    navigate(`/settings?focus=${encodeURIComponent(focus)}`);
+  };
 
   return (
     <article class="widget" style={style()}>
@@ -66,6 +73,11 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
                     </>
                   )),
                 ].flatMap((el, i) => (i ? [" · ", el] : [el]))}
+                <div>
+                  <button type="button" onClick={() => openSettings(s())}>
+                    Open Settings
+                  </button>
+                </div>
               </State>
             )}
           </Match>

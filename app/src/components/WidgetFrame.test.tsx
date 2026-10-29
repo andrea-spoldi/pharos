@@ -1,10 +1,25 @@
-import { render, screen, waitFor } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { fireEvent, render as renderUi, screen, waitFor } from "@solidjs/testing-library";
+import { createSignal, type JSX } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type FileData, type PlacementView, type WidgetSpec } from "../bindings";
 import { WidgetFrame } from "./WidgetFrame";
 
 vi.mock("../bindings", () => ({ commands: { runWidget: vi.fn() } }));
+
+window.scrollTo = vi.fn() as typeof window.scrollTo;
+
+let history = createMemoryHistory();
+/** The frame links to Settings, so it renders inside a router. */
+const render = (ui: () => JSX.Element) => {
+  history = createMemoryHistory();
+  history.set({ value: "/d/home" });
+  return renderUi(() => (
+    <MemoryRouter history={history}>
+      <Route path={["/d/:name", "/settings"]} component={ui} />
+    </MemoryRouter>
+  ));
+};
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 
@@ -113,5 +128,24 @@ describe("WidgetFrame", () => {
     await waitFor(() => expect(commands.runWidget).toHaveBeenCalledTimes(2));
     expect(screen.getByText("payment-service")).toBeTruthy();
     expect(screen.queryByLabelText("Loading")).toBeNull();
+  });
+
+  it("needs setup links to the first missing field", async () => {
+    render(() => (
+      <WidgetFrame
+        placement={placement({ status: { kind: "needsSetup", inputs: ["team"], secrets: ["GITLAB_TOKEN"] } })}
+        version={0}
+      />
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
+    await waitFor(() => expect(history.get()).toBe("/settings?focus=input%3Ateam"));
+  });
+
+  it("links to the secret when no input is missing", async () => {
+    render(() => (
+      <WidgetFrame placement={placement({ status: { kind: "needsSetup", inputs: [], secrets: ["GITLAB_TOKEN"] } })} version={0} />
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
+    await waitFor(() => expect(decodeURIComponent(history.get())).toBe("/settings?focus=secret:GITLAB_TOKEN"));
   });
 });

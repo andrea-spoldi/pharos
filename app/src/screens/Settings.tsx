@@ -1,6 +1,6 @@
 import { useSearchParams } from "@solidjs/router";
 import { createEffect, createResource, createSignal, For, Index, Match, on, Show, Switch } from "solid-js";
-import { commands, type InputView, type RepoSource, type SecretView } from "../bindings";
+import { commands, type InputView, type PlatformRef, type RepoSource, type SecretView } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { Dialog } from "../components/Dialog";
 import { shortCommit } from "../components/SyncReview";
@@ -45,6 +45,7 @@ export function Settings(props: {
   );
 
   const src = () => settings.latest?.source ?? props.source;
+  const [disconnecting, setDisconnecting] = createSignal(false);
 
   return (
     <section class="stack settings">
@@ -71,6 +72,18 @@ export function Settings(props: {
                   )}
                 </Show>
               </p>
+              <div class="row">
+                <button type="button" onClick={() => setDisconnecting(true)}>
+                  Disconnect…
+                </button>
+              </div>
+              <DisconnectDialog
+                open={disconnecting()}
+                url={src().url}
+                platform={s().platform}
+                onClose={() => setDisconnecting(false)}
+                onDone={() => props.onDisconnected({ url: src().url, branch: src().branch })}
+              />
             </section>
 
             <section class="stack" aria-labelledby="settings-details">
@@ -265,5 +278,67 @@ function SecretRow(props: { secret: SecretView; onChanged: () => Promise<void> }
         <p>The value is deleted from your OS keyring. Widgets that need it will ask for setup again.</p>
       </Dialog>
     </div>
+  );
+}
+
+/** Forgets the repo; the checkbox (off by default) also forgets this platform's details. */
+function DisconnectDialog(props: {
+  open: boolean;
+  url: string;
+  platform: PlatformRef | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [forget, setForget] = createSignal(false);
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<IpcError>();
+  const close = () => {
+    setForget(false);
+    setError(undefined);
+    props.onClose();
+  };
+  const disconnect = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await unwrap(commands.disconnect(forget()));
+      props.onDone();
+    } catch (err) {
+      setError(toIpcError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog
+      title="Disconnect"
+      open={props.open}
+      onClose={close}
+      actions={
+        <>
+          <button type="button" class="danger" onClick={disconnect} disabled={busy()}>
+            Disconnect
+          </button>
+          <button type="button" onClick={close}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <p>
+        Disconnect from {props.url}? The app forgets the repo, its dashboards and your approval. You'll connect again
+        from the start.
+      </p>
+      <Show when={props.platform}>
+        {(p) => (
+          <label class="row">
+            <input type="checkbox" checked={forget()} onChange={(e) => setForget(e.currentTarget.checked)} />
+            Also forget my details and secrets for {p().title ?? p().name}
+          </label>
+        )}
+      </Show>
+      <Show when={error()}>{(e) => <p class="danger-text">{e().message}</p>}</Show>
+    </Dialog>
   );
 }

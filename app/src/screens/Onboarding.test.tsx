@@ -37,6 +37,13 @@ describe("Onboarding", () => {
     expect(document.querySelector("input[name=branch]")).toHaveProperty("value", "main");
   });
 
+  it("pre-fills url and branch", async () => {
+    render(() => <Onboarding onConnected={() => {}} initialUrl="git@gitlab.acme:platform/pharos.git" initialBranch="dev" />);
+    await screen.findByTestId("git-version");
+    expect(document.querySelector("input[name=url]")).toHaveProperty("value", "git@gitlab.acme:platform/pharos.git");
+    expect(document.querySelector("input[name=branch]")).toHaveProperty("value", "dev");
+  });
+
   it("explains a missing git and checks again", async () => {
     vi.mocked(commands.gitVersion).mockResolvedValueOnce(err("gitMissing", "git is not installed"));
     render(() => <Onboarding onConnected={() => {}} />);

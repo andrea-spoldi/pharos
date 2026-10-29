@@ -1,5 +1,5 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
-import { render as renderUi, screen } from "@solidjs/testing-library";
+import { fireEvent, render as renderUi, screen, waitFor } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -7,15 +7,21 @@ import { commands } from "./bindings";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
-const render = (ui: () => JSX.Element) =>
+function atPath(path: string) {
+  const history = createMemoryHistory();
+  history.set({ value: path });
+  return history;
+}
+
+const render = (ui: () => JSX.Element, path = "/") =>
   renderUi(() => (
-    <MemoryRouter history={createMemoryHistory()}>
+    <MemoryRouter history={atPath(path)}>
       <Route path={["/", "/d/:name", "/settings"]} component={ui} />
     </MemoryRouter>
   ));
 
 vi.mock("./bindings", () => ({
-  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listDashboards: vi.fn(), getPlatform: vi.fn() },
+  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listDashboards: vi.fn(), getPlatform: vi.fn(), getSettings: vi.fn(), disconnect: vi.fn() },
 }));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
@@ -53,6 +59,19 @@ describe("App", () => {
     expect((await screen.findByTestId("source")).textContent).toContain(source.url);
     expect(screen.queryByText("Connect your platform repo")).toBeNull();
     expect(await screen.findByText("The platform repo defines no dashboards yet.")).toBeTruthy();
+  });
+
+  it("disconnect returns to a pre-filled onboarding", async () => {
+    vi.mocked(commands.getSource).mockResolvedValue(ok(source));
+    vi.mocked(commands.getSettings).mockResolvedValue(
+      ok({ source, platform: { name: "acme-platform", title: null }, inputs: [], secrets: [], unused: [] }),
+    );
+    vi.mocked(commands.disconnect).mockResolvedValue(ok(null));
+    render(() => <App />, "/settings");
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(await screen.findByText("Connect your platform repo")).toBeTruthy();
+    await waitFor(() => expect(document.querySelector("input[name=url]")).toHaveProperty("value", source.url));
   });
 
   it("reports unreadable local state", async () => {

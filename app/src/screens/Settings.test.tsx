@@ -52,18 +52,18 @@ function view(over: Partial<SettingsView> = {}): SettingsView {
   };
 }
 
-function renderAt(path = "/settings", onChanged = vi.fn()) {
+function renderAt(path = "/settings", onChanged = vi.fn(), onDisconnected = vi.fn()) {
   const history = createMemoryHistory();
   history.set({ value: path });
   render(() => (
     <MemoryRouter history={history}>
       <Route
         path="/settings"
-        component={() => <Settings source={source} onChanged={onChanged} onDisconnected={() => {}} />}
+        component={() => <Settings source={source} onChanged={onChanged} onDisconnected={onDisconnected} />}
       />
     </MemoryRouter>
   ));
-  return { history, onChanged };
+  return { history, onChanged, onDisconnected };
 }
 
 describe("Settings", () => {
@@ -158,5 +158,46 @@ describe("Settings", () => {
     renderAt("/settings?focus=secret:GITLAB_TOKEN");
     const row = await screen.findByTestId("secret-GITLAB_TOKEN");
     await waitFor(() => expect(document.activeElement).toBe(within(row).getByLabelText("GITLAB_TOKEN value")));
+  });
+
+  it("disconnect dialog defaults to keeping details", async () => {
+    vi.mocked(commands.disconnect).mockResolvedValue(ok(null));
+    const { onDisconnected } = renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect…" }));
+    const dialog = screen.getByRole("dialog", { name: "Disconnect" });
+    expect(dialog.textContent).toContain(
+      "Disconnect from git@gitlab.acme:platform/pharos.git? The app forgets the repo, its dashboards and your approval. You'll connect again from the start.",
+    );
+    const forget = within(dialog).getByLabelText(
+      "Also forget my details and secrets for ACME Developer Portal",
+    ) as HTMLInputElement;
+    expect(forget.checked).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
+    await waitFor(() => expect(commands.disconnect).toHaveBeenCalledWith(false));
+    await waitFor(() => expect(onDisconnected).toHaveBeenCalledWith({ url: source.url, branch: "main" }));
+  });
+
+  it("disconnect can forget details", async () => {
+    vi.mocked(commands.disconnect).mockResolvedValue(ok(null));
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect…" }));
+    const dialog = screen.getByRole("dialog", { name: "Disconnect" });
+    fireEvent.click(within(dialog).getByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
+    await waitFor(() => expect(commands.disconnect).toHaveBeenCalledWith(true));
+  });
+
+  it("a failed disconnect keeps the dialog open", async () => {
+    vi.mocked(commands.disconnect).mockResolvedValue({
+      status: "error",
+      error: { kind: "keyring", message: "could not update secret `GITLAB_TOKEN` in the OS keyring: locked" },
+    });
+    const { onDisconnected } = renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect…" }));
+    const dialog = screen.getByRole("dialog", { name: "Disconnect" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
+    expect(await within(dialog).findByText(/locked/)).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Disconnect" })).toBeTruthy();
+    expect(onDisconnected).not.toHaveBeenCalled();
   });
 });

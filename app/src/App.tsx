@@ -1,4 +1,4 @@
-import { createResource, Match, Switch } from "solid-js";
+import { createResource, createSignal, Match, Switch } from "solid-js";
 import { commands } from "./bindings";
 import { unwrap } from "./ipc";
 import { Home } from "./screens/Home";
@@ -6,6 +6,8 @@ import { Onboarding } from "./screens/Onboarding";
 
 export function App() {
   const [source, { mutate, refetch }] = createResource(() => unwrap(commands.getSource()));
+  // The repo the user just disconnected from, to pre-fill Onboarding.
+  const [prefill, setPrefill] = createSignal<{ url: string; branch: string }>();
 
   return (
     <Switch>
@@ -20,9 +22,12 @@ export function App() {
       {/* Only the first load blanks the screen; a refetch after a sync keeps Home mounted. */}
       <Match when={source.state === "pending"}>{null}</Match>
       <Match when={source() === null}>
-        <Onboarding onConnected={(s) => mutate(s)} />
+        <Onboarding onConnected={(s) => mutate(s)} initialUrl={prefill()?.url} initialBranch={prefill()?.branch} />
       </Match>
-      <Match when={source()}>{(s) => <Home source={s()} onSynced={refetch} onDisconnected={() => mutate(null)} />}</Match>
+      <Match when={source()}>{(s) => <Home source={s()} onSynced={refetch} onDisconnected={(prev) => {
+              setPrefill(prev);
+              mutate(null);
+            }} />}</Match>
     </Switch>
   );
 }

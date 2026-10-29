@@ -13,12 +13,17 @@ const GIT_HINT =
   "The message above is git's own. Check the URL and branch, and that you can clone it from a terminal. " +
   "For an SSH URL, connect to the host once from a terminal so its host key is known.";
 
-export function Onboarding(props: { onConnected: (source: RepoSource) => void }) {
+/** `initialUrl` / `initialBranch` pre-fill the form, e.g. after disconnecting to fix the URL. */
+export function Onboarding(props: {
+  onConnected: (source: RepoSource) => void;
+  initialUrl?: string;
+  initialBranch?: string;
+}) {
   const [git, { refetch }] = createResource(() => unwrap(commands.gitVersion()));
   // Reading an errored resource throws, so gate on its state instead.
   const gitFound = () => git.state === "ready";
-  const [url, setUrl] = createSignal("");
-  const [branch, setBranch] = createSignal("main");
+  const [url, setUrl] = createSignal(props.initialUrl ?? "");
+  const [branch, setBranch] = createSignal(props.initialBranch ?? "main");
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<IpcError>();
 
