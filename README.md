@@ -28,9 +28,11 @@ Built with Tauri 2 (Rust) and SolidJS. Design and rationale: [`docs/restart-plan
 | 3 | File executor + table/list/card views | done ([demo](docs/demos/03-file-executor.md)) |
 | 4 | Platform dashboards: tabs, 12-column grid, shared widget states, markdown | done ([demo](docs/demos/04-dashboards.md)) |
 | 5 | Settings: platform inputs, keyring secrets, repo connection | done ([demo](docs/demos/05-settings.md)) |
-| 6+ | http and command executors, user dashboards, … | planned |
+| 6 | HTTP executor: templated url/headers, keyring secrets, approved hosts only | done ([demo](docs/demos/06-http.md)) |
+| 7+ | command executor, user dashboards, … | planned |
 
-Only **file** widgets run so far; command and http widgets show *Not available yet*.
+**File** and **http** widgets run; command widgets show *Not available yet*. **Sync now**
+re-runs every widget.
 
 ---
 
