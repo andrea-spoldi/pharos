@@ -3,8 +3,8 @@
 //! be taken on the main thread.
 
 use pharos_engine::{
-    DashboardView, Engine, EngineError, FileData, FileError, GitError, SettingsView, Source,
-    StoredKind, SyncPlan,
+    DashboardView, Engine, EngineError, FileError, GitError, HttpError, SettingsView, Source,
+    StoredKind, SyncPlan, WidgetData,
 };
 use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
@@ -40,10 +40,14 @@ pub enum ErrorKind {
     UnknownWidget,
     /// Static widget, or a source type not supported yet.
     NotRunnable,
-    /// Outside the repo or not approved.
+    /// An input or secret the widget needs is not set.
+    NeedsSetup,
+    /// Outside the repo or not approved, or the server refused the credentials.
     PermissionDenied,
-    /// The widget's files could not be read or parsed.
+    /// The widget's files or response could not be read or parsed.
     DataError,
+    /// The widget's host could not be reached (DNS, connection, TLS, timeout).
+    Network,
     /// A setting the platform repo does not declare.
     Undeclared,
     InvalidValue,
@@ -73,19 +77,25 @@ impl From<EngineError> for CommandError {
             EngineError::LintErrors(_) => ErrorKind::LintErrors,
             EngineError::ConsentRequired => ErrorKind::ConsentRequired,
             EngineError::StalePlan => ErrorKind::StalePlan,
-            EngineError::UnknownWidget(_) => ErrorKind::UnknownWidget,
-            EngineError::NoDataSource(_) | EngineError::SourceNotSupported(_) => {
-                ErrorKind::NotRunnable
+            EngineError::UnknownWidget(_) | EngineError::UnknownPlacement { .. } => {
+                ErrorKind::UnknownWidget
             }
+            EngineError::NoDataSource(_) | EngineError::NotAvailable(_) => ErrorKind::NotRunnable,
+            EngineError::NeedsSetup(_) | EngineError::MissingValue(_) => ErrorKind::NeedsSetup,
+            EngineError::Http(e) if e.is_auth() => ErrorKind::PermissionDenied,
+            EngineError::Http(HttpError::NotApproved(_)) => ErrorKind::PermissionDenied,
+            EngineError::Http(HttpError::Request { .. }) => ErrorKind::Network,
+            EngineError::Http(_) => ErrorKind::DataError,
             EngineError::File(FileError::Denied { .. } | FileError::NotApproved(_)) => {
                 ErrorKind::PermissionDenied
             }
             EngineError::File(
                 FileError::Glob(_) | FileError::Read { .. } | FileError::Parse { .. },
             ) => ErrorKind::DataError,
-            EngineError::Db(_) | EngineError::Migration(_) | EngineError::Io(_) => {
-                ErrorKind::Internal
-            }
+            EngineError::Db(_)
+            | EngineError::Migration(_)
+            | EngineError::Io(_)
+            | EngineError::Template(_) => ErrorKind::Internal,
             EngineError::Undeclared(_) => ErrorKind::Undeclared,
             EngineError::InvalidValue { .. } => ErrorKind::InvalidValue,
             EngineError::NoPlatform => ErrorKind::NoPlatform,
@@ -257,12 +267,16 @@ pub async fn disconnect(state: State<'_, AppState>, forget: bool) -> CmdResult<(
     with_engine(state, move |e| e.disconnect(forget)).await
 }
 
-/// The frontend names the widget only; what is read, and from where, comes from the
-/// stored manifest and the approved capabilities.
+/// The frontend names the dashboard slot only (D-031); what is read or called, with which
+/// inputs and secrets, comes from the stored manifests and the approved capabilities.
 #[tauri::command]
 #[specta::specta]
-pub async fn run_widget(state: State<'_, AppState>, name: String) -> CmdResult<FileData> {
-    with_engine(state, move |e| e.run_widget(&name)).await
+pub async fn run_placement(
+    state: State<'_, AppState>,
+    dashboard: String,
+    index: u32,
+) -> CmdResult<WidgetData> {
+    with_engine(state, move |e| e.run_placement(&dashboard, index as usize)).await
 }
 
 #[cfg(test)]
@@ -313,8 +327,35 @@ mod tests {
                 ErrorKind::NotRunnable,
             ),
             (
-                EngineError::SourceNotSupported("http"),
+                EngineError::NotAvailable("command sources".into()),
                 ErrorKind::NotRunnable,
+            ),
+            (
+                EngineError::NeedsSetup("my-pipelines".into()),
+                ErrorKind::NeedsSetup,
+            ),
+            (
+                EngineError::Http(HttpError::Status {
+                    origin: "https://gitlab.com".into(),
+                    status: 401,
+                    body: String::new(),
+                }),
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                EngineError::Http(HttpError::Status {
+                    origin: "https://gitlab.com".into(),
+                    status: 500,
+                    body: String::new(),
+                }),
+                ErrorKind::DataError,
+            ),
+            (
+                EngineError::Http(HttpError::Request {
+                    origin: "https://gitlab.com".into(),
+                    message: "timed out".into(),
+                }),
+                ErrorKind::Network,
             ),
             (
                 EngineError::File(FileError::NotApproved("data".into())),

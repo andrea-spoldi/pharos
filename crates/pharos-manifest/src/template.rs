@@ -55,6 +55,27 @@ pub fn refs(s: &str) -> Result<Vec<TemplateRef>, TemplateError> {
     Ok(out)
 }
 
+/// Replaces each `{{ namespace.key }}` with what `value` returns for it. Text outside the
+/// braces is kept as is; `value` decides how a value is escaped for where it lands.
+pub fn render<E: From<TemplateError>>(
+    s: &str,
+    mut value: impl FnMut(&TemplateRef) -> Result<String, E>,
+) -> Result<String, E> {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(start) = rest.find("{{") {
+        let end = rest[start..].find("}}").ok_or(TemplateError::Unclosed)? + start + 2;
+        let r = refs(&rest[start..end])?
+            .pop()
+            .expect("one complete reference");
+        out.push_str(&rest[..start]);
+        out.push_str(&value(&r)?);
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
 /// Replaces every complete `{{ … }}` with `replacement`; used to syntax-check templated URLs.
 pub(crate) fn substitute(s: &str, replacement: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -114,6 +135,25 @@ mod tests {
         );
         assert_eq!(
             refs("{{ foo.bar }}"),
+            Err(TemplateError::UnknownNamespace("foo".into()))
+        );
+    }
+
+    #[test]
+    fn renders() {
+        let value =
+            |r: &TemplateRef| -> Result<String, TemplateError> { Ok(format!("<{}>", r.key)) };
+        assert_eq!(
+            render(
+                "https://h/{{ inputs.project }}/x?t={{secrets.TOKEN}}",
+                value
+            ),
+            Ok("https://h/<project>/x?t=<TOKEN>".into())
+        );
+        assert_eq!(render("plain", value), Ok("plain".into()));
+        assert_eq!(render("a/{{ user.x", value), Err(TemplateError::Unclosed));
+        assert_eq!(
+            render("{{ foo.bar }}", value),
             Err(TemplateError::UnknownNamespace("foo".into()))
         );
     }

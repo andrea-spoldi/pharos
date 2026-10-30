@@ -7,12 +7,16 @@
 mod dashboard;
 mod db;
 mod git;
+mod http;
 mod run;
 mod secrets;
 mod settings;
 mod sync;
 
-use pharos_manifest::{Dashboard, Platform, Widget};
+use pharos_manifest::{
+    Dashboard, InputDef, Namespace, Placement, Platform, TemplateError, TemplateRef, Widget,
+    render_template, template_refs,
+};
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
@@ -22,7 +26,8 @@ use std::path::{Path, PathBuf};
 pub use dashboard::{DashboardView, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
-pub use run::{FileData, FileError, MAX_FILES};
+pub use http::{HttpError, MAX_BYTES, MAX_ROWS, TIMEOUT};
+pub use run::{FileError, MAX_FILES, WidgetData};
 pub use secrets::{KEYRING_SERVICE, KeyringStore, SecretStore};
 pub use settings::{
     InputView, PlatformRef, SecretView, SettingsView, SetupState, StoredKind, StoredRef,
@@ -58,8 +63,18 @@ pub enum EngineError {
     UnknownWidget(String),
     #[error("widget `{0}` has no data source")]
     NoDataSource(String),
-    #[error("{0} sources are not supported yet")]
-    SourceNotSupported(&'static str),
+    #[error("{0} are not available yet")]
+    NotAvailable(String),
+    #[error("dashboard `{dashboard}` has no widget at position {index}")]
+    UnknownPlacement { dashboard: String, index: usize },
+    #[error("widget `{0}` needs setup in Settings")]
+    NeedsSetup(String),
+    #[error("`{{{{ {0} }}}}` has no value")]
+    MissingValue(String),
+    #[error(transparent)]
+    Template(#[from] TemplateError),
+    #[error(transparent)]
+    Http(#[from] HttpError),
     #[error(transparent)]
     File(#[from] FileError),
     #[error("`{0}` is not declared in pharos.yaml")]
@@ -418,40 +433,124 @@ impl Engine {
         Ok((platform, fs::canonicalize(&source.local_path)?))
     }
 
-    /// Runs a widget as of the last applied sync, within the capabilities the user approved.
-    pub fn run_widget(&self, name: &str) -> Result<FileData> {
+    /// Runs the widget at `index` on `dashboard` as of the last applied sync, within the
+    /// capabilities the user approved. The frontend names the slot only (D-031); the source,
+    /// its inputs and its secrets all come from the stored manifests and settings.
+    pub fn run_placement(&self, dashboard: &str, index: usize) -> Result<WidgetData> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let placement = self
+            .dashboard_templates()?
+            .into_iter()
+            .find(|d| d.metadata.name == dashboard)
+            .and_then(|d| d.spec.widgets.into_iter().nth(index))
+            .ok_or_else(|| EngineError::UnknownPlacement {
+                dashboard: dashboard.into(),
+                index,
+            })?;
+        let name = &placement.widget;
         let (file, manifest) = db::widget(&self.conn, source.id, name)?
-            .ok_or_else(|| EngineError::UnknownWidget(name.into()))?;
+            .ok_or_else(|| EngineError::UnknownWidget(name.clone()))?;
         let widget: Widget =
             serde_json::from_str(&manifest).expect("stored manifests are valid JSON");
-        match widget.spec.source {
-            None => Err(EngineError::NoDataSource(name.into())),
+        let settings = self.settings()?;
+        // The same decision the dashboard showed: only runnable placements run.
+        match dashboard::placement_status(Some(&widget), &placement, &settings.setup_state()) {
+            PlacementStatus::Runnable => {}
+            PlacementStatus::NeedsSetup { .. } => {
+                return Err(EngineError::NeedsSetup(name.clone()));
+            }
+            PlacementStatus::NotAvailable { feature } => {
+                return Err(EngineError::NotAvailable(feature));
+            }
+            PlacementStatus::Static | PlacementStatus::Missing => {
+                return Err(EngineError::NoDataSource(name.clone()));
+            }
+        }
+        let approved = db::approved_capabilities(&self.conn, source.id)?
+            .widgets
+            .remove(name)
+            .unwrap_or_default();
+        match &widget.spec.source {
             Some(pharos_manifest::Source::File { path, glob }) => {
                 let root = fs::canonicalize(&source.local_path)?;
                 let dir = root.join(&file);
                 let dir = dir.parent().expect("widget file has a parent");
-                let approved = db::approved_capabilities(&self.conn, source.id)?
-                    .widgets
-                    .remove(name)
-                    .map(|caps| caps.paths)
-                    .unwrap_or_default();
                 Ok(run::read_files(
                     &root,
                     dir,
-                    &path,
+                    path,
                     glob.as_deref(),
-                    &approved,
+                    &approved.paths,
                     MAX_FILES,
                 )?)
             }
-            Some(pharos_manifest::Source::Command { .. }) => {
-                Err(EngineError::SourceNotSupported("command"))
+            Some(pharos_manifest::Source::Http {
+                url,
+                method,
+                headers,
+            }) => {
+                let values = Values {
+                    user: settings
+                        .inputs
+                        .iter()
+                        .filter_map(|i| match &i.value {
+                            Some(v) if !i.stale => Some((i.key.clone(), v.clone())),
+                            Some(_) => None,
+                            None => i.default.clone().map(|d| (i.key.clone(), d)),
+                        })
+                        .collect(),
+                    placement: &placement,
+                    widget_inputs: &widget.spec.inputs,
+                    secrets: self.secret_values(std::iter::once(url).chain(headers.values()))?,
+                };
+                let url = render_template(url, |r| values.get(r, true))?;
+                let headers = headers
+                    .iter()
+                    .map(|(n, v)| Ok((n.clone(), render_template(v, |r| values.get(r, false))?)))
+                    .collect::<Result<Vec<_>>>()?;
+                let request = http::Request {
+                    method: *method,
+                    url: &url,
+                    headers: &headers,
+                };
+                let secrets: Vec<String> = values.secrets.into_values().collect();
+                Ok(http::fetch(&request, &approved.hosts, &secrets)?)
             }
-            Some(pharos_manifest::Source::Http { .. }) => {
-                Err(EngineError::SourceNotSupported("http"))
+            Some(pharos_manifest::Source::Command { .. }) | None => {
+                unreachable!("placement_status only lets file and http sources run")
             }
         }
+    }
+
+    /// Values of the secrets `templates` reference: each must be declared by the applied
+    /// platform, and only those are read from the store.
+    fn secret_values<'a>(
+        &self,
+        templates: impl Iterator<Item = &'a String>,
+    ) -> Result<BTreeMap<String, String>> {
+        let (platform, _) = self.applied_platform()?;
+        let mut values = BTreeMap::new();
+        for t in templates {
+            for r in template_refs(t)? {
+                if r.namespace != Namespace::Secrets || values.contains_key(&r.key) {
+                    continue;
+                }
+                if !platform.spec.secrets.iter().any(|s| s.name == r.key) {
+                    return Err(EngineError::Undeclared(r.key));
+                }
+                let account = secrets::account(&platform.metadata.name, &r.key);
+                let value = self
+                    .store
+                    .get(&account)
+                    .map_err(|message| EngineError::Keyring {
+                        name: r.key.clone(),
+                        message,
+                    })?
+                    .ok_or_else(|| EngineError::MissingValue(format!("secrets.{}", r.key)))?;
+                values.insert(r.key, value);
+            }
+        }
+        Ok(values)
     }
 
     fn load_manifests<T: DeserializeOwned>(&self, table: &str) -> Result<Vec<T>> {
@@ -463,6 +562,58 @@ impl Engine {
             .map(|json| serde_json::from_str(json).expect("stored manifests are valid JSON"))
             .collect())
     }
+}
+
+/// What `{{ … }}` in an http source resolves to for one placement.
+struct Values<'a> {
+    /// Platform inputs with a usable value (stored and not stale, else the default).
+    user: BTreeMap<String, String>,
+    placement: &'a Placement,
+    widget_inputs: &'a BTreeMap<String, InputDef>,
+    secrets: BTreeMap<String, String>,
+}
+
+impl Values<'_> {
+    /// With `encode`, each value that comes from the user (an input or a secret) is
+    /// percent-encoded for a URL; text written in the manifests is kept as is, so a
+    /// placement input like `acme%2F{{ user.team }}` stays a single path segment.
+    fn get(&self, r: &TemplateRef, encode: bool) -> Result<String> {
+        let escape = |v: &String| {
+            if encode {
+                http::encode_component(v)
+            } else {
+                v.clone()
+            }
+        };
+        let missing = || EngineError::MissingValue(ref_name(r));
+        match r.namespace {
+            Namespace::User => self.user.get(&r.key).map(escape).ok_or_else(missing),
+            Namespace::Secrets => self.secrets.get(&r.key).map(escape).ok_or_else(missing),
+            // A placement's inputs may only refer to `user.*` (lint); their defaults are text.
+            Namespace::Inputs => match self.placement.inputs.get(&r.key) {
+                Some(template) => render_template(template, |inner| match inner.namespace {
+                    Namespace::User => self.get(inner, encode),
+                    _ => Err(EngineError::MissingValue(ref_name(inner))),
+                }),
+                None => self
+                    .widget_inputs
+                    .get(&r.key)
+                    .and_then(|def| def.default.clone())
+                    .ok_or_else(missing),
+            },
+            Namespace::Env => Err(missing()),
+        }
+    }
+}
+
+fn ref_name(r: &TemplateRef) -> String {
+    let ns = match r.namespace {
+        Namespace::User => "user",
+        Namespace::Inputs => "inputs",
+        Namespace::Secrets => "secrets",
+        Namespace::Env => "env",
+    };
+    format!("{ns}.{}", r.key)
 }
 
 /// A file source's path and glob as seen from the repo root, e.g. `catalog/services/*.yaml`.

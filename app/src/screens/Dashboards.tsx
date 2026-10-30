@@ -59,9 +59,21 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
             >
               <div class="grid">
                 {/* Index, not For: a sync returns new objects, and keying by identity would
-                    remount every widget and flash its skeleton. */}
-                <Index each={[...d().placements].sort((a, b) => a.y - b.y || a.x - b.x)}>
-                  {(p) => <WidgetFrame placement={p()} version={props.version} inputLabel={props.inputLabel} />}
+                    remount every widget and flash its skeleton. Each keeps its position in the
+                    dashboard file, which is how the engine finds it to run. */}
+                <Index
+                  each={d()
+                    .placements.map((placement, index) => ({ placement, index }))
+                    .sort((a, b) => a.placement.y - b.placement.y || a.placement.x - b.placement.x)}
+                >
+                  {(p) => (
+                    <WidgetFrame
+                      placement={p().placement}
+                      slot={{ dashboard: d().metadata.name, index: p().index }}
+                      version={props.version}
+                      inputLabel={props.inputLabel}
+                    />
+                  )}
                 </Index>
               </div>
             </Show>

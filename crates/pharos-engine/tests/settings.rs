@@ -215,12 +215,7 @@ fn setting_everything_clears_needs_setup() {
 
     engine.set_input("team", Some("payments-team")).unwrap();
     engine.set_secret("GITLAB_TOKEN", "tok").unwrap();
-    assert_eq!(
-        pipelines_status(&engine),
-        PlacementStatus::NotAvailable {
-            feature: "http sources".into()
-        }
-    );
+    assert_eq!(pipelines_status(&engine), PlacementStatus::Runnable);
     assert!(engine.settings().unwrap().secrets[0].set);
 
     engine.remove_secret("GITLAB_TOKEN").unwrap();

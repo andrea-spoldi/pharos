@@ -1,6 +1,6 @@
 import { render, screen } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import type { Column, FileData } from "../bindings";
+import type { Column, WidgetData } from "../bindings";
 import { CardView, ListView, TableView } from ".";
 
 const columns: Column[] = [
@@ -8,7 +8,7 @@ const columns: Column[] = [
   { field: "spec.tier", label: "Tier" },
   { field: "_source", label: "Source" },
 ];
-const data: FileData = {
+const data: WidgetData = {
   rows: [
     { metadata: { name: "notification-service" }, spec: { tier: 2 }, _source: "catalog/services/n.yaml" },
     { metadata: { name: "payment-service" }, spec: { tier: 1 }, _source: "catalog/services/p.yaml" },
