@@ -26,7 +26,7 @@ vi.mock("../bindings", () => ({
     discardSync: vi.fn(),
     listDashboards: vi.fn(),
     getPlatform: vi.fn(),
-    runWidget: vi.fn(),
+    runPlacement: vi.fn(),
     getSettings: vi.fn(),
   },
 }));
@@ -197,6 +197,8 @@ describe("Home", () => {
       // The no-op plan is dropped so it is not offered for review later.
       expect(commands.discardSync).toHaveBeenCalled();
       expect(commands.applySync).not.toHaveBeenCalled();
+      // Nothing changed, but the widgets reload so http data is fresh.
+      await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
     });
 
     it("applies unchanged capabilities without asking and shows the changelog", async () => {
@@ -211,7 +213,8 @@ describe("Home", () => {
       expect(changelog.textContent).toContain("changed my-pipelines");
       expect(commands.applySync).toHaveBeenCalledWith(false);
       expect(onSynced).toHaveBeenCalled();
-      await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
+      // Initial load, the up-to-date launch sync, then the applied update.
+      await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(3));
     });
 
     it("asks again when capabilities changed", async () => {
