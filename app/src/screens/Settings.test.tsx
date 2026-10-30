@@ -151,6 +151,10 @@ describe("Settings", () => {
     const section = await screen.findByTestId("unused");
     expect(section.textContent).toContain("OLD · acme-platform");
     fireEvent.click(within(section).getByRole("button", { name: "Remove" }));
+    expect(commands.removeStored).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Remove OLD?" });
+    expect(dialog.textContent).toContain("deleted from your OS keyring");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(commands.removeStored).toHaveBeenCalledWith("acme-platform", "secret", "OLD"));
   });
 
@@ -261,6 +265,7 @@ describe("Settings", () => {
     renderAt();
     const section = await screen.findByTestId("unused");
     fireEvent.click(within(section).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Remove OLD?" })).getByRole("button", { name: "Remove" }));
     expect(await within(section).findByText(/locked/)).toBeTruthy();
   });
 });

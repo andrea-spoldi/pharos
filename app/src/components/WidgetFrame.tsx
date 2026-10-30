@@ -32,7 +32,12 @@ function State(props: { tone?: "danger" | "setup"; title: string; children: JSX.
  * One dashboard placement: a card placed on the 12-column grid, showing exactly one state.
  * The engine decides the status (D-024); only runnable placements run, by widget name.
  */
-export function WidgetFrame(props: { placement: PlacementView; version: number }) {
+export function WidgetFrame(props: {
+  placement: PlacementView;
+  version: number;
+  /** The platform's label for an input key ("Your team"), if it declares one. */
+  inputLabel?: (key: string) => string | null | undefined;
+}) {
   const p = () => props.placement;
   const style = () => ({
     "grid-column": `${p().x + 1} / span ${p().w}`,
@@ -62,11 +67,18 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
             {(s) => (
               <State tone="setup" title="Needs setup">
                 {[
-                  ...s().inputs.map((i) => (
-                    <>
-                      Needs your <code>{i}</code>
-                    </>
-                  )),
+                  ...s().inputs.map((i) => {
+                    const label = props.inputLabel?.(i);
+                    return label ? (
+                      <>
+                        Needs <span class="term">{label}</span>
+                      </>
+                    ) : (
+                      <>
+                        Needs your <code>{i}</code>
+                      </>
+                    );
+                  }),
                   ...s().secrets.map((name) => (
                     <>
                       Needs secret <code>{name}</code>

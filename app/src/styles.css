@@ -153,6 +153,19 @@ label.row {
   font-weight: 400;
 }
 
+/* Hover deepens the fill by one tone (Tone Not Shadow); tabs, menu rows and links have their own. */
+button:hover:not(:disabled, .primary, .danger, .link, .tab, .menu-item) {
+  background: var(--border);
+}
+
+button:is(.primary, .danger):hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+button.link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: default;
@@ -457,7 +470,8 @@ h3 {
 }
 
 /* Names the state is about (widgets, inputs, secrets, paths) stand out from its muted text. */
-.state code {
+.state code,
+.state .term {
   color: var(--fg);
 }
 

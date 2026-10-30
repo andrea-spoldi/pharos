@@ -294,11 +294,11 @@ function SecretRow(props: { secret: SecretView; onChanged: () => Promise<void> }
         onClose={() => setConfirming(false)}
         actions={
           <>
-            <button type="button" class="danger" onClick={remove}>
-              Remove
-            </button>
             <button type="button" onClick={() => setConfirming(false)}>
               Cancel
+            </button>
+            <button type="button" class="danger" onClick={remove}>
+              Remove
             </button>
           </>
         }
@@ -345,11 +345,11 @@ function DisconnectDialog(props: {
       onClose={close}
       actions={
         <>
-          <button type="button" class="danger" onClick={disconnect} disabled={busy()}>
-            Disconnect
-          </button>
           <button type="button" onClick={close}>
             Cancel
+          </button>
+          <button type="button" class="danger" onClick={disconnect} disabled={busy()}>
+            Disconnect
           </button>
         </>
       }
@@ -372,8 +372,10 @@ function DisconnectDialog(props: {
 }
 
 function UnusedRow(props: { row: StoredRef; onChanged: () => Promise<void> }) {
+  const [confirming, setConfirming] = createSignal(false);
   const [error, setError] = createSignal<IpcError>();
   const remove = async () => {
+    setConfirming(false);
     setError(undefined);
     try {
       await unwrap(commands.removeStored(props.row.platform, props.row.kind, props.row.key));
@@ -388,11 +390,33 @@ function UnusedRow(props: { row: StoredRef; onChanged: () => Promise<void> }) {
         <span>
           <code>{props.row.key}</code> · {props.row.platform}
         </span>
-        <button type="button" onClick={remove}>
+        <button type="button" onClick={() => setConfirming(true)}>
           Remove
         </button>
       </div>
       <Show when={error()}>{(e) => <p class="danger-text">{e().message}</p>}</Show>
+      <Dialog
+        title={`Remove ${props.row.key}?`}
+        open={confirming()}
+        onClose={() => setConfirming(false)}
+        actions={
+          <>
+            <button type="button" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+            <button type="button" class="danger" onClick={remove}>
+              Remove
+            </button>
+          </>
+        }
+      >
+        <p>
+          {props.row.kind === "secret"
+            ? "The value is deleted from your OS keyring."
+            : "Your saved value is deleted."}{" "}
+          {props.row.platform} no longer declares it, so nothing uses it.
+        </p>
+      </Dialog>
     </li>
   );
 }

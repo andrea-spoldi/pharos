@@ -14,7 +14,7 @@ Connect `/tmp/platform` (branch `main`) and **Approve and apply** the review, as
 
 ## Setup from a widget
 
-1. On Home, *My Pipelines* shows **Needs setup**: *Needs your team · Needs secret GITLAB_TOKEN*.
+1. On Home, *My Pipelines* shows **Needs setup**: *Needs Your team · Needs secret GITLAB_TOKEN*.
    Click **Open Settings** → Settings opens with *Your team* focused.
 2. Pick `payments-team` → "Saved". Under *Secrets*, type any token into *GITLAB_TOKEN* →
    **Save** → the row says **Set** and the field is gone. **← Back to dashboards** →

@@ -271,7 +271,9 @@ Quiet by default; only the next step is lit.
   and back links.
 - **Focus:** 2px Signal Blue outline with a 1px offset (`:focus-visible`).
 - **Disabled:** 50% opacity, default cursor.
-- **Hover:** none defined yet; open for the next refinement.
+- **Hover:** one tone deeper, never a shadow. Default buttons fill with Fog Line; Primary and
+  Danger darken slightly (`brightness(0.92)`); Link buttons underline. Tabs and menu rows
+  keep their own hover.
 
 ### Tabs
 - Dashboard switcher. Inactive tabs have Slate Muted text and no box. The active tab
@@ -319,7 +321,8 @@ it shows.
 ### Dialog
 - An in-app modal (the browser's `prompt()` and `alert()` are never used). Max width 28rem,
   page background, Fog Line border, 6px radius, padding 1rem by 2rem, over a 40% black
-  backdrop. Actions sit right-aligned in a row.
+  backdrop. Actions sit right-aligned in a row, Cancel first and the destructive action
+  last, at the trailing edge. Every destructive removal asks here first.
 
 ## Do's and Don'ts
 

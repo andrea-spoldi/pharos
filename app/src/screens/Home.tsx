@@ -47,6 +47,7 @@ export function Home(props: {
     () => unwrap(commands.getPlatform()).catch(() => null),
   );
   const title = () => platform.latest?.metadata.title ?? platform.latest?.metadata.name ?? "Pharos";
+  const inputLabel = (key: string) => platform.latest?.spec.inputs?.[key]?.label;
 
   const run = async (label: string, step: () => Promise<void>) => {
     setBusy(label);
@@ -204,7 +205,7 @@ export function Home(props: {
           </div>
         </Match>
         <Match when={!neverSynced()}>
-          <Dashboards version={widgetsVersion()} />
+          <Dashboards version={widgetsVersion()} inputLabel={inputLabel} />
         </Match>
         <Match when={!busy() && !error()}>
           <div class="notice">

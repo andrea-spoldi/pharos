@@ -74,6 +74,17 @@ describe("WidgetFrame", () => {
     expect(commands.runWidget).not.toHaveBeenCalled();
   });
 
+  it("names inputs by the platform's label when it has one", () => {
+    render(() => (
+      <WidgetFrame
+        placement={placement({ status: { kind: "needsSetup", inputs: ["team", "region"], secrets: [] } })}
+        version={0}
+        inputLabel={(key) => (key === "team" ? "Your team" : null)}
+      />
+    ));
+    expect(document.body.textContent).toContain("Needs Your team · Needs your region");
+  });
+
   it("says what is not available yet", () => {
     render(() => <WidgetFrame placement={placement({ status: { kind: "notAvailable", feature: "command sources" } })} version={0} />);
     expect(screen.getByText("Not available yet")).toBeTruthy();

@@ -13,7 +13,7 @@ const label = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
  * or unknown name goes to the first, which the engine orders `home` first (D-025).
  * Bump `version` after a sync to reload.
  */
-export function Dashboards(props: { version: number }) {
+export function Dashboards(props: { version: number; inputLabel?: (key: string) => string | null | undefined }) {
   const params = useParams<{ name?: string }>();
   const navigate = useNavigate();
   const [dashboards, { refetch }] = createResource(
@@ -61,7 +61,7 @@ export function Dashboards(props: { version: number }) {
                 {/* Index, not For: a sync returns new objects, and keying by identity would
                     remount every widget and flash its skeleton. */}
                 <Index each={[...d().placements].sort((a, b) => a.y - b.y || a.x - b.x)}>
-                  {(p) => <WidgetFrame placement={p()} version={props.version} />}
+                  {(p) => <WidgetFrame placement={p()} version={props.version} inputLabel={props.inputLabel} />}
                 </Index>
               </div>
             </Show>
