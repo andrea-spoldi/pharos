@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**S-008** (in progress, 2026-10-29) — T-006 slice 5: Settings with inputs, secrets and repo connection. Last closed: **S-007** — rename to Pharos (T-019), PR #2.
+**None open.** Last closed: **S-008** — slice 5 (T-006) settings, inputs and secrets, PR #3. Next up: **T-007** HTTP executor (slice 6).
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -21,7 +21,7 @@
 | T-018 | — | Decide: personal todo widget | S | pending |
 | T-019 | — | Rename local-idp / cockpit to Pharos | S | done |
 | T-005 | 4 | Platform dashboards (read-only) | M | done |
-| T-006 | 5 | User inputs + secrets | M | in-progress |
+| T-006 | 5 | User inputs + secrets | M | done |
 | T-007 | 6 | HTTP executor | S | pending |
 | T-008 | 7 | Command executor | S | pending |
 | T-009 | 8 | User dashboards + Customize fork | M | pending |
@@ -34,8 +34,8 @@
 ```json
 {
   "project": "pharos",
-  "updated": "2026-10-29",
-  "current_session": {"id": "S-008", "goal": "Slice 5: Settings screen with Platform inputs, keyring secrets and the repo connection (disconnect/reconnect)", "task_ref": "T-006", "started": "2026-10-29", "status": "in-progress", "blocker": null},
+  "updated": "2026-10-30",
+  "current_session": {"id": null, "goal": null, "task_ref": null, "started": null, "status": "idle", "blocker": null},
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
     {"id": "T-002", "title": "Manifest crate + pharos lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
@@ -43,7 +43,7 @@
     {"id": "T-003b", "title": "UI: source onboarding + sync screens", "description": "Tauri commands via tauri-specta, first-run screen (URL/path + branch, git check), capability consent, widget list, Sync now + changelog. Demo docs/demos/02-sync.md", "size": "M", "priority": 4, "status": "done", "tags": ["slice-2", "ui", "consent"]},
     {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "done", "tags": ["slice-3", "engine", "views"]},
     {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "done", "tags": ["slice-4", "ui"]},
-    {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "in-progress", "tags": ["slice-5", "secrets"]},
+    {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "done", "tags": ["slice-5", "secrets"]},
     {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "S", "priority": 7, "status": "pending", "tags": ["slice-6", "engine"]},
     {"id": "T-008", "title": "Command executor", "description": "Executable + args, no shell, timeout, stderr/exit code", "size": "S", "priority": 8, "status": "pending", "tags": ["slice-7", "engine"]},
     {"id": "T-009", "title": "User dashboards", "description": "Create/rename/delete via in-app dialogs, Customize fork, add from Catalog, auto-placement", "size": "M", "priority": 9, "status": "pending", "tags": ["slice-8", "ui"]},
@@ -91,6 +91,7 @@
     {"id": "D-030", "date": "2026-10-29", "decision": "set_secret takes a secret name and value from the frontend; the name must be declared in pharos.yaml. Running still resolves only manifest-declared secrets. No command returns a value", "rationale": "Clarifies the CLAUDE.md rule 'never accept secret names from the frontend', which is about execution", "supersedes": null}
   ],
   "completed": [
+    {"id": "T-006", "title": "User inputs + secrets", "completed_date": "2026-10-30", "session_ref": "S-008", "notes": "PR #3 (slice-5-settings), parts a–g plus review fixes, UI polish (c89d1c6) and app/PRODUCT.md + app/DESIGN.md (624b3e5, provisional design baseline). 91 Rust + 71 vitest green; demo docs/demos/05-settings.md confirmed by user in the real app. Open polish items: no global button hover, dialog button order (destructive before Cancel), More ▾ glyph, typeset pass, Needs setup shows input key not label, unused-row Remove has no confirm, capability review spans full width."},
     {"id": "T-019", "title": "Rename local-idp / cockpit to Pharos", "completed_date": "2026-10-29", "session_ref": "S-007", "notes": "PR #2 (merge 2b02650), D-027. 135 files, 83 renames; 69 Rust + 49 vitest green, lint snapshots unchanged apart from names. App data now under io.pharos.desktop (old dev.cockpit.local-idp state orphaned). Repo on GitHub: andrea-spoldi/pharos; GitHub Actions has not run yet (likely disabled on the new repo)"},
     {"id": "T-005", "title": "Platform dashboards", "completed_date": "2026-10-29", "session_ref": "S-006", "notes": "PR #1 (merge b10672c). Engine-decided placement status (D-024), hash routing (D-025), AST markdown (D-026). 69 Rust + 49 vitest green; final review fixed a re-sync remount (skeleton flash, double run). Demo docs/demos/04-dashboards.md not yet clicked through in the real app. Deferred minors: More-menu focus after Escape, undecoded route params (latent), missing clone fails all dashboards, blank first load, listeners without More"},
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "completed_date": "2026-10-27", "session_ref": "S-001", "notes": "pong verified in real app by user. CI workflow written but not yet run on GitHub (no remote). Icons are placeholders."},
