@@ -118,6 +118,21 @@ pub(crate) fn read_files(
     Ok(FileData { rows, truncated })
 }
 
+/// Every row of the YAML/JSON files directly under a catalog directory, e.g. for input
+/// choices. Confined to the repo like widget reads, but not a widget run, so no approved-path
+/// check (D-029). A missing directory has no rows.
+pub(crate) fn read_catalog(root: &Path, from: &str, max: usize) -> Result<Vec<Value>, FileError> {
+    let target = confine(root, root, from).map_err(|reason| FileError::Denied {
+        path: from.into(),
+        reason,
+    })?;
+    if !target.is_dir() {
+        return Ok(Vec::new());
+    }
+    let approved = BTreeSet::from([display_relative(root, &target)]);
+    Ok(read_files(root, root, from, Some("*.{yaml,yml,json}"), &approved, max)?.rows)
+}
+
 /// Every non-directory under `dir`. Symlinked directories are not followed.
 fn walk(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), FileError> {
     let entries = fs::read_dir(dir).map_err(|e| read_error(&display_relative(root, dir), e))?;

@@ -2,8 +2,8 @@
 
 mod common;
 
-use pharos_engine::{EngineError, FileError};
 use common::Fixture;
+use pharos_engine::{EngineError, FileError};
 use serde_json::json;
 
 #[test]

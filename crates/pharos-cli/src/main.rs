@@ -4,11 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(
-    name = "pharos",
-    version,
-    about = "Tooling for Pharos platform repos"
-)]
+#[command(name = "pharos", version, about = "Tooling for Pharos platform repos")]
 struct Cli {
     #[command(subcommand)]
     command: Command,

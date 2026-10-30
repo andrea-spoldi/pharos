@@ -3,7 +3,8 @@
 //! be taken on the main thread.
 
 use pharos_engine::{
-    DashboardView, Engine, EngineError, FileData, FileError, GitError, Source, SyncPlan,
+    DashboardView, Engine, EngineError, FileData, FileError, GitError, SettingsView, Source,
+    StoredKind, SyncPlan,
 };
 use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
@@ -43,6 +44,13 @@ pub enum ErrorKind {
     PermissionDenied,
     /// The widget's files could not be read or parsed.
     DataError,
+    /// A setting the platform repo does not declare.
+    Undeclared,
+    InvalidValue,
+    /// Nothing is applied yet, so there is no platform to configure.
+    NoPlatform,
+    /// The OS keyring refused the change.
+    Keyring,
     Internal,
 }
 
@@ -78,6 +86,10 @@ impl From<EngineError> for CommandError {
             EngineError::Db(_) | EngineError::Migration(_) | EngineError::Io(_) => {
                 ErrorKind::Internal
             }
+            EngineError::Undeclared(_) => ErrorKind::Undeclared,
+            EngineError::InvalidValue { .. } => ErrorKind::InvalidValue,
+            EngineError::NoPlatform => ErrorKind::NoPlatform,
+            EngineError::Keyring { .. } => ErrorKind::Keyring,
         };
         Self {
             kind,
@@ -194,6 +206,57 @@ pub async fn get_platform(state: State<'_, AppState>) -> CmdResult<Option<Platfo
     with_engine(state, |e| e.platform()).await
 }
 
+/// Platform inputs and secrets (names and whether they are set, never values) and the repo.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_settings(state: State<'_, AppState>) -> CmdResult<SettingsView> {
+    with_engine(state, |e| e.settings()).await
+}
+
+/// `None` or blank clears the input. The engine checks the key against `pharos.yaml`.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_input(
+    state: State<'_, AppState>,
+    key: String,
+    value: Option<String>,
+) -> CmdResult<()> {
+    with_engine(state, move |e| e.set_input(&key, value.as_deref())).await
+}
+
+/// The only command that carries a secret value; it goes straight to the OS keyring and is
+/// never logged or returned. The name must be declared in `pharos.yaml` (D-030).
+#[tauri::command]
+#[specta::specta]
+pub async fn set_secret(state: State<'_, AppState>, name: String, value: String) -> CmdResult<()> {
+    with_engine(state, move |e| e.set_secret(&name, &value)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_secret(state: State<'_, AppState>, name: String) -> CmdResult<()> {
+    with_engine(state, move |e| e.remove_secret(&name)).await
+}
+
+/// Removes a stored row the applied manifest no longer declares (Settings "No longer used").
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_stored(
+    state: State<'_, AppState>,
+    platform: String,
+    kind: StoredKind,
+    key: String,
+) -> CmdResult<()> {
+    with_engine(state, move |e| e.remove_stored(&platform, kind, &key)).await
+}
+
+/// Forgets the repo; with `forget`, also this platform's inputs and secrets.
+#[tauri::command]
+#[specta::specta]
+pub async fn disconnect(state: State<'_, AppState>, forget: bool) -> CmdResult<()> {
+    with_engine(state, move |e| e.disconnect(forget)).await
+}
+
 /// The frontend names the widget only; what is read, and from where, comes from the
 /// stored manifest and the approved capabilities.
 #[tauri::command]
@@ -222,6 +285,22 @@ mod tests {
     fn engine_errors_map_to_kinds() {
         let cases = [
             (EngineError::Git(GitError::Missing), ErrorKind::GitMissing),
+            (EngineError::Undeclared("X".into()), ErrorKind::Undeclared),
+            (
+                EngineError::InvalidValue {
+                    key: "team".into(),
+                    reason: "empty".into(),
+                },
+                ErrorKind::InvalidValue,
+            ),
+            (EngineError::NoPlatform, ErrorKind::NoPlatform),
+            (
+                EngineError::Keyring {
+                    name: "T".into(),
+                    message: "locked".into(),
+                },
+                ErrorKind::Keyring,
+            ),
             (EngineError::ConsentRequired, ErrorKind::ConsentRequired),
             (EngineError::StalePlan, ErrorKind::StalePlan),
             (EngineError::LintErrors(2), ErrorKind::LintErrors),

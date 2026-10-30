@@ -25,6 +25,20 @@ export const commands = {
 	listDashboards: () => typedError<DashboardView[], CommandError>(__TAURI_INVOKE("list_dashboards")),
 	/**  `pharos.yaml` of the last applied sync; `None` before the first apply. */
 	getPlatform: () => typedError<Manifest<PlatformSpec> | null, CommandError>(__TAURI_INVOKE("get_platform")),
+	/**  Platform inputs and secrets (names and whether they are set, never values) and the repo. */
+	getSettings: () => typedError<SettingsView, CommandError>(__TAURI_INVOKE("get_settings")),
+	/**  `None` or blank clears the input. The engine checks the key against `pharos.yaml`. */
+	setInput: (key: string, value: string | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_input", { key, value })),
+	/**
+	 *  The only command that carries a secret value; it goes straight to the OS keyring and is
+	 *  never logged or returned. The name must be declared in `pharos.yaml` (D-030).
+	 */
+	setSecret: (name: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_secret", { name, value })),
+	removeSecret: (name: string) => typedError<null, CommandError>(__TAURI_INVOKE("remove_secret", { name })),
+	/**  Removes a stored row the applied manifest no longer declares (Settings "No longer used"). */
+	removeStored: (platform: string, kind: StoredKind, key: string) => typedError<null, CommandError>(__TAURI_INVOKE("remove_stored", { platform, kind, key })),
+	/**  Forgets the repo; with `forget`, also this platform's inputs and secrets. */
+	disconnect: (forget: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("disconnect", { forget })),
 	/**
 	 *  The frontend names the widget only; what is read, and from where, comes from the
 	 *  stored manifest and the approved capabilities.
@@ -85,7 +99,13 @@ export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | 
 /**  Outside the repo or not approved. */
 "permissionDenied" | 
 /**  The widget's files could not be read or parsed. */
-"dataError" | "internal";
+"dataError" | 
+/**  A setting the platform repo does not declare. */
+"undeclared" | "invalidValue" | 
+/**  Nothing is applied yet, so there is no platform to configure. */
+"noPlatform" | 
+/**  The OS keyring refused the change. */
+"keyring" | "internal";
 
 export type FileData = {
 	/**
@@ -111,6 +131,18 @@ export type InputDef = {
 };
 
 export type InputType = "string" | "enum";
+
+export type InputView = {
+	key: string,
+	label: string | null,
+	type: InputType,
+	required: boolean,
+	value: string | null,
+	default: string | null,
+	choices: string[],
+	/**  A stored enum value that is no longer one of the choices; it counts as missing. */
+	stale: boolean,
+};
 
 /**
  *  TS shape of `serde_json::Value`, which specta refuses for its i64 numbers (D-018).
@@ -161,6 +193,11 @@ export type PlacementView = {
 	reads: string | null,
 };
 
+export type PlatformRef = {
+	name: string,
+	title: string | null,
+};
+
 export type PlatformSpec = {
 	/**  Asked once per user; available to widgets as `{{ user.<key> }}`. */
 	inputs?: { [key in string]: InputDef },
@@ -189,11 +226,35 @@ export type SecretDef = {
 	description?: string | null,
 };
 
+export type SecretView = {
+	name: string,
+	description: string | null,
+	set: boolean,
+};
+
+/**  What Settings shows. Before the first apply only `source` is filled in. */
+export type SettingsView = {
+	source: RepoSource | null,
+	platform: PlatformRef | null,
+	inputs: InputView[],
+	secrets: SecretView[],
+	/**  Stored rows the applied manifest no longer declares (any platform name). */
+	unused: StoredRef[],
+};
+
 export type Severity = "error" | "warning";
 
 export type Source = { type: "file"; 
 /**  Relative to the widget directory; must stay inside the repo. */
 path: string; glob?: string | null } | { type: "command"; executable: string; args?: string[]; timeout?: string | null } | { type: "http"; url: string; method?: HttpMethod; headers?: { [key in string]: string } };
+
+export type StoredKind = "input" | "secret";
+
+export type StoredRef = {
+	platform: string,
+	kind: StoredKind,
+	key: string,
+};
 
 /**
  *  What a sync would do. Held by the engine between `plan_sync` and `apply_sync`,

@@ -1,7 +1,7 @@
 mod commands;
 
-use pharos_engine::Engine;
 use commands::AppState;
+use pharos_engine::Engine;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 
@@ -29,6 +29,12 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_widgets,
             commands::list_dashboards,
             commands::get_platform,
+            commands::get_settings,
+            commands::set_input,
+            commands::set_secret,
+            commands::remove_secret,
+            commands::remove_stored,
+            commands::disconnect,
             commands::run_widget,
         ])
 }

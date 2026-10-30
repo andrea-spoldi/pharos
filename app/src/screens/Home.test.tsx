@@ -8,12 +8,15 @@ import { Home } from "./Home";
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
 /** Home lives inside the router (`#/d/:name`), as in index.tsx. */
-const render = (ui: () => JSX.Element) =>
-  renderUi(() => (
-    <MemoryRouter history={createMemoryHistory()}>
-      <Route path={["/", "/d/:name"]} component={ui} />
+let history = createMemoryHistory();
+const render = (ui: () => JSX.Element) => {
+  history = createMemoryHistory();
+  return renderUi(() => (
+    <MemoryRouter history={history}>
+      <Route path={["/", "/d/:name", "/settings"]} component={ui} />
     </MemoryRouter>
   ));
+};
 
 vi.mock("../bindings", () => ({
   commands: {
@@ -24,6 +27,7 @@ vi.mock("../bindings", () => ({
     listDashboards: vi.fn(),
     getPlatform: vi.fn(),
     runWidget: vi.fn(),
+    getSettings: vi.fn(),
   },
 }));
 
@@ -102,7 +106,7 @@ describe("Home", () => {
 
   it("plans the first sync and asks consent for capabilities by widget", async () => {
     const onSynced = vi.fn();
-    render(() => <Home source={fresh} onSynced={onSynced} />);
+    render(() => <Home source={fresh} onSynced={onSynced} onDisconnected={() => {}} />);
 
     const caps = await screen.findByTestId("capabilities");
     expect(caps.textContent).toContain("k8s-context");
@@ -117,7 +121,7 @@ describe("Home", () => {
 
   it("resumes a plan already waiting in the engine", async () => {
     vi.mocked(commands.pendingSync).mockResolvedValue(ok(firstPlan));
-    render(() => <Home source={fresh} onSynced={() => {}} />);
+    render(() => <Home source={fresh} onSynced={() => {}} onDisconnected={() => {}} />);
     await screen.findByTestId("capabilities");
     expect(commands.planSync).not.toHaveBeenCalled();
   });
@@ -137,7 +141,7 @@ describe("Home", () => {
         ],
       }),
     );
-    render(() => <Home source={fresh} onSynced={() => {}} />);
+    render(() => <Home source={fresh} onSynced={() => {}} onDisconnected={() => {}} />);
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("1 lint error: this version can't be applied");
@@ -151,7 +155,7 @@ describe("Home", () => {
       status: "error",
       error: { kind: "stalePlan", message: "the local clone changed after the sync was planned" },
     });
-    render(() => <Home source={fresh} onSynced={() => {}} />);
+    render(() => <Home source={fresh} onSynced={() => {}} onDisconnected={() => {}} />);
     fireEvent.click(await screen.findByText("Approve and apply"));
 
     expect(await screen.findByText("The repo changed since this review")).toBeTruthy();
@@ -160,7 +164,7 @@ describe("Home", () => {
   });
 
   it("discards back to an empty state when nothing was applied", async () => {
-    render(() => <Home source={fresh} onSynced={() => {}} />);
+    render(() => <Home source={fresh} onSynced={() => {}} onDisconnected={() => {}} />);
     fireEvent.click(await screen.findByText("Discard"));
     expect(await screen.findByText("Nothing from the platform repo is applied yet.")).toBeTruthy();
     expect(commands.discardSync).toHaveBeenCalled();
@@ -184,7 +188,7 @@ describe("Home", () => {
 
     it("syncs on launch while the dashboard stays shown", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
-      render(() => <Home source={synced} onSynced={() => {}} />);
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
 
       expect(await screen.findByText("Kubernetes Context")).toBeTruthy();
       expect(screen.getByText("command sources arrive in a later version.")).toBeTruthy();
@@ -198,7 +202,7 @@ describe("Home", () => {
     it("applies unchanged capabilities without asking and shows the changelog", async () => {
       vi.mocked(commands.planSync).mockResolvedValueOnce(ok(upToDate)).mockResolvedValueOnce(ok(update));
       const onSynced = vi.fn();
-      render(() => <Home source={synced} onSynced={onSynced} />);
+      render(() => <Home source={synced} onSynced={onSynced} onDisconnected={() => {}} />);
       await screen.findByTestId("up-to-date");
 
       fireEvent.click(screen.getByText("Sync now"));
@@ -212,7 +216,7 @@ describe("Home", () => {
 
     it("asks again when capabilities changed", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok({ ...update, needs_consent: true }));
-      render(() => <Home source={synced} onSynced={() => {}} />);
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
 
       expect(await screen.findByText("Review changes")).toBeTruthy();
       expect(screen.getByText("Approve and apply")).toBeTruthy();
@@ -225,23 +229,42 @@ describe("Home", () => {
         status: "error",
         error: { kind: "git", message: "`git fetch --quiet --prune origin main` failed: offline" },
       });
-      render(() => <Home source={synced} onSynced={() => {}} />);
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
 
       expect((await screen.findByRole("alert")).textContent).toContain("offline");
       expect(await screen.findByRole("navigation", { name: "Dashboards" })).toBeTruthy();
       expect(screen.getByText("Try again")).toBeTruthy();
     });
 
+    it("settings button opens settings and back returns", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      vi.mocked(commands.getSettings).mockResolvedValue(
+        ok({ source: synced, platform: null, inputs: [], secrets: [], unused: [] }),
+      );
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      await screen.findByText("Kubernetes Context");
+      await waitFor(() => expect(history.get()).toBe("/d/home"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+      expect(await screen.findByRole("heading", { name: "Repository" })).toBeTruthy();
+      expect(history.get()).toBe("/settings");
+      expect(screen.queryByText("Kubernetes Context")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "← Back to dashboards" }));
+      await waitFor(() => expect(history.get()).toBe("/d/home"));
+      expect(await screen.findByText("Kubernetes Context")).toBeTruthy();
+    });
+
     it("shows the platform title", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
-      render(() => <Home source={synced} onSynced={() => {}} />);
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
       expect(await screen.findByRole("heading", { level: 1, name: "ACME Developer Portal" })).toBeTruthy();
     });
 
     it("falls back to Pharos", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
       vi.mocked(commands.getPlatform).mockResolvedValue(ok(null));
-      render(() => <Home source={synced} onSynced={() => {}} />);
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
       await screen.findByTestId("up-to-date");
       expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Pharos");
     });

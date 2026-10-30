@@ -1,3 +1,4 @@
+import { useNavigate } from "@solidjs/router";
 import { createResource, type JSX, Match, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
@@ -31,18 +32,29 @@ function State(props: { tone?: "danger" | "setup"; title: string; children: JSX.
  * One dashboard placement: a card placed on the 12-column grid, showing exactly one state.
  * The engine decides the status (D-024); only runnable placements run, by widget name.
  */
-export function WidgetFrame(props: { placement: PlacementView; version: number }) {
+export function WidgetFrame(props: {
+  placement: PlacementView;
+  version: number;
+  /** The platform's label for an input key ("Your team"), if it declares one. */
+  inputLabel?: (key: string) => string | null | undefined;
+}) {
   const p = () => props.placement;
   const style = () => ({
     "grid-column": `${p().x + 1} / span ${p().w}`,
     "grid-row": `${p().y + 1} / span ${p().h}`,
   });
   const status = () => p().status;
+  const navigate = useNavigate();
+  /** Settings, focused on the first missing input, else the first missing secret. */
+  const openSettings = (s: { inputs: string[]; secrets: string[] }) => {
+    const focus = s.inputs.length ? `input:${s.inputs[0]}` : `secret:${s.secrets[0]}`;
+    navigate(`/settings?focus=${encodeURIComponent(focus)}`);
+  };
 
   return (
     <article class="widget" style={style()}>
       <header class="widget-head">
-        <strong>{p().manifest?.metadata.title ?? p().widget}</strong>
+        <strong>{p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
       </header>
       <div class="widget-body">
         <Switch>
@@ -55,17 +67,29 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
             {(s) => (
               <State tone="setup" title="Needs setup">
                 {[
-                  ...s().inputs.map((i) => (
-                    <>
-                      Needs your <strong>{i}</strong>
-                    </>
-                  )),
+                  ...s().inputs.map((i) => {
+                    const label = props.inputLabel?.(i);
+                    return label ? (
+                      <>
+                        Needs <span class="term">{label}</span>
+                      </>
+                    ) : (
+                      <>
+                        Needs your <code>{i}</code>
+                      </>
+                    );
+                  }),
                   ...s().secrets.map((name) => (
                     <>
-                      Needs secret <strong>{name}</strong>
+                      Needs secret <code>{name}</code>
                     </>
                   )),
                 ].flatMap((el, i) => (i ? [" · ", el] : [el]))}
+                <div>
+                  <button type="button" onClick={() => openSettings(s())}>
+                    Open Settings
+                  </button>
+                </div>
               </State>
             )}
           </Match>

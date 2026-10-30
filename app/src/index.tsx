@@ -7,7 +7,7 @@ import "./styles.css";
 render(
   () => (
     <HashRouter>
-      <Route path={["/", "/d/:name"]} component={App} />
+      <Route path={["/", "/d/:name", "/settings"]} component={App} />
       <Route path="*" component={() => <Navigate href="/" />} />
     </HashRouter>
   ),

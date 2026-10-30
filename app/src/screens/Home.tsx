@@ -1,8 +1,10 @@
-import { createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
+import { useLocation, useNavigate } from "@solidjs/router";
+import { createEffect, createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { ChangeLine, shortCommit, SyncReview } from "../components/SyncReview";
 import { Dashboards } from "./Dashboards";
+import { Settings } from "./Settings";
 
 const errorCount = (plan: SyncPlan) => plan.diagnostics.filter((d) => d.severity === "error").length;
 
@@ -19,7 +21,19 @@ const isUpToDate = (plan: SyncPlan) =>
  * reported as a changelog (restart-plan §3); anything else is reviewed first.
  * The header names the platform (`pharos.yaml` title, else name, else "Pharos").
  */
-export function Home(props: { source: RepoSource; onSynced: () => void }) {
+export function Home(props: {
+  source: RepoSource;
+  onSynced: () => void;
+  onDisconnected: (prev: { url: string; branch: string }) => void;
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const onSettings = () => location.pathname === "/settings";
+  // Where "Back to dashboards" returns to.
+  const [lastDashboard, setLastDashboard] = createSignal("/");
+  createEffect(() => {
+    if (location.pathname.startsWith("/d/")) setLastDashboard(location.pathname);
+  });
   const [plan, setPlan] = createSignal<SyncPlan | null>(null);
   const [busy, setBusy] = createSignal<string | null>(null);
   const [error, setError] = createSignal<IpcError>();
@@ -33,6 +47,7 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
     () => unwrap(commands.getPlatform()).catch(() => null),
   );
   const title = () => platform.latest?.metadata.title ?? platform.latest?.metadata.name ?? "Pharos";
+  const inputLabel = (key: string) => platform.latest?.spec.inputs?.[key]?.label;
 
   const run = async (label: string, step: () => Promise<void>) => {
     setBusy(label);
@@ -100,7 +115,7 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
         <div>
           <h1>{title()}</h1>
           <p class="muted" data-testid="source">
-            {props.source.url} · {props.source.branch}
+            <code>{props.source.url}</code> · <code>{props.source.branch}</code>
             <Show when={props.source.synced_commit}>
               {(c) => (
                 <>
@@ -111,24 +126,24 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
             </Show>
           </p>
         </div>
-        <Show when={!neverSynced() && !plan()}>
-          <button type="button" onClick={sync} disabled={!!busy()}>
-            {busy() ? "Syncing…" : "Sync now"}
-          </button>
-        </Show>
+        <div class="row">
+          {/* Sync progress sits beside the actions, so a launch sync never shifts the dashboard.
+              Always mounted: a live region only announces text that changes inside it. */}
+          <p class="muted sync-status" role="status">
+            {busy() ?? (upToDate() ? <span data-testid="up-to-date">Already up to date.</span> : null)}
+          </p>
+          <Show when={!onSettings()}>
+            <button type="button" onClick={() => navigate("/settings")}>
+              Settings
+            </button>
+          </Show>
+          <Show when={!neverSynced() && !plan()}>
+            <button type="button" onClick={sync} disabled={!!busy()}>
+              {busy() ? "Syncing…" : "Sync now"}
+            </button>
+          </Show>
+        </div>
       </header>
-
-      <Show when={busy()}>
-        <p class="muted" role="status">
-          {busy()}
-        </p>
-      </Show>
-
-      <Show when={upToDate()}>
-        <p class="muted" role="status" data-testid="up-to-date">
-          Already up to date.
-        </p>
-      </Show>
 
       <Show when={changelog()}>
         {(p) => (
@@ -177,8 +192,20 @@ export function Home(props: { source: RepoSource; onSynced: () => void }) {
             />
           )}
         </Match>
+        <Match when={onSettings()}>
+          <div class="stack">
+            <button type="button" class="link back" onClick={() => navigate(lastDashboard())}>
+              ← Back to dashboards
+            </button>
+            <Settings
+              source={props.source}
+              onChanged={() => setWidgetsVersion((v) => v + 1)}
+              onDisconnected={props.onDisconnected}
+            />
+          </div>
+        </Match>
         <Match when={!neverSynced()}>
-          <Dashboards version={widgetsVersion()} />
+          <Dashboards version={widgetsVersion()} inputLabel={inputLabel} />
         </Match>
         <Match when={!busy() && !error()}>
           <div class="notice">
