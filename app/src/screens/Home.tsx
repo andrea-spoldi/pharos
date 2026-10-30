@@ -114,7 +114,7 @@ export function Home(props: {
         <div>
           <h1>{title()}</h1>
           <p class="muted" data-testid="source">
-            {props.source.url} · {props.source.branch}
+            <code>{props.source.url}</code> · <code>{props.source.branch}</code>
             <Show when={props.source.synced_commit}>
               {(c) => (
                 <>
@@ -126,6 +126,11 @@ export function Home(props: {
           </p>
         </div>
         <div class="row">
+          {/* Sync progress sits beside the actions, so a launch sync never shifts the dashboard.
+              Always mounted: a live region only announces text that changes inside it. */}
+          <p class="muted sync-status" role="status">
+            {busy() ?? (upToDate() ? <span data-testid="up-to-date">Already up to date.</span> : null)}
+          </p>
           <Show when={!onSettings()}>
             <button type="button" onClick={() => navigate("/settings")}>
               Settings
@@ -138,18 +143,6 @@ export function Home(props: {
           </Show>
         </div>
       </header>
-
-      <Show when={busy()}>
-        <p class="muted" role="status">
-          {busy()}
-        </p>
-      </Show>
-
-      <Show when={upToDate()}>
-        <p class="muted" role="status" data-testid="up-to-date">
-          Already up to date.
-        </p>
-      </Show>
 
       <Show when={changelog()}>
         {(p) => (

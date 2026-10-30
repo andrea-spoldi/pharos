@@ -49,7 +49,7 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
   return (
     <article class="widget" style={style()}>
       <header class="widget-head">
-        <strong>{p().manifest?.metadata.title ?? p().widget}</strong>
+        <strong>{p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
       </header>
       <div class="widget-body">
         <Switch>
@@ -64,12 +64,12 @@ export function WidgetFrame(props: { placement: PlacementView; version: number }
                 {[
                   ...s().inputs.map((i) => (
                     <>
-                      Needs your <strong>{i}</strong>
+                      Needs your <code>{i}</code>
                     </>
                   )),
                   ...s().secrets.map((name) => (
                     <>
-                      Needs secret <strong>{name}</strong>
+                      Needs secret <code>{name}</code>
                     </>
                   )),
                 ].flatMap((el, i) => (i ? [" · ", el] : [el]))}

@@ -16,7 +16,7 @@ const label = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
 export function Dashboards(props: { version: number }) {
   const params = useParams<{ name?: string }>();
   const navigate = useNavigate();
-  const [dashboards] = createResource(
+  const [dashboards, { refetch }] = createResource(
     () => props.version,
     () => unwrap(commands.listDashboards()),
   );
@@ -35,6 +35,9 @@ export function Dashboards(props: { version: number }) {
         <div class="notice danger" role="alert">
           <strong>Could not load dashboards</strong>
           <pre>{String(dashboards.error?.message ?? dashboards.error)}</pre>
+          <button type="button" onClick={() => refetch()}>
+            Try again
+          </button>
         </div>
       </Match>
       <Match when={dashboards.latest?.length === 0}>
@@ -114,7 +117,7 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (na
                   <li>
                     <button
                       type="button"
-                      class="link"
+                      class="menu-item"
                       aria-current={d.metadata.name === props.current ? "page" : undefined}
                       onClick={() => {
                         setMenuOpen(false);

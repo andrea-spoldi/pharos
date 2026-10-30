@@ -68,7 +68,7 @@ export function Settings(props: {
             <section class="stack" aria-labelledby="settings-repo">
               <h2 id="settings-repo">Repository</h2>
               <p>
-                {src().url} · {src().branch}
+                <code>{src().url}</code> · <code>{src().branch}</code>
                 <Show when={src().synced_commit} fallback={<> · Not synced yet</>}>
                   {(c) => (
                     <>
@@ -149,16 +149,34 @@ function InputField(props: { input: InputView; onChanged: () => Promise<void> })
     }
   };
 
+  // The stale warning and save errors describe the control, so screen readers hear them on focus.
+  const describedBy = () =>
+    [props.input.stale && `${id()}-stale`, error() && `${id()}-error`].filter(Boolean).join(" ") || undefined;
+  const invalid = () => props.input.stale || !!error() || undefined;
+
   return (
     <div class="field" id={id()}>
-      <label for={`${id()}-control`}>
-        {props.input.label ?? props.input.key}
-        {props.input.required ? " *" : ""}
-      </label>
+      <div class="row field-head">
+        <label for={`${id()}-control`}>
+          <span>
+            {props.input.label ?? props.input.key}
+            <Show when={props.input.required}>
+              <span aria-hidden="true"> *</span>
+            </Show>
+          </span>
+        </label>
+        {/* Always mounted so the live region announces "Saved" when its text appears. */}
+        <span class="muted" role="status">
+          {saved() ? "Saved" : ""}
+        </span>
+      </div>
       <Switch>
         <Match when={props.input.type === "enum"}>
           <select
             id={`${id()}-control`}
+            aria-required={props.input.required || undefined}
+            aria-invalid={invalid()}
+            aria-describedby={describedBy()}
             value={shown()}
             onChange={(e) => save(e.currentTarget.value)}
           >
@@ -167,18 +185,28 @@ function InputField(props: { input: InputView; onChanged: () => Promise<void> })
           </select>
         </Match>
         <Match when={props.input.type === "string"}>
-          <input id={`${id()}-control`} value={shown()} onBlur={(e) => save(e.currentTarget.value)} />
+          <input
+            id={`${id()}-control`}
+            aria-required={props.input.required || undefined}
+            aria-invalid={invalid()}
+            aria-describedby={describedBy()}
+            value={shown()}
+            onBlur={(e) => save(e.currentTarget.value)}
+          />
         </Match>
       </Switch>
       <Show when={props.input.stale}>
-        <p class="warning">{props.input.value} is no longer offered, pick another</p>
+        <p class="warning" id={`${id()}-stale`}>
+          {props.input.value} is no longer offered, pick another
+        </p>
       </Show>
-      <Show when={saved()}>
-        <span class="muted" role="status">
-          Saved
-        </span>
+      <Show when={error()}>
+        {(e) => (
+          <p class="danger-text" id={`${id()}-error`}>
+            {e().message}
+          </p>
+        )}
       </Show>
-      <Show when={error()}>{(e) => <p class="danger-text">{e().message}</p>}</Show>
     </div>
   );
 }
@@ -214,11 +242,11 @@ function SecretRow(props: { secret: SecretView; onChanged: () => Promise<void> }
 
   return (
     <div class="field" id={id()} data-testid={`secret-${props.secret.name}`}>
-      <strong>
-        <code>{props.secret.name}</code>
-      </strong>
-      <Show when={props.secret.description}>{(d) => <span class="muted"> {d()}</span>}</Show>
-      <p>{props.secret.set ? "Set" : "Not set"}</p>
+      <div class="row field-head">
+        <code class="secret-name">{props.secret.name}</code>
+        <span class={props.secret.set ? "ok" : "muted"}>{props.secret.set ? "Set" : "Not set"}</span>
+      </div>
+      <Show when={props.secret.description}>{(d) => <p class="muted">{d()}</p>}</Show>
       <Show
         when={!props.secret.set || editing()}
         fallback={
@@ -243,6 +271,8 @@ function SecretRow(props: { secret: SecretView; onChanged: () => Promise<void> }
             type="password"
             autocomplete="off"
             aria-label={`${props.secret.name} value`}
+            aria-invalid={!!error() || undefined}
+            aria-describedby={error() ? `${id()}-error` : undefined}
             value={value()}
             onInput={(e) => setValue(e.currentTarget.value)}
           />
@@ -251,7 +281,13 @@ function SecretRow(props: { secret: SecretView; onChanged: () => Promise<void> }
           </button>
         </form>
       </Show>
-      <Show when={error()}>{(e) => <p class="danger-text">{e().message}</p>}</Show>
+      <Show when={error()}>
+        {(e) => (
+          <p class="danger-text" id={`${id()}-error`}>
+            {e().message}
+          </p>
+        )}
+      </Show>
       <Dialog
         title={`Remove ${props.secret.name}?`}
         open={confirming()}
@@ -319,7 +355,7 @@ function DisconnectDialog(props: {
       }
     >
       <p>
-        Disconnect from {props.url}? The app forgets the repo, its dashboards and your approval. You'll connect again
+        Disconnect from <code>{props.url}</code>? The app forgets the repo, its dashboards and your approval. You'll connect again
         from the start.
       </p>
       <Show when={props.platform}>
