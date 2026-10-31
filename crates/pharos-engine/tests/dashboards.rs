@@ -24,9 +24,7 @@ fn home_placements_have_status_and_reads() {
         statuses,
         [
             PlacementStatus::Runnable,
-            PlacementStatus::NotAvailable {
-                feature: "command sources".into()
-            },
+            PlacementStatus::Runnable,
             PlacementStatus::Static,
             PlacementStatus::NeedsSetup {
                 inputs: vec!["team".into()],

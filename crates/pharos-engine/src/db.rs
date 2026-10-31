@@ -177,6 +177,27 @@ fn now() -> i64 {
         .unwrap_or_default()
 }
 
+// ── App settings (not tied to a platform) ───────────────────────────────────
+
+pub fn app_setting(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get(0))
+        .optional()
+}
+
+pub fn set_app_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+        params![key, value],
+    )
+    .map(drop)
+}
+
+pub fn delete_app_setting(conn: &Connection, key: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM settings WHERE key = ?1", [key])
+        .map(drop)
+}
+
 // ── Settings (keyed by platform name) ───────────────────────────────────────
 
 pub fn set_input(

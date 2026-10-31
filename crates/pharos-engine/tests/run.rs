@@ -80,10 +80,6 @@ fn runs_only_runnable_placements() {
         Err(EngineError::UnknownPlacement { .. })
     ));
     assert!(matches!(
-        engine.run_placement("home", 1),
-        Err(EngineError::NotAvailable(feature)) if feature == "command sources"
-    ));
-    assert!(matches!(
         engine.run_placement("home", 2),
         Err(EngineError::NoDataSource(name)) if name == "welcome"
     ));

@@ -152,6 +152,32 @@ describe("WidgetFrame", () => {
     await waitFor(() => expect(history.get()).toBe("/settings"));
   });
 
+  it("sends a program that was not found to the search path in Settings", async () => {
+    vi.mocked(commands.runPlacement).mockResolvedValue({
+      status: "error",
+      error: { kind: "executableNotFound", message: "`kubectl` was not found in /usr/bin, /bin" },
+    });
+    const cmd: WidgetSpec["source"] = { type: "command", executable: "kubectl", args: [], timeout: null };
+    render(() => <WidgetFrame slot={slot} placement={placement({ reads: null }, cmd)} version={0} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Program not found");
+    expect(alert.textContent).toContain("Add the folder that contains it to the program search path in Settings.");
+    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
+    await waitFor(() => expect(history.get()).toBe("/settings?focus=search-path"));
+  });
+
+  it("shows a failed command's stderr without a Details toggle", async () => {
+    vi.mocked(commands.runPlacement).mockResolvedValue({
+      status: "error",
+      error: { kind: "commandFailed", message: "`kubectl` exited with code 1: error: current-context is not set" },
+    });
+    render(() => <WidgetFrame slot={slot} placement={placement({})} version={0} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("The command failed");
+    expect(alert.querySelector("details")).toBeNull();
+    expect(alert.querySelector("pre")?.textContent).toContain("current-context is not set");
+  });
+
   it("titles an unreachable service", async () => {
     vi.mocked(commands.runPlacement).mockResolvedValue({
       status: "error",

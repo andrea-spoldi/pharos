@@ -99,3 +99,21 @@ export function CardView(props: ViewProps) {
     </Frame>
   );
 }
+
+/**
+ * Command output as text: a single `{ value }` row (plain stdout) is shown as is, anything
+ * else (JSON output, file or http rows) pretty-printed.
+ */
+export function RawView(props: ViewProps) {
+  const text = () => {
+    const rows = props.data.rows;
+    const only = rows.length === 1 ? rows[0] : undefined;
+    if (only && Object.keys(only).length === 1 && typeof only.value === "string") return only.value;
+    return JSON.stringify(rows.length === 1 ? rows[0] : rows, null, 2);
+  };
+  return (
+    <Frame data={props.data}>
+      <pre class="raw">{text()}</pre>
+    </Frame>
+  );
+}
