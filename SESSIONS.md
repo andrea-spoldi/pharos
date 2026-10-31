@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**None open.** Last closed: **S-009** — slice 6 (T-007) HTTP executor, PR #4. Next up: **T-008** command executor (slice 7).
+**S-010** (in progress, 2026-10-31) — T-008 command executor (slice 7): `kubectl config current-context` widget works, unapproved executable denied. Branch `slice-7-command` (from main e92487e).
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -23,7 +23,7 @@
 | T-005 | 4 | Platform dashboards (read-only) | M | done |
 | T-006 | 5 | User inputs + secrets | M | done |
 | T-007 | 6 | HTTP executor | M | done |
-| T-008 | 7 | Command executor | S | pending |
+| T-008 | 7 | Command executor | S | in-progress |
 | T-009 | 8 | User dashboards + Customize fork | M | pending |
 | T-010 | 9 | Capability diff on re-sync | S | pending |
 | T-011 | 10 | Layout drag/resize | M | pending |
@@ -35,7 +35,7 @@
 {
   "project": "pharos",
   "updated": "2026-10-31",
-  "current_session": {"id": null, "goal": null, "task_ref": null, "started": null, "status": "idle", "blocker": null},
+  "current_session": {"id": "S-010", "goal": "T-008 command executor: Kubernetes Context (kubectl) widget works, unapproved executable denied", "task_ref": "T-008", "started": "2026-10-31", "status": "in-progress", "blocker": null},
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
     {"id": "T-002", "title": "Manifest crate + pharos lint", "description": "Platform/Widget/Dashboard kinds, structured validation errors, permission derivation, examples/platform-repo, snapshot tests for broken fixtures", "size": "M", "priority": 2, "status": "done", "tags": ["slice-1", "manifest", "cli"]},
@@ -45,7 +45,7 @@
     {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "done", "tags": ["slice-4", "ui"]},
     {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "done", "tags": ["slice-5", "secrets"]},
     {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "M", "priority": 7, "status": "done", "tags": ["slice-6", "engine"]},
-    {"id": "T-008", "title": "Command executor", "description": "Executable + args, no shell, timeout, stderr/exit code", "size": "S", "priority": 8, "status": "pending", "tags": ["slice-7", "engine"]},
+    {"id": "T-008", "title": "Command executor", "description": "Executable + args, no shell, timeout, stderr/exit code", "size": "S", "priority": 8, "status": "in-progress", "tags": ["slice-7", "engine"]},
     {"id": "T-009", "title": "User dashboards", "description": "Create/rename/delete via in-app dialogs, Customize fork, add from Catalog, auto-placement", "size": "M", "priority": 9, "status": "pending", "tags": ["slice-8", "ui"]},
     {"id": "T-010", "title": "Capability diff on re-sync", "description": null, "size": "S", "priority": 10, "status": "pending", "tags": ["slice-9", "consent"]},
     {"id": "T-011", "title": "Layout editing: drag/resize", "description": "Evaluate gridstack", "size": "M", "priority": 11, "status": "pending", "tags": ["slice-10", "ui"]},
@@ -90,7 +90,9 @@
     {"id": "D-029", "date": "2026-10-29", "decision": "Input choices from a catalog (`from` + `field`) are read with a repo-confined reader (run::read_catalog) without the approved-path check", "rationale": "Filling a picker is not widget execution; confinement to the repo root still holds", "supersedes": null},
     {"id": "D-030", "date": "2026-10-29", "decision": "set_secret takes a secret name and value from the frontend; the name must be declared in pharos.yaml. Running still resolves only manifest-declared secrets. No command returns a value", "rationale": "Clarifies the CLAUDE.md rule 'never accept secret names from the frontend', which is about execution", "supersedes": null},
     {"id": "D-031", "date": "2026-10-31", "decision": "Widgets run per dashboard slot: run_placement(dashboard, index) replaces run_widget(name). The engine re-reads the stored dashboard, re-checks the placement status and resolves {{ user | inputs | secrets }} itself; the frontend sends only the dashboard name and the placement's index in the file", "rationale": "Http URLs use instance inputs set by the placement; the slot keys them without anything executable crossing IPC. Supersedes D-021 until user dashboards add instance ids (T-009)", "supersedes": "D-021"},
-    {"id": "D-032", "date": "2026-10-31", "decision": "Http executor: ureq (blocking, rustls with the OS trust store), 15s timeout, 5 MB body cap, 500 rows, no redirects (a 3xx is an error), origin checked against the approved hosts before sending. User values and secrets are percent-encoded in URLs, manifest text is kept. Secret values are redacted from every error. Sync now re-runs widgets even when nothing changed", "rationale": "A redirect could leave the approved origin; corporate GitLab needs internal CAs; refresh timers are not built yet", "supersedes": null}
+    {"id": "D-032", "date": "2026-10-31", "decision": "Http executor: ureq (blocking, rustls with the OS trust store), 15s timeout, 5 MB body cap, 500 rows, no redirects (a 3xx is an error), origin checked against the approved hosts before sending. User values and secrets are percent-encoded in URLs, manifest text is kept. Secret values are redacted from every error. Sync now re-runs widgets even when nothing changed", "rationale": "A redirect could leave the approved origin; corporate GitLab needs internal CAs; refresh timers are not built yet", "supersedes": null},
+    {"id": "D-033", "date": "2026-10-31", "decision": "Command sources look up bare executable names only in a user-editable program search path (Settings > Programs, app setting `command.search_path`, default /opt/homebrew/bin, /usr/local/bin, ~/.local/bin, /usr/bin, /bin, /usr/sbin, /sbin); the child gets it as PATH. Absolute paths are used as is; relative paths are refused (lint and run time). The frontend may set the search path: it changes where an approved name is found, never which executable may run", "rationale": "Apps started from Finder get a minimal PATH, so Homebrew kubectl would not be found; a login-shell probe would run the user's profile inside the app. User choice (S-010)", "supersedes": null},
+    {"id": "D-034", "date": "2026-10-31", "decision": "Command executor: no shell, stdin closed, own process group killed on timeout (manifest timeout, default 10s, capped at 60s), stdout capped at 5 MB, 500 rows. Stdout that parses as JSON becomes rows, else one { value } row with the trimmed text. Non-zero exit is CommandFailed with exit code + 300 chars of stderr, shown without a Details toggle. Raw view renders for any source. git and commands share process::run", "rationale": "restart-plan slice 7; kubectl auth plugins need PATH; structured CLIs (kubectl -o json) can feed tables", "supersedes": null}
   ],
   "completed": [
     {"id": "T-007", "title": "HTTP executor", "completed_date": "2026-10-31", "session_ref": "S-009", "notes": "PR #4 (slice-6-http): c7cd6cf executor + run_placement (D-031, D-032), 1490156 Sync now re-runs widgets, 2834056 demo. 103 Rust + 76 vitest green; real gitlab.com 401 verified; demo docs/demos/06-http.md confirmed by user. Resized S to M. Open: NotApproved http errors also show the check-your-secrets hint; widgets have no refresh timer (spec.refresh unused); no capability diff yet (T-010)."},
