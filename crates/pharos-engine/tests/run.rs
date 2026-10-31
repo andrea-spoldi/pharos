@@ -1,4 +1,5 @@
-//! Widget execution from the stored snapshot, against a synced clone of examples/platform-repo.
+//! File widget execution from the stored snapshot, against a synced clone of
+//! examples/platform-repo. Placements are run by dashboard and position.
 
 mod common;
 
@@ -11,7 +12,7 @@ fn service_catalog_reads_catalog_files_with_their_source() {
     let f = Fixture::new();
     let engine = f.synced_engine();
 
-    let data = engine.run_widget("service-catalog").unwrap();
+    let data = engine.run_placement("home", 0).unwrap();
 
     assert!(!data.truncated);
     let names: Vec<_> = data.rows.iter().map(|r| &r["metadata"]["name"]).collect();
@@ -38,7 +39,7 @@ fn runs_the_applied_snapshot_not_the_files_on_disk() {
     f.commit("widen glob");
     engine.plan_sync().unwrap();
 
-    let data = engine.run_widget("service-catalog").unwrap();
+    let data = engine.run_placement("home", 0).unwrap();
 
     assert_eq!(data.rows.len(), 2);
 }
@@ -57,7 +58,7 @@ fn denies_files_symlinked_out_of_the_repo() {
     f.commit("symlink out");
     let engine = f.synced_engine();
 
-    let err = engine.run_widget("service-catalog").unwrap_err();
+    let err = engine.run_placement("home", 0).unwrap_err();
 
     assert!(
         matches!(&err, EngineError::File(FileError::Denied { path, .. }) if path == "catalog/services/evil.yaml"),
@@ -66,16 +67,29 @@ fn denies_files_symlinked_out_of_the_repo() {
 }
 
 #[test]
-fn rejects_unknown_and_sourceless_widgets() {
+fn runs_only_runnable_placements() {
     let f = Fixture::new();
     let engine = f.synced_engine();
 
     assert!(matches!(
-        engine.run_widget("nope"),
-        Err(EngineError::UnknownWidget(name)) if name == "nope"
+        engine.run_placement("home", 9),
+        Err(EngineError::UnknownPlacement { dashboard, index: 9 }) if dashboard == "home"
     ));
     assert!(matches!(
-        engine.run_widget("welcome"),
+        engine.run_placement("nope", 0),
+        Err(EngineError::UnknownPlacement { .. })
+    ));
+    assert!(matches!(
+        engine.run_placement("home", 1),
+        Err(EngineError::NotAvailable(feature)) if feature == "command sources"
+    ));
+    assert!(matches!(
+        engine.run_placement("home", 2),
         Err(EngineError::NoDataSource(name)) if name == "welcome"
+    ));
+    // My Pipelines: no team and no token yet.
+    assert!(matches!(
+        engine.run_placement("home", 3),
+        Err(EngineError::NeedsSetup(name)) if name == "my-pipelines"
     ));
 }

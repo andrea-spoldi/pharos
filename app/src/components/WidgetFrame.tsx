@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { createResource, type JSX, Match, Switch } from "solid-js";
+import { createResource, type JSX, Match, Show, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
 import { unwrap, type IpcError } from "../ipc";
@@ -14,6 +14,10 @@ function errorTitle(err: IpcError): string {
       return "Access denied";
     case "dataError":
       return "Could not read the data";
+    case "network":
+      return "Could not reach the service";
+    case "needsSetup":
+      return "Needs setup";
     default:
       return "Could not run this widget";
   }
@@ -30,10 +34,12 @@ function State(props: { tone?: "danger" | "setup"; title: string; children: JSX.
 
 /**
  * One dashboard placement: a card placed on the 12-column grid, showing exactly one state.
- * The engine decides the status (D-024); only runnable placements run, by widget name.
+ * The engine decides the status (D-024); only runnable placements run, by their slot: the
+ * dashboard and the placement's position in it (D-031).
  */
 export function WidgetFrame(props: {
   placement: PlacementView;
+  slot: { dashboard: string; index: number };
   version: number;
   /** The platform's label for an input key ("Your team"), if it declares one. */
   inputLabel?: (key: string) => string | null | undefined;
@@ -100,7 +106,15 @@ export function WidgetFrame(props: {
             {(m) => <MarkdownView content={m().spec.view.content ?? ""} />}
           </Match>
           <Match when={status().kind === "runnable" && p().manifest}>
-            {(m) => <Run widget={m()} reads={p().reads} version={props.version} />}
+            {(m) => (
+              <Run
+                widget={m()}
+                slot={props.slot}
+                reads={p().reads}
+                version={props.version}
+                onSettings={() => navigate("/settings")}
+              />
+            )}
           </Match>
         </Switch>
       </div>
@@ -109,12 +123,23 @@ export function WidgetFrame(props: {
 }
 
 /** Keyed on the sync version; a re-run keeps the previous rows on screen (no skeleton flash). */
-function Run(props: { widget: Manifest<WidgetSpec>; reads: string | null; version: number }) {
-  // A string key, so a new manifest object with the same name and version doesn't re-run.
+function Run(props: {
+  widget: Manifest<WidgetSpec>;
+  slot: { dashboard: string; index: number };
+  reads: string | null;
+  version: number;
+  onSettings: () => void;
+}) {
+  // A string key, so a new manifest object for the same slot and version doesn't re-run.
   const [data] = createResource(
-    () => `${props.version}:${props.widget.metadata.name}`,
-    (key) => unwrap(commands.runWidget(key.slice(key.indexOf(":") + 1))),
+    () => JSON.stringify([props.version, props.slot.dashboard, props.slot.index]),
+    (key) => {
+      const [, dashboard, index] = JSON.parse(key) as [number, string, number];
+      return unwrap(commands.runPlacement(dashboard, index));
+    },
   );
+  // A refused token is fixed in Settings; a file outside the approval is not.
+  const refused = (err: IpcError) => err.kind === "permissionDenied" && props.widget.spec.source?.type === "http";
   const view = () => views[props.widget.spec.view.type as keyof typeof views];
 
   return (
@@ -122,10 +147,20 @@ function Run(props: { widget: Manifest<WidgetSpec>; reads: string | null; versio
       <Match when={data.error as IpcError | undefined}>
         {(err) => (
           <State tone="danger" title={errorTitle(err())}>
+            <Show when={refused(err())}>
+              <p>The service refused the request. Check the secrets this widget uses.</p>
+            </Show>
             <details>
               <summary>Details</summary>
               <pre>{String(err().message ?? err())}</pre>
             </details>
+            <Show when={refused(err())}>
+              <div>
+                <button type="button" onClick={props.onSettings}>
+                  Open Settings
+                </button>
+              </div>
+            </Show>
           </State>
         )}
       </Match>
@@ -134,7 +169,13 @@ function Run(props: { widget: Manifest<WidgetSpec>; reads: string | null; versio
           <Switch>
             <Match when={d().rows.length === 0}>
               <State title="No data">
-                No data in <code>{props.reads}</code>.
+                <Show when={props.reads} fallback="The source returned no rows.">
+                  {(reads) => (
+                    <>
+                      No data in <code>{reads()}</code>.
+                    </>
+                  )}
+                </Show>
               </State>
             </Match>
             <Match when={d()}>

@@ -69,11 +69,11 @@ pub(crate) fn placement_status(
     let view = widget.spec.view.kind;
     let unavailable = match (&widget.spec.source, view) {
         (Some(Source::Command { .. }), _) => Some("command sources".to_string()),
-        (Some(Source::Http { .. }), _) => Some("http sources".to_string()),
-        (Some(Source::File { .. }), ViewType::Table | ViewType::List | ViewType::Card) => None,
-        (Some(Source::File { .. }), ViewType::Markdown) => {
-            Some("markdown from a data source".to_string())
-        }
+        (
+            Some(Source::File { .. } | Source::Http { .. }),
+            ViewType::Table | ViewType::List | ViewType::Card,
+        ) => None,
+        (Some(_), ViewType::Markdown) => Some("markdown from a data source".to_string()),
         (None, ViewType::Markdown) => return PlacementStatus::Static,
         (_, other) => Some(format!("the {} view", view_name(other))),
     };
@@ -200,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn command_and_http_are_not_available() {
+    fn command_is_not_available_and_http_runs() {
         let cmd =
             widget("  source: { type: command, executable: kubectl }\n  view: { type: kv }\n");
         let http = widget(
@@ -213,7 +213,7 @@ mod tests {
         );
         assert_eq!(
             placement_status(Some(&http), &p, &SetupState::default()),
-            not_available("http sources")
+            PlacementStatus::Runnable
         );
     }
 
@@ -267,7 +267,7 @@ mod tests {
         };
         assert_eq!(
             placement_status(Some(&w), &p, &all),
-            not_available("http sources")
+            PlacementStatus::Runnable
         );
         let team_only = SetupState {
             inputs: ["team".to_string()].into(),

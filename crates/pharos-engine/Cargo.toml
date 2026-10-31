@@ -18,6 +18,8 @@ serde_yaml_ng = "0.10"
 specta = { workspace = true, optional = true }
 thiserror = "2"
 keyring = "4"
+# Blocking like the rest of the engine; OS trust store so internal CAs work.
+ureq = { version = "3.5", default-features = false, features = ["rustls", "platform-verifier", "gzip"] }
 
 [features]
 # Derives `specta::Type` for the Tauri bindings; off for the CLI.

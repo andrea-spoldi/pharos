@@ -91,7 +91,7 @@ fn for_widget(repo: &Repo, widget: &Loaded<Widget>) -> Capabilities {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub(crate) enum OriginError {
+pub enum OriginError {
     #[error("scheme and host must be literal, not templated")]
     TemplatedHost,
     #[error("not a valid URL: {0}")]
@@ -103,7 +103,7 @@ pub(crate) enum OriginError {
 }
 
 /// Origin of a possibly templated URL. Only the path and query may be templated.
-pub(crate) fn http_origin(url: &str) -> Result<String, OriginError> {
+pub fn http_origin(url: &str) -> Result<String, OriginError> {
     let authority_end = match url.find("://") {
         Some(i) => {
             let rest = &url[i + 3..];

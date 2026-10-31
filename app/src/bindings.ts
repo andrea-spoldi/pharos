@@ -40,10 +40,10 @@ export const commands = {
 	/**  Forgets the repo; with `forget`, also this platform's inputs and secrets. */
 	disconnect: (forget: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("disconnect", { forget })),
 	/**
-	 *  The frontend names the widget only; what is read, and from where, comes from the
-	 *  stored manifest and the approved capabilities.
+	 *  The frontend names the dashboard slot only (D-031); what is read or called, with which
+	 *  inputs and secrets, comes from the stored manifests and the approved capabilities.
 	 */
-	runWidget: (name: string) => typedError<FileData, CommandError>(__TAURI_INVOKE("run_widget", { name })),
+	runPlacement: (dashboard: string, index: number) => typedError<WidgetData, CommandError>(__TAURI_INVOKE("run_placement", { dashboard, index })),
 };
 
 /* Types */
@@ -96,25 +96,20 @@ export type Diagnostic = {
 export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "unknownWidget" | 
 /**  Static widget, or a source type not supported yet. */
 "notRunnable" | 
-/**  Outside the repo or not approved. */
+/**  An input or secret the widget needs is not set. */
+"needsSetup" | 
+/**  Outside the repo or not approved, or the server refused the credentials. */
 "permissionDenied" | 
-/**  The widget's files could not be read or parsed. */
+/**  The widget's files or response could not be read or parsed. */
 "dataError" | 
+/**  The widget's host could not be reached (DNS, connection, TLS, timeout). */
+"network" | 
 /**  A setting the platform repo does not declare. */
 "undeclared" | "invalidValue" | 
 /**  Nothing is applied yet, so there is no platform to configure. */
 "noPlatform" | 
 /**  The OS keyring refused the change. */
 "keyring" | "internal";
-
-export type FileData = {
-	/**
-	 *  One per file (one per item for a top-level list), each with `_source`: the
-	 *  repo-relative file it came from. Non-object values are wrapped as `{ value }`.
-	 */
-	rows: { [key in string]: JsonValue }[],
-	truncated: boolean,
-};
 
 export type HttpMethod = "GET" | "POST";
 
@@ -281,6 +276,15 @@ export type View = {
 };
 
 export type ViewType = "table" | "list" | "card" | "kv" | "raw" | "markdown";
+
+export type WidgetData = {
+	/**
+	 *  One per item of a top-level list, else one per document. Non-object values are
+	 *  wrapped as `{ value }`. File rows carry `_source`: the repo-relative file.
+	 */
+	rows: { [key in string]: JsonValue }[],
+	truncated: boolean,
+};
 
 export type WidgetSpec = {
 	/**  Absent for static (view-only) widgets. */

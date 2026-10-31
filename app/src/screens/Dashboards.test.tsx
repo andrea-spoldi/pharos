@@ -7,7 +7,7 @@ import { Dashboards } from "./Dashboards";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
-vi.mock("../bindings", () => ({ commands: { listDashboards: vi.fn(), runWidget: vi.fn() } }));
+vi.mock("../bindings", () => ({ commands: { listDashboards: vi.fn(), runPlacement: vi.fn() } }));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 
@@ -140,21 +140,36 @@ describe("Dashboards", () => {
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
   });
 
+  it("runs each widget by its position in the dashboard file, not on screen", async () => {
+    const home = runnableHome();
+    const [first] = home.placements;
+    // Listed second but placed first on the grid.
+    home.placements = [{ ...first, widget: "lower", y: 4 }, first];
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([home]));
+    vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
+    renderAt("/d/home");
+    await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(commands.runPlacement).mock.calls).toEqual([
+      ["home", 1],
+      ["home", 0],
+    ]);
+  });
+
   it("keeps widget data visible across a re-sync", async () => {
     vi.mocked(commands.listDashboards).mockImplementation(async () => ok([runnableHome()]));
-    vi.mocked(commands.runWidget).mockReset().mockResolvedValue(ok(rows));
+    vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
     const [version, setVersion] = createSignal(0);
     renderAt("/d/home", version);
     await screen.findByText("payment-service");
 
-    vi.mocked(commands.runWidget).mockReturnValue(new Promise(() => {}));
+    vi.mocked(commands.runPlacement).mockReturnValue(new Promise(() => {}));
     setVersion(1);
     await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(commands.runWidget).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(2));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getByText("payment-service")).toBeTruthy();
     expect(screen.queryByLabelText("Loading")).toBeNull();
-    expect(commands.runWidget).toHaveBeenCalledTimes(2);
+    expect(commands.runPlacement).toHaveBeenCalledTimes(2);
   });
 
   it("reports a failed load", async () => {

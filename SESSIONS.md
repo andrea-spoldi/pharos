@@ -5,7 +5,7 @@
 > Source of the backlog: `docs/restart-plan.md` §5 (slices). JSON below is canonical.
 
 ## Current session
-**None open.** Last closed: **S-008** — slice 5 (T-006) settings, inputs and secrets, PR #3. Next up: **T-007** HTTP executor (slice 6).
+**None open.** Last closed: **S-009** — slice 6 (T-007) HTTP executor, PR #4. Next up: **T-008** command executor (slice 7).
 
 ## Backlog (milestone: slices 0–5 = "works for the IDP story")
 | ID | Slice | Title | Size | Status |
@@ -22,7 +22,7 @@
 | T-019 | — | Rename local-idp / cockpit to Pharos | S | done |
 | T-005 | 4 | Platform dashboards (read-only) | M | done |
 | T-006 | 5 | User inputs + secrets | M | done |
-| T-007 | 6 | HTTP executor | S | pending |
+| T-007 | 6 | HTTP executor | M | done |
 | T-008 | 7 | Command executor | S | pending |
 | T-009 | 8 | User dashboards + Customize fork | M | pending |
 | T-010 | 9 | Capability diff on re-sync | S | pending |
@@ -34,7 +34,7 @@
 ```json
 {
   "project": "pharos",
-  "updated": "2026-10-30",
+  "updated": "2026-10-31",
   "current_session": {"id": null, "goal": null, "task_ref": null, "started": null, "status": "idle", "blocker": null},
   "backlog": [
     {"id": "T-001", "title": "Scaffold: Tauri 2 + Solid + Vite + tauri-specta, strict CSP, CI, ping command", "description": "Done when app window shows 'pong' from Rust via generated bindings and CI is green. Also: git init, lean CLAUDE.md commands section.", "size": "S", "priority": 1, "status": "done", "tags": ["slice-0", "scaffold"]},
@@ -44,7 +44,7 @@
     {"id": "T-004", "title": "File executor + table/list/card views", "description": "run_instance, repo-confined paths, glob, _source, 500-file cap, traversal test", "size": "M", "priority": 4, "status": "done", "tags": ["slice-3", "engine", "views"]},
     {"id": "T-005", "title": "Platform dashboards", "description": "Render kind: Dashboard read-only, switcher, shared empty/loading/error/needs-setup states", "size": "M", "priority": 5, "status": "done", "tags": ["slice-4", "ui"]},
     {"id": "T-006", "title": "User inputs + secrets", "description": "Platform spec.inputs form, keyring secrets screen, setup-required widget state", "size": "M", "priority": 6, "status": "done", "tags": ["slice-5", "secrets"]},
-    {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "S", "priority": 7, "status": "pending", "tags": ["slice-6", "engine"]},
+    {"id": "T-007", "title": "HTTP executor", "description": "Declared secrets only, host enforcement", "size": "M", "priority": 7, "status": "done", "tags": ["slice-6", "engine"]},
     {"id": "T-008", "title": "Command executor", "description": "Executable + args, no shell, timeout, stderr/exit code", "size": "S", "priority": 8, "status": "pending", "tags": ["slice-7", "engine"]},
     {"id": "T-009", "title": "User dashboards", "description": "Create/rename/delete via in-app dialogs, Customize fork, add from Catalog, auto-placement", "size": "M", "priority": 9, "status": "pending", "tags": ["slice-8", "ui"]},
     {"id": "T-010", "title": "Capability diff on re-sync", "description": null, "size": "S", "priority": 10, "status": "pending", "tags": ["slice-9", "consent"]},
@@ -88,9 +88,12 @@
     {"id": "D-027", "date": "2026-10-29", "decision": "The product is Pharos. Crates pharos-manifest/pharos-engine/pharos-cli, binary `pharos`, Tauri package pharos (lib pharos_lib), identifier io.pharos.desktop (app data moves; old dev.cockpit.local-idp state is orphaned), db pharos.db. Platform repo contract: apiVersion pharos.io/v1alpha1, root file pharos.yaml. Dated records (docs/superpowers/*, decision and completed history) and the April prototype docs keep the old names", "rationale": "No platform repo outside this one depends on the contract yet, so one clean break is cheapest now", "supersedes": null},
     {"id": "D-028", "date": "2026-10-29", "decision": "Platform inputs (user_inputs) and secret names (secrets_meta) are keyed by Platform metadata.name, not source id; values in the OS keyring under service io.pharos.desktop, account <platform>/<NAME>. Disconnect deletes keyring entries first and stops on any failure (all-or-nothing on secrets), then rows, then the source, then the clone. A stale enum value counts as missing; rows the manifest no longer declares are listed as No longer used and removable", "rationale": "Fixing a repo URL must not lose the developer's details; a secret the user believes is gone must never be left behind silently", "supersedes": null},
     {"id": "D-029", "date": "2026-10-29", "decision": "Input choices from a catalog (`from` + `field`) are read with a repo-confined reader (run::read_catalog) without the approved-path check", "rationale": "Filling a picker is not widget execution; confinement to the repo root still holds", "supersedes": null},
-    {"id": "D-030", "date": "2026-10-29", "decision": "set_secret takes a secret name and value from the frontend; the name must be declared in pharos.yaml. Running still resolves only manifest-declared secrets. No command returns a value", "rationale": "Clarifies the CLAUDE.md rule 'never accept secret names from the frontend', which is about execution", "supersedes": null}
+    {"id": "D-030", "date": "2026-10-29", "decision": "set_secret takes a secret name and value from the frontend; the name must be declared in pharos.yaml. Running still resolves only manifest-declared secrets. No command returns a value", "rationale": "Clarifies the CLAUDE.md rule 'never accept secret names from the frontend', which is about execution", "supersedes": null},
+    {"id": "D-031", "date": "2026-10-31", "decision": "Widgets run per dashboard slot: run_placement(dashboard, index) replaces run_widget(name). The engine re-reads the stored dashboard, re-checks the placement status and resolves {{ user | inputs | secrets }} itself; the frontend sends only the dashboard name and the placement's index in the file", "rationale": "Http URLs use instance inputs set by the placement; the slot keys them without anything executable crossing IPC. Supersedes D-021 until user dashboards add instance ids (T-009)", "supersedes": "D-021"},
+    {"id": "D-032", "date": "2026-10-31", "decision": "Http executor: ureq (blocking, rustls with the OS trust store), 15s timeout, 5 MB body cap, 500 rows, no redirects (a 3xx is an error), origin checked against the approved hosts before sending. User values and secrets are percent-encoded in URLs, manifest text is kept. Secret values are redacted from every error. Sync now re-runs widgets even when nothing changed", "rationale": "A redirect could leave the approved origin; corporate GitLab needs internal CAs; refresh timers are not built yet", "supersedes": null}
   ],
   "completed": [
+    {"id": "T-007", "title": "HTTP executor", "completed_date": "2026-10-31", "session_ref": "S-009", "notes": "PR #4 (slice-6-http): c7cd6cf executor + run_placement (D-031, D-032), 1490156 Sync now re-runs widgets, 2834056 demo. 103 Rust + 76 vitest green; real gitlab.com 401 verified; demo docs/demos/06-http.md confirmed by user. Resized S to M. Open: NotApproved http errors also show the check-your-secrets hint; widgets have no refresh timer (spec.refresh unused); no capability diff yet (T-010)."},
     {"id": "T-006", "title": "User inputs + secrets", "completed_date": "2026-10-30", "session_ref": "S-008", "notes": "PR #3 (slice-5-settings), parts a–g plus review fixes, UI polish (c89d1c6) and app/PRODUCT.md + app/DESIGN.md (624b3e5, provisional design baseline). 91 Rust + 71 vitest green; demo docs/demos/05-settings.md confirmed by user in the real app. Follow-up polish on the same PR: button hover, Cancel-first dialogs, confirm on unused-row Remove, input labels in Needs setup. Still open: More ▾ glyph, typeset pass, capability review spans full width."},
     {"id": "T-019", "title": "Rename local-idp / cockpit to Pharos", "completed_date": "2026-10-29", "session_ref": "S-007", "notes": "PR #2 (merge 2b02650), D-027. 135 files, 83 renames; 69 Rust + 49 vitest green, lint snapshots unchanged apart from names. App data now under io.pharos.desktop (old dev.cockpit.local-idp state orphaned). Repo on GitHub: andrea-spoldi/pharos; GitHub Actions has not run yet (likely disabled on the new repo)"},
     {"id": "T-005", "title": "Platform dashboards", "completed_date": "2026-10-29", "session_ref": "S-006", "notes": "PR #1 (merge b10672c). Engine-decided placement status (D-024), hash routing (D-025), AST markdown (D-026). 69 Rust + 49 vitest green; final review fixed a re-sync remount (skeleton flash, double run). Demo docs/demos/04-dashboards.md not yet clicked through in the real app. Deferred minors: More-menu focus after Escape, undecoded route params (latent), missing clone fails all dashboards, blank first load, listeners without More"},

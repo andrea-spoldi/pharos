@@ -1,11 +1,11 @@
 import { For, Show, type JSX } from "solid-js";
-import type { Column, FileData } from "../bindings";
+import type { Column, WidgetData } from "../bindings";
 import { columnsFor, display, field, MAX_FILES } from "./fields";
 
-export type ViewProps = { columns?: Column[]; data: FileData };
+export type ViewProps = { columns?: Column[]; data: WidgetData };
 
 /** Truncation note shared by every view; the widget frame owns the empty state. */
-function Frame(props: { data: FileData; children: JSX.Element }) {
+function Frame(props: { data: WidgetData; children: JSX.Element }) {
   return (
     <div class="view">
       {props.children}

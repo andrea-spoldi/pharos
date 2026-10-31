@@ -15,13 +15,15 @@ mod validate;
 use serde::Serialize;
 use std::path::Path;
 
-pub use capabilities::{Capabilities, CapabilitySet};
+pub use capabilities::{Capabilities, CapabilitySet, OriginError, http_origin};
 pub use diagnostic::{Diagnostic, Severity};
 pub use duration::parse_duration;
 pub use kinds::*;
 pub use load::{Loaded, Repo, load};
 pub use paths::{ConfineError, confine, display_relative};
-pub use template::{Namespace, TemplateError, TemplateRef, refs as template_refs};
+pub use template::{
+    Namespace, TemplateError, TemplateRef, refs as template_refs, render as render_template,
+};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Summary {

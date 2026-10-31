@@ -38,6 +38,13 @@ impl MemoryStore {
 }
 
 impl SecretStore for MemoryStore {
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        if self.fails(account) {
+            return Err("store unavailable".into());
+        }
+        Ok(self.entries.lock().unwrap().get(account).cloned())
+    }
+
     fn set(&self, account: &str, value: &str) -> Result<(), String> {
         if self.fails(account) {
             return Err("store unavailable".into());

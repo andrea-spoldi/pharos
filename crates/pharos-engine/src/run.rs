@@ -1,5 +1,6 @@
 //! File sources: read repo files for a widget, confined to the repo root and to the paths
-//! the user approved. Checked on every run, not just at consent time.
+//! the user approved. Checked on every run, not just at consent time. Also the row shape
+//! every source returns.
 
 use pharos_manifest::{ConfineError, confine, display_relative};
 use serde::Serialize;
@@ -13,9 +14,9 @@ pub const MAX_FILES: usize = 500;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
-pub struct FileData {
-    /// One per file (one per item for a top-level list), each with `_source`: the
-    /// repo-relative file it came from. Non-object values are wrapped as `{ value }`.
+pub struct WidgetData {
+    /// One per item of a top-level list, else one per document. Non-object values are
+    /// wrapped as `{ value }`. File rows carry `_source`: the repo-relative file.
     #[cfg_attr(
         feature = "specta",
         specta(type = Vec<std::collections::BTreeMap<String, JsonValue>>)
@@ -62,7 +63,7 @@ pub(crate) fn read_files(
     glob: Option<&str>,
     approved: &BTreeSet<String>,
     max: usize,
-) -> Result<FileData, FileError> {
+) -> Result<WidgetData, FileError> {
     let target = confine(root, dir, path).map_err(|reason| FileError::Denied {
         path: path.into(),
         reason,
@@ -115,7 +116,22 @@ pub(crate) fn read_files(
             value => rows.push(with_source(value, &rel)),
         }
     }
-    Ok(FileData { rows, truncated })
+    Ok(WidgetData { rows, truncated })
+}
+
+/// Rows of one parsed response: the items of a top-level list, else the value itself.
+pub(crate) fn rows(value: Value, max: usize) -> WidgetData {
+    let items = match value {
+        Value::Array(items) => items,
+        value => vec![value],
+    };
+    let truncated = items.len() > max;
+    let rows = items
+        .into_iter()
+        .take(max)
+        .map(|v| Value::Object(as_row(v)))
+        .collect();
+    WidgetData { rows, truncated }
 }
 
 /// Every row of the YAML/JSON files directly under a catalog directory, e.g. for input
@@ -146,11 +162,15 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), FileError
     Ok(())
 }
 
-fn with_source(value: Value, source: &str) -> Value {
-    let mut row = match value {
+fn as_row(value: Value) -> Map<String, Value> {
+    match value {
         Value::Object(row) => row,
         value => Map::from_iter([("value".to_string(), value)]),
-    };
+    }
+}
+
+fn with_source(value: Value, source: &str) -> Value {
+    let mut row = as_row(value);
     row.insert("_source".into(), source.into());
     Value::Object(row)
 }
@@ -189,7 +209,7 @@ mod tests {
         paths.iter().map(|p| p.to_string()).collect()
     }
 
-    fn sources(data: &FileData) -> Vec<&str> {
+    fn sources(data: &WidgetData) -> Vec<&str> {
         data.rows
             .iter()
             .map(|r| r["_source"].as_str().unwrap())
@@ -201,7 +221,7 @@ mod tests {
         path: &str,
         glob: Option<&str>,
         ok: &[&str],
-    ) -> Result<FileData, FileError> {
+    ) -> Result<WidgetData, FileError> {
         read_files(
             root,
             &root.join("widget"),
@@ -317,5 +337,14 @@ mod tests {
         fs::write(root.join("data/bad.yaml"), "a: [").unwrap();
         let err = read(&root, "../data", Some("bad.yaml"), &["data"]).unwrap_err();
         assert!(matches!(err, FileError::Parse { ref file, .. } if file == "data/bad.yaml"));
+    }
+
+    #[test]
+    fn rows_from_lists_objects_and_scalars() {
+        use serde_json::json;
+        let data = rows(json!([{ "id": 1 }, 2, { "id": 3 }]), 2);
+        assert_eq!(data.rows, [json!({ "id": 1 }), json!({ "value": 2 })]);
+        assert!(data.truncated);
+        assert_eq!(rows(json!({ "id": 1 }), 10).rows, [json!({ "id": 1 })]);
     }
 }

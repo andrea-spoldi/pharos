@@ -78,6 +78,9 @@ export function Home(props: {
       } else if (isUpToDate(next)) {
         await unwrap(commands.discardSync());
         setUpToDate(true);
+        // Nothing to apply, but Sync now still re-runs the widgets: it is how http data
+        // refreshes until widgets refresh on their own.
+        setWidgetsVersion((v) => v + 1);
       } else {
         await unwrap(commands.applySync(false));
         applied(next);

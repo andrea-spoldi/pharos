@@ -18,8 +18,8 @@ Connect `/tmp/platform` (branch `main`) and **Approve and apply** the review, as
    Click **Open Settings** → Settings opens with *Your team* focused.
 2. Pick `payments-team` → "Saved". Under *Secrets*, type any token into *GITLAB_TOKEN* →
    **Save** → the row says **Set** and the field is gone. **← Back to dashboards** →
-   *My Pipelines* now says **Not available yet**: *http sources arrive in a later version.*
-   (The http executor is slice 6.)
+   *My Pipelines* now calls gitlab.com. With a made-up token it says **Access denied**
+   (see [06-http.md](06-http.md) for a run with data).
 3. Quit the app and run `npm run dev` again → Settings still shows the team and *Set*.
    In **Keychain Access**, search `io.pharos.desktop`: one item, account
    `acme-platform/GITLAB_TOKEN`. The token is not in `pharos.db`:
