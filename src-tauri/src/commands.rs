@@ -3,8 +3,8 @@
 //! be taken on the main thread.
 
 use pharos_engine::{
-    DashboardView, Engine, EngineError, FileError, GitError, HttpError, SettingsView, Source,
-    StoredKind, SyncPlan, WidgetData,
+    CommandError as RunCommandError, DashboardView, Engine, EngineError, FileError, GitError,
+    HttpError, SettingsView, Source, StoredKind, SyncPlan, WidgetData,
 };
 use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
@@ -48,6 +48,10 @@ pub enum ErrorKind {
     DataError,
     /// The widget's host could not be reached (DNS, connection, TLS, timeout).
     Network,
+    /// A command source's program is not in the Settings search path.
+    ExecutableNotFound,
+    /// A command source exited non-zero or timed out; `message` quotes its stderr.
+    CommandFailed,
     /// A setting the platform repo does not declare.
     Undeclared,
     InvalidValue,
@@ -92,6 +96,16 @@ impl From<EngineError> for CommandError {
             EngineError::File(
                 FileError::Glob(_) | FileError::Read { .. } | FileError::Parse { .. },
             ) => ErrorKind::DataError,
+            EngineError::Command(
+                RunCommandError::NotApproved(_) | RunCommandError::InvalidExecutable(_),
+            ) => ErrorKind::PermissionDenied,
+            EngineError::Command(RunCommandError::NotFound { .. }) => ErrorKind::ExecutableNotFound,
+            EngineError::Command(
+                RunCommandError::Failed { .. } | RunCommandError::TimedOut { .. },
+            ) => ErrorKind::CommandFailed,
+            EngineError::Command(RunCommandError::TooLarge(_) | RunCommandError::Io { .. }) => {
+                ErrorKind::DataError
+            }
             EngineError::Db(_)
             | EngineError::Migration(_)
             | EngineError::Io(_)
@@ -260,6 +274,21 @@ pub async fn remove_stored(
     with_engine(state, move |e| e.remove_stored(&platform, kind, &key)).await
 }
 
+/// Folders where command sources look up bare executable names (D-033).
+#[tauri::command]
+#[specta::specta]
+pub async fn get_search_path(state: State<'_, AppState>) -> CmdResult<Vec<String>> {
+    with_engine(state, |e| e.search_path()).await
+}
+
+/// Replaces the search path; an empty list restores the default. Only where an approved
+/// executable is looked up changes: which executables may run still comes from consent.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_search_path(state: State<'_, AppState>, entries: Vec<String>) -> CmdResult<()> {
+    with_engine(state, move |e| e.set_search_path(&entries)).await
+}
+
 /// Forgets the repo; with `forget`, also this platform's inputs and secrets.
 #[tauri::command]
 #[specta::specta]
@@ -327,8 +356,27 @@ mod tests {
                 ErrorKind::NotRunnable,
             ),
             (
-                EngineError::NotAvailable("command sources".into()),
+                EngineError::NotAvailable("the kv view".into()),
                 ErrorKind::NotRunnable,
+            ),
+            (
+                EngineError::Command(RunCommandError::NotApproved("sh".into())),
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                EngineError::Command(RunCommandError::NotFound {
+                    executable: "kubectl".into(),
+                    searched: vec!["/usr/bin".into()],
+                }),
+                ErrorKind::ExecutableNotFound,
+            ),
+            (
+                EngineError::Command(RunCommandError::Failed {
+                    executable: "kubectl".into(),
+                    code: Some(1),
+                    stderr: "error: current-context is not set".into(),
+                }),
+                ErrorKind::CommandFailed,
             ),
             (
                 EngineError::NeedsSetup("my-pipelines".into()),

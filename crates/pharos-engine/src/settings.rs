@@ -195,6 +195,18 @@ impl SettingsView {
                 .collect(),
         }
     }
+
+    /// `user.*` values templates resolve to: the stored value unless stale, else the default.
+    pub(crate) fn usable_inputs(&self) -> BTreeMap<String, String> {
+        self.inputs
+            .iter()
+            .filter_map(|i| match &i.value {
+                Some(v) if !i.stale => Some((i.key.clone(), v.clone())),
+                Some(_) => None,
+                None => i.default.clone().map(|d| (i.key.clone(), d)),
+            })
+            .collect()
+    }
 }
 
 /// Choices for an enum input: static `values`, else the `field` of each file under `from`

@@ -17,7 +17,7 @@ pub enum PlacementStatus {
         inputs: Vec<String>,
         secrets: Vec<String>,
     },
-    /// A part this version cannot run or render yet, e.g. `command sources`.
+    /// A part this version cannot run or render yet, e.g. `the kv view`.
     NotAvailable {
         feature: String,
     },
@@ -68,11 +68,7 @@ pub(crate) fn placement_status(
     }
     let view = widget.spec.view.kind;
     let unavailable = match (&widget.spec.source, view) {
-        (Some(Source::Command { .. }), _) => Some("command sources".to_string()),
-        (
-            Some(Source::File { .. } | Source::Http { .. }),
-            ViewType::Table | ViewType::List | ViewType::Card,
-        ) => None,
+        (Some(_), ViewType::Table | ViewType::List | ViewType::Card | ViewType::Raw) => None,
         (Some(_), ViewType::Markdown) => Some("markdown from a data source".to_string()),
         (None, ViewType::Markdown) => return PlacementStatus::Static,
         (_, other) => Some(format!("the {} view", view_name(other))),
@@ -200,16 +196,16 @@ mod tests {
     }
 
     #[test]
-    fn command_is_not_available_and_http_runs() {
+    fn command_and_http_run() {
         let cmd =
-            widget("  source: { type: command, executable: kubectl }\n  view: { type: kv }\n");
+            widget("  source: { type: command, executable: kubectl }\n  view: { type: raw }\n");
         let http = widget(
             "  source: { type: http, url: \"https://g.example/x\" }\n  view: { type: table }\n",
         );
         let p = placement(&[]);
         assert_eq!(
             placement_status(Some(&cmd), &p, &SetupState::default()),
-            not_available("command sources")
+            PlacementStatus::Runnable
         );
         assert_eq!(
             placement_status(Some(&http), &p, &SetupState::default()),

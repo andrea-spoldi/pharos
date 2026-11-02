@@ -3,10 +3,10 @@ import { createResource, type JSX, Match, Show, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
 import { unwrap, type IpcError } from "../ipc";
-import { CardView, ListView, TableView } from "../views";
+import { CardView, ListView, RawView, TableView } from "../views";
 import { MarkdownView } from "../views/markdown";
 
-const views = { table: TableView, list: ListView, card: CardView } as const;
+const views = { table: TableView, list: ListView, card: CardView, raw: RawView } as const;
 
 function errorTitle(err: IpcError): string {
   switch (err.kind) {
@@ -18,6 +18,10 @@ function errorTitle(err: IpcError): string {
       return "Could not reach the service";
     case "needsSetup":
       return "Needs setup";
+    case "executableNotFound":
+      return "Program not found";
+    case "commandFailed":
+      return "The command failed";
     default:
       return "Could not run this widget";
   }
@@ -112,7 +116,7 @@ export function WidgetFrame(props: {
                 slot={props.slot}
                 reads={p().reads}
                 version={props.version}
-                onSettings={() => navigate("/settings")}
+                onSettings={(focus) => navigate(focus ? `/settings?focus=${encodeURIComponent(focus)}` : "/settings")}
               />
             )}
           </Match>
@@ -128,7 +132,7 @@ function Run(props: {
   slot: { dashboard: string; index: number };
   reads: string | null;
   version: number;
-  onSettings: () => void;
+  onSettings: (focus?: string) => void;
 }) {
   // A string key, so a new manifest object for the same slot and version doesn't re-run.
   const [data] = createResource(
@@ -150,13 +154,26 @@ function Run(props: {
             <Show when={refused(err())}>
               <p>The service refused the request. Check the secrets this widget uses.</p>
             </Show>
-            <details>
-              <summary>Details</summary>
-              <pre>{String(err().message ?? err())}</pre>
-            </details>
-            <Show when={refused(err())}>
+            <Show when={err().kind === "executableNotFound"}>
+              <p>Add the folder that contains it to the program search path in Settings.</p>
+            </Show>
+            <Show
+              when={err().kind === "commandFailed"}
+              fallback={
+                <details>
+                  <summary>Details</summary>
+                  <pre>{String(err().message ?? err())}</pre>
+                </details>
+              }
+            >
+              <pre>{err().message}</pre>
+            </Show>
+            <Show when={refused(err()) || err().kind === "executableNotFound"}>
               <div>
-                <button type="button" onClick={props.onSettings}>
+                <button
+                  type="button"
+                  onClick={() => props.onSettings(err().kind === "executableNotFound" ? "search-path" : undefined)}
+                >
                   Open Settings
                 </button>
               </div>

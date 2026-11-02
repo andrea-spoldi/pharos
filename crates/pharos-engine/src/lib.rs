@@ -4,10 +4,12 @@
 //! against the stored snapshot; the plan stays inside the engine until `apply_sync`
 //! (with consent if capabilities changed) or `discard_sync`.
 
+mod command;
 mod dashboard;
 mod db;
 mod git;
 mod http;
+mod process;
 mod run;
 mod secrets;
 mod settings;
@@ -23,6 +25,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub use command::{CommandError, DEFAULT_SEARCH_PATH};
 pub use dashboard::{DashboardView, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
@@ -77,6 +80,8 @@ pub enum EngineError {
     Http(#[from] HttpError),
     #[error(transparent)]
     File(#[from] FileError),
+    #[error(transparent)]
+    Command(#[from] CommandError),
     #[error("`{0}` is not declared in pharos.yaml")]
     Undeclared(String),
     #[error("invalid value for `{key}`: {reason}")]
@@ -490,15 +495,7 @@ impl Engine {
                 headers,
             }) => {
                 let values = Values {
-                    user: settings
-                        .inputs
-                        .iter()
-                        .filter_map(|i| match &i.value {
-                            Some(v) if !i.stale => Some((i.key.clone(), v.clone())),
-                            Some(_) => None,
-                            None => i.default.clone().map(|d| (i.key.clone(), d)),
-                        })
-                        .collect(),
+                    user: settings.usable_inputs(),
                     placement: &placement,
                     widget_inputs: &widget.spec.inputs,
                     secrets: self.secret_values(std::iter::once(url).chain(headers.values()))?,
@@ -516,10 +513,67 @@ impl Engine {
                 let secrets: Vec<String> = values.secrets.into_values().collect();
                 Ok(http::fetch(&request, &approved.hosts, &secrets)?)
             }
-            Some(pharos_manifest::Source::Command { .. }) | None => {
-                unreachable!("placement_status only lets file and http sources run")
+            Some(pharos_manifest::Source::Command {
+                executable,
+                args,
+                timeout,
+            }) => {
+                // No secrets in args (lint): they would show in `ps`.
+                let values = Values {
+                    user: settings.usable_inputs(),
+                    placement: &placement,
+                    widget_inputs: &widget.spec.inputs,
+                    secrets: BTreeMap::new(),
+                };
+                let args = args
+                    .iter()
+                    .map(|a| render_template(a, |r| values.get(r, false)))
+                    .collect::<Result<Vec<_>>>()?;
+                let invocation = command::Invocation {
+                    executable,
+                    args: &args,
+                    timeout: command::timeout(timeout.as_deref()),
+                };
+                let search = command::expand(&self.search_path()?, home_dir().as_deref());
+                Ok(command::execute(
+                    &invocation,
+                    &approved.executables,
+                    &search,
+                )?)
+            }
+            None => unreachable!("placement_status only lets sources run"),
+        }
+    }
+
+    /// Folders where command sources look up bare executable names, in order (D-033).
+    pub fn search_path(&self) -> Result<Vec<String>> {
+        Ok(match db::app_setting(&self.conn, SEARCH_PATH_KEY)? {
+            Some(json) => serde_json::from_str(&json).expect("stored search path is JSON"),
+            None => DEFAULT_SEARCH_PATH.iter().map(|d| d.to_string()).collect(),
+        })
+    }
+
+    /// Replaces the search path; blank entries are dropped, and an empty list restores the
+    /// default. Each entry must be absolute or start with `~/`.
+    pub fn set_search_path(&mut self, entries: &[String]) -> Result<()> {
+        let entries: Vec<&str> = entries
+            .iter()
+            .map(|e| e.trim())
+            .filter(|e| !e.is_empty())
+            .collect();
+        if entries.is_empty() {
+            return Ok(db::delete_app_setting(&self.conn, SEARCH_PATH_KEY)?);
+        }
+        for entry in &entries {
+            if let Some(reason) = command::search_entry_problem(entry) {
+                return Err(EngineError::InvalidValue {
+                    key: entry.to_string(),
+                    reason: reason.into(),
+                });
             }
         }
+        let json = serde_json::to_string(&entries).expect("strings serialise");
+        Ok(db::set_app_setting(&self.conn, SEARCH_PATH_KEY, &json)?)
     }
 
     /// Values of the secrets `templates` reference: each must be declared by the applied
@@ -629,6 +683,14 @@ fn file_reads(root: &Path, widget_file: &str, widget: &Widget) -> Option<String>
         Some(glob) => format!("{}/{glob}", shown.trim_end_matches('/')),
         None => shown,
     })
+}
+
+const SEARCH_PATH_KEY: &str = "command.search_path";
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .filter(|h| !h.is_empty())
+        .map(PathBuf::from)
 }
 
 fn to_json<T: serde::Serialize>(value: &T) -> String {
