@@ -50,10 +50,7 @@ pub enum CommandError {
         stderr: String,
     },
     #[error("`{executable}` did not finish within {}s", .after.as_secs())]
-    TimedOut {
-        executable: String,
-        after: Duration,
-    },
+    TimedOut { executable: String, after: Duration },
     #[error("`{0}` printed more than {mb} MB", mb = MAX_BYTES / 1024 / 1024)]
     TooLarge(String),
     #[error("could not run `{executable}`: {message}")]
@@ -336,7 +333,10 @@ mod tests {
         let entries = ["~/.local/bin".to_string(), "/usr/bin".to_string()];
         assert_eq!(
             expand(&entries, Some(Path::new("/Users/me"))),
-            vec![PathBuf::from("/Users/me/.local/bin"), PathBuf::from("/usr/bin")]
+            vec![
+                PathBuf::from("/Users/me/.local/bin"),
+                PathBuf::from("/usr/bin")
+            ]
         );
         assert_eq!(expand(&entries, None), vec![PathBuf::from("/usr/bin")]);
     }

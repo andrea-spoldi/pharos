@@ -535,7 +535,11 @@ impl Engine {
                     timeout: command::timeout(timeout.as_deref()),
                 };
                 let search = command::expand(&self.search_path()?, home_dir().as_deref());
-                Ok(command::execute(&invocation, &approved.executables, &search)?)
+                Ok(command::execute(
+                    &invocation,
+                    &approved.executables,
+                    &search,
+                )?)
             }
             None => unreachable!("placement_status only lets sources run"),
         }

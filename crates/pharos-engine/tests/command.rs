@@ -62,7 +62,10 @@ fn runs_with_args_rendered_per_placement() {
     let engine = engine();
 
     let data = engine.run_placement("local", 0).unwrap();
-    assert_eq!(data.rows, vec![json!({ "value": "hi-payments-team payments-team" })]);
+    assert_eq!(
+        data.rows,
+        vec![json!({ "value": "hi-payments-team payments-team" })]
+    );
 
     let data = engine.run_placement("local", 1).unwrap();
     assert_eq!(data.rows, vec![json!({ "value": "hello payments-team" })]);
