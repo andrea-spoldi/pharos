@@ -61,13 +61,13 @@ spec:
 fn runs_with_args_rendered_per_placement() {
     let engine = engine();
 
-    let data = engine.run_placement("local", 0).unwrap();
+    let data = engine.run_placement("p:local", &[0]).unwrap();
     assert_eq!(
         data.rows,
         vec![json!({ "value": "hi-payments-team payments-team" })]
     );
 
-    let data = engine.run_placement("local", 1).unwrap();
+    let data = engine.run_placement("p:local", &[1]).unwrap();
     assert_eq!(data.rows, vec![json!({ "value": "hello payments-team" })]);
 }
 
@@ -75,7 +75,7 @@ fn runs_with_args_rendered_per_placement() {
 fn reports_exit_code_and_stderr() {
     let engine = engine();
 
-    let err = engine.run_placement("local", 2).unwrap_err();
+    let err = engine.run_placement("p:local", &[2]).unwrap_err();
     assert_eq!(
         err.to_string(),
         "`sh` exited with code 2: no context",
@@ -90,7 +90,7 @@ fn looks_up_executables_in_the_search_path() {
     let dir = empty.path().to_string_lossy().into_owned();
     engine.set_search_path(std::slice::from_ref(&dir)).unwrap();
 
-    let err = engine.run_placement("local", 1).unwrap_err();
+    let err = engine.run_placement("p:local", &[1]).unwrap_err();
     assert!(
         matches!(&err, EngineError::Command(CommandError::NotFound { executable, searched })
             if executable == "echo" && searched == std::slice::from_ref(&dir)),

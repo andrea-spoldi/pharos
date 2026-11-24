@@ -28,6 +28,19 @@ impl Capabilities {
     pub fn is_empty(&self) -> bool {
         self.hosts.is_empty() && self.executables.is_empty() && self.paths.is_empty()
     }
+
+    /// Unions `other` into `self`. Destructures exhaustively so a new capability kind
+    /// fails to compile here instead of being silently dropped from a union.
+    pub fn extend(&mut self, other: Capabilities) {
+        let Capabilities {
+            hosts,
+            executables,
+            paths,
+        } = other;
+        self.hosts.extend(hosts);
+        self.executables.extend(executables);
+        self.paths.extend(paths);
+    }
 }
 
 /// Capabilities of every widget in a repo, keyed by widget name. This is what users consent to.
@@ -54,12 +67,44 @@ pub(crate) fn derive(repo: &Repo) -> CapabilitySet {
         if set.widgets.contains_key(name) {
             continue;
         }
-        let caps = for_widget(repo, widget);
+        let caps = if widget.manifest.spec.widgets.is_empty() {
+            for_widget(repo, widget)
+        } else {
+            for_container(repo, widget)
+        };
         if !caps.is_empty() {
             set.widgets.insert(name.clone(), caps);
         }
     }
     set
+}
+
+/// A container may do whatever any transitive leaf descendant can, so consent covers the union.
+/// Children resolve by name, first definition winning (as in `derive`); unknown children are
+/// lint errors and contribute nothing here.
+fn for_container(repo: &Repo, root: &Loaded<Widget>) -> Capabilities {
+    let mut by_name: BTreeMap<&str, &Loaded<Widget>> = BTreeMap::new();
+    for w in &repo.widgets {
+        by_name
+            .entry(w.manifest.metadata.name.as_str())
+            .or_insert(w);
+    }
+    let mut caps = Capabilities::default();
+    let mut visited: BTreeSet<&str> = BTreeSet::new();
+    let mut stack = vec![root];
+    while let Some(widget) = stack.pop() {
+        if !visited.insert(widget.manifest.metadata.name.as_str()) {
+            continue;
+        }
+        let spec = &widget.manifest.spec;
+        caps.extend(for_widget(repo, widget));
+        for placement in &spec.widgets {
+            if let Some(child) = by_name.get(placement.widget.as_str()) {
+                stack.push(child);
+            }
+        }
+    }
+    caps
 }
 
 fn for_widget(repo: &Repo, widget: &Loaded<Widget>) -> Capabilities {
@@ -186,5 +231,71 @@ mod tests {
             .hosts
             .insert("https://x".into());
         assert_ne!(a.hash(), before);
+    }
+
+    fn write_widget(root: &std::path::Path, name: &str, spec: &str) {
+        let dir = root.join("widgets").join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("widget.yaml"),
+            format!(
+                "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: {{ name: {name} }}\nspec:\n{spec}\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    fn container_repo(root: &std::path::Path) -> Repo {
+        std::fs::write(
+            root.join("pharos.yaml"),
+            "apiVersion: pharos.io/v1alpha1\nkind: Platform\nmetadata: { name: t }\nspec: {}\n",
+        )
+        .unwrap();
+        write_widget(
+            root,
+            "g",
+            "  source: { type: http, url: \"https://g.example/api\" }\n  view: { type: raw }",
+        );
+        write_widget(
+            root,
+            "k",
+            "  source: { type: command, executable: kubectl }\n  view: { type: raw }",
+        );
+        std::fs::write(root.join("data.json"), "{}").unwrap();
+        write_widget(
+            root,
+            "f",
+            "  source: { type: file, path: ../../data.json }\n  view: { type: raw }",
+        );
+        write_widget(
+            root,
+            "mid",
+            "  widgets:\n    - { widget: k, x: 0, y: 0, w: 6, h: 2 }\n    - { widget: f, x: 0, y: 2, w: 6, h: 2 }",
+        );
+        write_widget(
+            root,
+            "top",
+            "  widgets:\n    - { widget: g, x: 0, y: 0, w: 6, h: 2 }\n    - { widget: mid, x: 0, y: 2, w: 6, h: 2 }\n    - { widget: g, x: 6, y: 0, w: 6, h: 2 }",
+        );
+        crate::load::load(root).0.expect("repo loads")
+    }
+
+    #[test]
+    fn container_capability_is_union_of_children() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = container_repo(dir.path());
+        let set = derive(&repo);
+        let top = set.widgets.get("top").expect("container has an entry");
+        assert!(top.hosts.contains("https://g.example"));
+        assert!(top.executables.contains("kubectl"));
+        assert!(top.paths.contains("data.json"));
+        // Nested container unions its own subtree under its own name.
+        let mid = set.widgets.get("mid").expect("nested container entry");
+        assert!(mid.executables.contains("kubectl"));
+        assert!(mid.paths.contains("data.json"));
+        assert!(mid.hosts.is_empty());
+        // Leaves are unchanged.
+        assert_eq!(set.widgets["g"].hosts.len(), 1);
+        assert!(set.widgets["g"].executables.is_empty());
     }
 }

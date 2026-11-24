@@ -111,7 +111,12 @@ pub struct WidgetSpec {
     /// Per-placement inputs; available as `{{ inputs.<key> }}`.
     #[serde(default)]
     pub inputs: BTreeMap<String, InputDef>,
-    pub view: View,
+    /// Leaf widgets render a view; containers have none.
+    #[serde(default)]
+    pub view: Option<View>,
+    /// Container widgets compose child widgets (by name) on a grid.
+    #[serde(default)]
+    pub widgets: Vec<Placement>,
     /// Only widens what is derived from `source`.
     #[serde(default)]
     pub permissions: Permissions,

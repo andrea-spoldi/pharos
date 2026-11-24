@@ -1,0 +1,5 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: l1 }
+spec:
+  view: { type: markdown, content: hello }

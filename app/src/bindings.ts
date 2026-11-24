@@ -47,10 +47,19 @@ export const commands = {
 	/**  Forgets the repo; with `forget`, also this platform's inputs and secrets. */
 	disconnect: (forget: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("disconnect", { forget })),
 	/**
-	 *  The frontend names the dashboard slot only (D-031); what is read or called, with which
-	 *  inputs and secrets, comes from the stored manifests and the approved capabilities.
+	 *  The frontend names the dashboard slot only (D-031): a dashboard id and child indices.
+	 *  What is read or called, with which inputs and secrets, comes from the stored manifests
+	 *  and the approved capabilities.
 	 */
-	runPlacement: (dashboard: string, index: number) => typedError<WidgetData, CommandError>(__TAURI_INVOKE("run_placement", { dashboard, index })),
+	runPlacement: (dashboardId: string, path: number[]) => typedError<WidgetData, CommandError>(__TAURI_INVOKE("run_placement", { dashboardId, path })),
+	/**  Widgets a user can place on a dashboard. */
+	listCatalog: () => typedError<WidgetSummary[], CommandError>(__TAURI_INVOKE("list_catalog")),
+	createDashboard: (title: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("create_dashboard", { title })),
+	renameDashboard: (id: string, title: string) => typedError<null, CommandError>(__TAURI_INVOKE("rename_dashboard", { id, title })),
+	deleteDashboard: (id: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_dashboard", { id })),
+	addWidget: (dashboardId: string, widget: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("add_widget", { dashboardId, widget })),
+	removeWidget: (dashboardId: string, placementId: number) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("remove_widget", { dashboardId, placementId })),
+	setLanding: (dashboardId: string | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_landing", { dashboardId })),
 };
 
 /* Types */
@@ -85,6 +94,10 @@ export type CommandError = {
 };
 
 export type DashboardView = {
+	/**  `p:<name>` for platform dashboards. */
+	id: string,
+	origin: Origin,
+	editable: boolean,
 	metadata: Metadata,
 	placements: PlacementView[],
 };
@@ -101,6 +114,12 @@ export type Diagnostic = {
 
 /**  What the UI branches on; `message` is for display only. */
 export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "unknownWidget" | 
+/**  A dashboard id that does not exist. */
+"unknownDashboard" | 
+/**  A platform dashboard cannot be edited, renamed or deleted. */
+"readOnly" | 
+/**  Only a leaf widget can be placed on a dashboard, not a container. */
+"notALeaf" | 
 /**  Static widget, or a source type not supported yet. */
 "notRunnable" | 
 /**  An input or secret the widget needs is not set. */
@@ -171,9 +190,21 @@ export type Metadata = {
 	description?: string | null,
 };
 
+/**  Where a dashboard comes from. */
+export type Origin = "platform" | "user";
+
 export type Permissions = {
 	/**  Extra origins, e.g. `https://gitlab.acme`. */
 	hosts?: string[],
+};
+
+export type Placement = {
+	widget: string,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	inputs?: { [key in string]: string },
 };
 
 /**  What a placement can show, decided here so the frontend never decides what runs. */
@@ -188,6 +219,11 @@ export type PlacementStatus =
 { kind: "static" } | { kind: "runnable" };
 
 export type PlacementView = {
+	/**
+	 *  Row id of a user dashboard's top-level placement (what `remove_widget` takes);
+	 *  `None` for platform placements and expanded children.
+	 */
+	id: number | null,
 	widget: string,
 	x: number,
 	y: number,
@@ -197,6 +233,8 @@ export type PlacementView = {
 	status: PlacementStatus,
 	/**  For runnable file widgets: what is read, relative to the repo root. */
 	reads: string | null,
+	/**  For container widgets: the child placements, expanded recursively. Empty for leaves. */
+	children: PlacementView[],
 };
 
 export type PlatformRef = {
@@ -303,9 +341,20 @@ export type WidgetSpec = {
 	refresh?: string | null,
 	/**  Per-placement inputs; available as `{{ inputs.<key> }}`. */
 	inputs?: { [key in string]: InputDef },
-	view: View,
+	/**  Leaf widgets render a view; containers have none. */
+	view?: View | null,
+	/**  Container widgets compose child widgets (by name) on a grid. */
+	widgets?: Placement[],
 	/**  Only widens what is derived from `source`. */
 	permissions?: Permissions,
+};
+
+/**  A widget a user can place. */
+export type WidgetSummary = {
+	name: string,
+	title: string | null,
+	/**  Composed of other widgets rather than showing data itself. */
+	container: boolean,
 };
 
 /* Tauri Specta runtime */

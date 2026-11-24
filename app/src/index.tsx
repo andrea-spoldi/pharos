@@ -3,11 +3,11 @@ import { render } from "solid-js/web";
 import { App } from "./App";
 import "./styles.css";
 
-// Hash routing survives a reload under the Tauri asset protocol; `#/d/:name` picks the dashboard.
+// Hash routing survives a reload under the Tauri asset protocol; `#/d/:id` picks the dashboard.
 render(
   () => (
     <HashRouter>
-      <Route path={["/", "/d/:name", "/settings"]} component={App} />
+      <Route path={["/", "/d/:id", "/settings"]} component={App} />
       <Route path="*" component={() => <Navigate href="/" />} />
     </HashRouter>
   ),

@@ -1,5 +1,5 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
-import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView } from "../bindings";
@@ -7,12 +7,27 @@ import { Dashboards } from "./Dashboards";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
-vi.mock("../bindings", () => ({ commands: { listDashboards: vi.fn(), runPlacement: vi.fn() } }));
+vi.mock("../bindings", () => ({
+  commands: {
+    listDashboards: vi.fn(),
+    runPlacement: vi.fn(),
+    listCatalog: vi.fn(),
+    createDashboard: vi.fn(),
+    renameDashboard: vi.fn(),
+    deleteDashboard: vi.fn(),
+    addWidget: vi.fn(),
+    removeWidget: vi.fn(),
+    setLanding: vi.fn(),
+  },
+}));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 
 function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView {
   return {
+    id: `p:${name}`,
+    origin: "platform",
+    editable: false,
     metadata: { name, title: name[0].toUpperCase() + name.slice(1), version: null, description: null },
     placements: widgets.map((w, i) => ({
       widget: w,
@@ -23,6 +38,8 @@ function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView
       manifest: null,
       status: { kind: "missing" },
       reads: null,
+      id: null,
+      children: [],
     })),
   };
 }
@@ -32,7 +49,7 @@ function renderAt(path: string, version: () => number = () => 0) {
   history.set({ value: path });
   render(() => (
     <MemoryRouter history={history}>
-      <Route path={["/", "/d/:name"]} component={() => <Dashboards version={version()} />} />
+      <Route path={["/", "/d/:id"]} component={() => <Dashboards version={version()} />} />
     </MemoryRouter>
   ));
   return history;
@@ -43,6 +60,9 @@ const rows = { rows: [{ metadata: { name: "payment-service" }, _source: "p.yaml"
 /** A fresh list with one runnable file widget; new objects on every call, as after a sync. */
 function runnableHome(): DashboardView {
   return {
+    id: "p:home",
+    origin: "platform",
+    editable: false,
     metadata: { name: "home", title: "Home", version: null, description: null },
     placements: [
       {
@@ -65,12 +85,15 @@ function runnableHome(): DashboardView {
         },
         status: { kind: "runnable" },
         reads: "catalog/services/*.yaml",
+        id: null,
+        children: [],
       },
     ],
   };
 }
 
-const tab = (name: string) => screen.getByRole("button", { name });
+// A landing tab's accessible name carries a "(Landing dashboard)" suffix, so match the title prefix.
+const tab = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}\\b`) });
 
 describe("Dashboards", () => {
   beforeEach(() => {
@@ -79,21 +102,21 @@ describe("Dashboards", () => {
 
   it("redirects to the first dashboard", async () => {
     const history = renderAt("/");
-    await waitFor(() => expect(history.get()).toBe("/d/home"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     expect(tab("Home").getAttribute("aria-current")).toBe("page");
     expect(tab("Ops").getAttribute("aria-current")).toBeNull();
   });
 
   it("redirects an unknown dashboard", async () => {
-    const history = renderAt("/d/nope");
-    await waitFor(() => expect(history.get()).toBe("/d/home"));
+    const history = renderAt("/d/p:nope");
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
   });
 
   it("switches dashboards from the tabs", async () => {
-    const history = renderAt("/d/home");
+    const history = renderAt("/d/p:home");
     await screen.findByText("welcome", { selector: "header *" });
     fireEvent.click(tab("Ops"));
-    await waitFor(() => expect(history.get()).toBe("/d/ops"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Aops"));
     expect(await screen.findByText("k8s", { selector: "header *" })).toBeTruthy();
     expect(screen.queryByText("welcome", { selector: "header *" })).toBeNull();
   });
@@ -101,7 +124,7 @@ describe("Dashboards", () => {
   it("more menu closes on escape and selection", async () => {
     const names = ["home", "a", "b", "c", "d", "e", "f"];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
-    const history = renderAt("/d/home");
+    const history = renderAt("/d/p:home");
     await screen.findByRole("button", { name: "More ▾" });
     expect(screen.getByRole("navigation", { name: "Dashboards" }).querySelectorAll(".tab").length).toBe(6);
     expect(screen.queryByRole("button", { name: "E" })).toBeNull();
@@ -113,30 +136,30 @@ describe("Dashboards", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "More ▾" }));
     fireEvent.click(screen.getByRole("button", { name: "E" }));
-    await waitFor(() => expect(history.get()).toBe("/d/e"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ae"));
     expect(screen.queryByRole("button", { name: "F" })).toBeNull();
   });
 
   it("shows no tabs when there are no dashboards", async () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([]));
     renderAt("/");
-    expect(await screen.findByText("The platform repo defines no dashboards yet.")).toBeTruthy();
+    expect(await screen.findByText("No dashboards yet. Click + New dashboard to create one.")).toBeTruthy();
     expect(screen.queryByRole("navigation")).toBeNull();
   });
 
   it("shows an empty dashboard notice", async () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home", [])]));
-    renderAt("/d/home");
+    renderAt("/d/p:home");
     expect(await screen.findByText("This dashboard is empty.")).toBeTruthy();
   });
 
   it("falls back when the current dashboard disappears", async () => {
     const [version, setVersion] = createSignal(0);
-    const history = renderAt("/d/ops", version);
+    const history = renderAt("/d/p:ops", version);
     await screen.findByText("k8s", { selector: "header *" });
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home")]));
     setVersion(1);
-    await waitFor(() => expect(history.get()).toBe("/d/home"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
   });
 
@@ -147,11 +170,11 @@ describe("Dashboards", () => {
     home.placements = [{ ...first, widget: "lower", y: 4 }, first];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([home]));
     vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
-    renderAt("/d/home");
+    renderAt("/d/p:home");
     await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(2));
     expect(vi.mocked(commands.runPlacement).mock.calls).toEqual([
-      ["home", 1],
-      ["home", 0],
+      ["p:home", [1]],
+      ["p:home", [0]],
     ]);
   });
 
@@ -159,7 +182,7 @@ describe("Dashboards", () => {
     vi.mocked(commands.listDashboards).mockImplementation(async () => ok([runnableHome()]));
     vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
     const [version, setVersion] = createSignal(0);
-    renderAt("/d/home", version);
+    renderAt("/d/p:home", version);
     await screen.findByText("payment-service");
 
     vi.mocked(commands.runPlacement).mockReturnValue(new Promise(() => {}));
@@ -186,9 +209,149 @@ describe("Dashboards", () => {
   it("marks More as active when the current dashboard is in the menu", async () => {
     const names = ["home", "a", "b", "c", "d", "e", "f"];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
-    renderAt("/d/e");
+    renderAt("/d/p:e");
     const more = await screen.findByRole("button", { name: "More ▾" });
     expect(more.classList.contains("active")).toBe(true);
     expect(tab("Home").getAttribute("aria-current")).toBeNull();
+  });
+});
+
+function userDashboard(id: number, title: string, widgets: string[] = []): DashboardView {
+  const d = dashboard(title.toLowerCase(), widgets);
+  return {
+    ...d,
+    id: `u:${id}`,
+    origin: "user",
+    editable: true,
+    placements: d.placements.map((p, i) => ({ ...p, id: 10 + i })),
+  };
+}
+
+describe("Dashboards compose", () => {
+  beforeEach(() => {
+    vi.mocked(commands.listDashboards).mockReset().mockResolvedValue(ok([dashboard("home")]));
+    vi.mocked(commands.listCatalog)
+      .mockReset()
+      .mockResolvedValue(
+        ok([
+          { name: "welcome", title: "Welcome", container: false },
+          { name: "pair", title: null, container: true },
+        ]),
+      );
+    for (const c of ["createDashboard", "renameDashboard", "deleteDashboard", "addWidget", "removeWidget", "setLanding"] as const) {
+      vi.mocked(commands[c]).mockReset();
+    }
+  });
+
+  it("creates_a_user_dashboard", async () => {
+    const mine = userDashboard(1, "Mine");
+    vi.mocked(commands.createDashboard).mockResolvedValue(ok(mine));
+    const history = renderAt("/d/p:home");
+    await screen.findByRole("button", { name: "Home" });
+    fireEvent.click(screen.getByRole("button", { name: "+ New dashboard" }));
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.input(dialog.getByLabelText("Title"), { target: { value: "Mine" } });
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    fireEvent.click(dialog.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(commands.createDashboard).toHaveBeenCalledWith("Mine"));
+    await waitFor(() => expect(history.get()).toBe("/d/u%3A1"));
+    expect(await screen.findByRole("button", { name: "Mine" })).toBeTruthy();
+    expect(tab("Mine").getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("adds_and_removes_a_widget", async () => {
+    const empty = userDashboard(1, "Mine");
+    const one = userDashboard(1, "Mine", ["welcome"]);
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), empty]));
+    vi.mocked(commands.addWidget).mockResolvedValue(ok(one));
+    vi.mocked(commands.removeWidget).mockResolvedValue(ok(empty));
+    renderAt("/d/u:1");
+    await screen.findByText("Add your first widget");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add widget" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("button", { name: /Welcome/ })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: /pair/ })).toBeTruthy();
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), one]));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Welcome/ }));
+    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome"));
+    expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove welcome" }));
+    const confirm = within(screen.getByRole("dialog"));
+    const buttons = confirm.getAllByRole("button").map((b) => b.textContent);
+    expect(buttons).toEqual(["Cancel", "Remove"]);
+    expect(commands.removeWidget).not.toHaveBeenCalled();
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), empty]));
+    fireEvent.click(confirm.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(commands.removeWidget).toHaveBeenCalledWith("u:1", 10));
+    expect(await screen.findByText("Add your first widget")).toBeTruthy();
+  });
+
+  it("empty_user_dashboard_shows_add_cta", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine")]));
+    renderAt("/d/u:1");
+    expect(await screen.findByText("Add your first widget")).toBeTruthy();
+  });
+
+  it("set_as_landing_toggles", async () => {
+    const mine = userDashboard(1, "Mine");
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    vi.mocked(commands.setLanding).mockResolvedValue(ok(null));
+    renderAt("/d/u:1");
+    await screen.findByText("Add your first widget");
+    // Until one is chosen, the app opens on the first (platform) dashboard.
+    expect(tab("Home").contains(screen.getByText(/\(Landing dashboard\)/))).toBe(true);
+    // The cue is in the accessibility tree: it is part of the tab's accessible name.
+    expect(screen.getByRole("button", { name: /^Home\s*\(Landing dashboard\)$/ })).toBeTruthy();
+
+    // The engine moves the landing dashboard to the front of the list.
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([mine, dashboard("home")]));
+    fireEvent.click(screen.getByRole("button", { name: "Set as landing" }));
+    await waitFor(() => expect(commands.setLanding).toHaveBeenCalledWith("u:1"));
+    await waitFor(() => expect(tab("Mine").contains(screen.queryByText(/\(Landing dashboard\)/))).toBe(true));
+    expect(tab("Home").querySelector(".landing-mark, .sr-only")).toBeNull();
+
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    fireEvent.click(screen.getByRole("button", { name: "Clear landing" }));
+    await waitFor(() => expect(commands.setLanding).toHaveBeenLastCalledWith(null));
+    await waitFor(() => expect(tab("Home").contains(screen.queryByText(/\(Landing dashboard\)/))).toBe(true));
+    expect(screen.getByRole("button", { name: /^Home\s*\(Landing dashboard\)$/ })).toBeTruthy();
+  });
+
+  it("renames and deletes after confirmation", async () => {
+    const mine = userDashboard(1, "Mine");
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    vi.mocked(commands.renameDashboard).mockResolvedValue(ok(null));
+    vi.mocked(commands.deleteDashboard).mockResolvedValue(ok(null));
+    const history = renderAt("/d/u:1");
+    await screen.findByText("Add your first widget");
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    let dialog = within(screen.getByRole("dialog"));
+    fireEvent.input(dialog.getByLabelText("Title"), { target: { value: "Renamed" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(commands.renameDashboard).toHaveBeenCalledWith("u:1", "Renamed"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getAllByRole("button").map((b) => b.textContent)).toEqual(["Cancel", "Delete"]);
+    expect(commands.deleteDashboard).not.toHaveBeenCalled();
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home")]));
+    fireEvent.click(dialog.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(commands.deleteDashboard).toHaveBeenCalledWith("u:1"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
+  });
+
+  it("shows no edit affordances on a platform dashboard", async () => {
+    renderAt("/d/p:home");
+    await screen.findByRole("button", { name: "Home" });
+    expect(screen.getByRole("button", { name: "+ New dashboard" })).toBeTruthy();
+    for (const name of ["Add widget", "Rename", "Delete", "Set as landing", "Clear landing"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+    expect(screen.queryByText("Add your first widget")).toBeNull();
   });
 });

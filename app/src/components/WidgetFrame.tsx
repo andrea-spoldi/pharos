@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { createResource, type JSX, Match, Show, Switch } from "solid-js";
+import { createResource, Index, type JSX, Match, Show, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
 import { unwrap, type IpcError } from "../ipc";
@@ -39,16 +39,19 @@ function State(props: { tone?: "danger" | "setup"; title: string; children: JSX.
 /**
  * One dashboard placement: a card placed on the 12-column grid, showing exactly one state.
  * The engine decides the status (D-024); only runnable placements run, by their slot: the
- * dashboard and the placement's position in it (D-031).
+ * dashboard and the placement's path in it (D-031).
  */
 export function WidgetFrame(props: {
   placement: PlacementView;
-  slot: { dashboard: string; index: number };
+  slot: { dashboardId: string; path: number[] };
   version: number;
   /** The platform's label for an input key ("Your team"), if it declares one. */
   inputLabel?: (key: string) => string | null | undefined;
+  /** Present only where the user may take this placement off its dashboard. */
+  onRemove?: () => void;
 }) {
   const p = () => props.placement;
+  const name = () => p().manifest?.metadata.title ?? p().widget;
   const style = () => ({
     "grid-column": `${p().x + 1} / span ${p().w}`,
     "grid-row": `${p().y + 1} / span ${p().h}`,
@@ -65,9 +68,31 @@ export function WidgetFrame(props: {
     <article class="widget" style={style()}>
       <header class="widget-head">
         <strong>{p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
+        <Show when={props.onRemove}>
+          {(remove) => (
+            <button type="button" class="link" aria-label={`Remove ${name()}`} onClick={() => remove()()}>
+              Remove
+            </button>
+          )}
+        </Show>
       </header>
       <div class="widget-body">
         <Switch>
+          <Match when={p().children.length > 0}>
+            {/* A container: its parts, each run by this placement's path plus its index. */}
+            <section class="grid subgrid" aria-label={name()}>
+              <Index each={p().children}>
+                {(child, i) => (
+                  <WidgetFrame
+                    placement={child()}
+                    slot={{ dashboardId: props.slot.dashboardId, path: [...props.slot.path, i] }}
+                    version={props.version}
+                    inputLabel={props.inputLabel}
+                  />
+                )}
+              </Index>
+            </section>
+          </Match>
           <Match when={status().kind === "missing"}>
             <State tone="danger" title="Missing widget">
               This dashboard places <code>{p().widget}</code>, which the platform repo doesn't define.
@@ -106,8 +131,11 @@ export function WidgetFrame(props: {
           <Match when={status().kind === "notAvailable" && (status() as { feature: string })}>
             {(s) => <State title="Not available yet">{s().feature} arrive in a later version.</State>}
           </Match>
+          <Match when={(status().kind === "static" || status().kind === "runnable") && p().manifest?.spec.view === null}>
+            <State title="No view">This widget doesn't say how to show anything.</State>
+          </Match>
           <Match when={status().kind === "static" && p().manifest}>
-            {(m) => <MarkdownView content={m().spec.view.content ?? ""} />}
+            {(m) => <MarkdownView content={m().spec.view?.content ?? ""} />}
           </Match>
           <Match when={status().kind === "runnable" && p().manifest}>
             {(m) => (
@@ -129,22 +157,22 @@ export function WidgetFrame(props: {
 /** Keyed on the sync version; a re-run keeps the previous rows on screen (no skeleton flash). */
 function Run(props: {
   widget: Manifest<WidgetSpec>;
-  slot: { dashboard: string; index: number };
+  slot: { dashboardId: string; path: number[] };
   reads: string | null;
   version: number;
   onSettings: (focus?: string) => void;
 }) {
   // A string key, so a new manifest object for the same slot and version doesn't re-run.
   const [data] = createResource(
-    () => JSON.stringify([props.version, props.slot.dashboard, props.slot.index]),
+    () => JSON.stringify([props.version, props.slot.dashboardId, props.slot.path]),
     (key) => {
-      const [, dashboard, index] = JSON.parse(key) as [number, string, number];
-      return unwrap(commands.runPlacement(dashboard, index));
+      const [, dashboardId, path] = JSON.parse(key) as [number, string, number[]];
+      return unwrap(commands.runPlacement(dashboardId, path));
     },
   );
   // A refused token is fixed in Settings; a file outside the approval is not.
   const refused = (err: IpcError) => err.kind === "permissionDenied" && props.widget.spec.source?.type === "http";
-  const view = () => views[props.widget.spec.view.type as keyof typeof views];
+  const view = () => views[props.widget.spec.view?.type as keyof typeof views];
 
   return (
     <Switch>
@@ -196,7 +224,7 @@ function Run(props: {
               </State>
             </Match>
             <Match when={d()}>
-              <Dynamic component={view()} columns={props.widget.spec.view.columns} data={d()} />
+              <Dynamic component={view()} columns={props.widget.spec.view?.columns ?? []} data={d()} />
             </Match>
           </Switch>
         )}

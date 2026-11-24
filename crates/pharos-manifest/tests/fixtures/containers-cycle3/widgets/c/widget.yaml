@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: c }
+spec:
+  widgets:
+    - { widget: a, x: 0, y: 0, w: 6, h: 2 }

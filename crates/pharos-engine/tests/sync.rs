@@ -29,13 +29,19 @@ fn first_sync_needs_consent_then_stores_snapshot() {
     assert_eq!(plan.to_commit, git(&f.origin, &["rev-parse", "HEAD"]));
     assert_eq!(
         plan.widgets.added,
-        ["k8s-context", "my-pipelines", "service-catalog", "welcome"]
+        [
+            "k8s-context",
+            "my-pipelines",
+            "on-call-overview",
+            "service-catalog",
+            "welcome"
+        ]
     );
     assert_eq!(plan.dashboards.added, ["home"]);
     assert!(plan.platform_changed);
     assert!(plan.needs_consent);
     assert_eq!(plan.errors(), 0);
-    assert_eq!(plan.capabilities.widgets.len(), 3);
+    assert_eq!(plan.capabilities.widgets.len(), 4);
 
     assert!(matches!(
         engine.apply_sync(false),
@@ -58,7 +64,13 @@ fn first_sync_needs_consent_then_stores_snapshot() {
         .collect();
     assert_eq!(
         names,
-        ["k8s-context", "my-pipelines", "service-catalog", "welcome"]
+        [
+            "k8s-context",
+            "my-pipelines",
+            "on-call-overview",
+            "service-catalog",
+            "welcome"
+        ]
     );
     assert_eq!(
         engine.dashboard_templates().unwrap()[0].metadata.name,
@@ -147,7 +159,7 @@ fn lint_errors_block_apply_and_discard_restores_the_clone() {
     let source = engine.source().unwrap().unwrap();
     assert_eq!(git(&source.local_path, &["rev-parse", "HEAD"]), good);
     assert!(!source.local_path.join("widgets/escape").exists());
-    assert_eq!(engine.widgets().unwrap().len(), 4);
+    assert_eq!(engine.widgets().unwrap().len(), 5);
     assert!(matches!(
         engine.apply_sync(true),
         Err(EngineError::NoPendingSync)
@@ -203,6 +215,6 @@ fn state_survives_reopen() {
 
     let engine = Engine::open(&f.data).unwrap();
     assert_eq!(engine.source().unwrap(), source);
-    assert_eq!(engine.widgets().unwrap().len(), 4);
+    assert_eq!(engine.widgets().unwrap().len(), 5);
     assert!(engine.pending_sync().is_none());
 }

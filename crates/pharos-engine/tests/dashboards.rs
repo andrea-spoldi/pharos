@@ -3,7 +3,7 @@
 mod common;
 
 use common::Fixture;
-use pharos_engine::{Engine, PlacementStatus};
+use pharos_engine::{Engine, Origin, PlacementStatus};
 
 #[test]
 fn home_placements_have_status_and_reads() {
@@ -83,4 +83,274 @@ fn platform_after_apply() {
         platform.metadata.title.as_deref(),
         Some("ACME Developer Portal")
     );
+}
+
+fn leaf(name: &str) -> String {
+    format!(
+        "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: {{ name: {name} }}\n\
+         spec:\n  source: {{ type: command, executable: kubectl }}\n  view: {{ type: raw }}\n"
+    )
+}
+
+#[test]
+fn platform_composite_expands_children() {
+    let f = Fixture::new();
+    f.write("widgets/leaf-a/widget.yaml", &leaf("leaf-a"));
+    f.write("widgets/leaf-b/widget.yaml", &leaf("leaf-b"));
+    f.write(
+        "widgets/pair/widget.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: { name: pair }\n\
+         spec:\n  widgets:\n    - { widget: leaf-a, x: 0, y: 0, w: 6, h: 2 }\n    \
+         - { widget: leaf-b, x: 6, y: 0, w: 6, h: 2 }\n",
+    );
+    let home = std::fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
+    f.write(
+        "dashboards/home.yaml",
+        &format!("{home}    - {{ widget: pair, x: 0, y: 8, w: 12, h: 2 }}\n"),
+    );
+    let engine = {
+        f.commit("composite");
+        f.synced_engine()
+    };
+
+    let dashboards = engine.dashboards().unwrap();
+
+    let home = &dashboards[0];
+    assert_eq!(home.id, "p:home");
+    assert_eq!(home.origin, Origin::Platform);
+    assert!(!home.editable);
+    let pair = home.placements.iter().find(|p| p.widget == "pair").unwrap();
+    assert_eq!(pair.status, PlacementStatus::Runnable);
+    assert_eq!(pair.children.len(), 2);
+    for (child, name) in pair.children.iter().zip(["leaf-a", "leaf-b"]) {
+        assert_eq!(child.widget, name);
+        assert_eq!(child.status, PlacementStatus::Runnable);
+        assert!(child.children.is_empty());
+        assert!(child.manifest.is_some());
+    }
+}
+
+fn user_ids(engine: &Engine) -> Vec<String> {
+    engine
+        .dashboards()
+        .unwrap()
+        .into_iter()
+        .filter(|d| d.origin == Origin::User)
+        .map(|d| d.id)
+        .collect()
+}
+
+#[test]
+fn compose_and_persist() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    let created = engine.create_dashboard("My Home").unwrap();
+    assert_eq!(created.id, "u:1");
+    assert_eq!(created.metadata.name, "my-home");
+    assert_eq!(created.metadata.title.as_deref(), Some("My Home"));
+    assert!(created.editable);
+    engine.add_widget("u:1", "service-catalog").unwrap();
+    drop(engine);
+
+    let engine = Engine::open(&f.data).unwrap();
+    let mine: Vec<_> = engine
+        .dashboards()
+        .unwrap()
+        .into_iter()
+        .filter(|d| d.origin == Origin::User)
+        .collect();
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].placements.len(), 1);
+    assert_eq!(mine[0].placements[0].widget, "service-catalog");
+    assert_eq!(mine[0].placements[0].status, PlacementStatus::Runnable);
+    assert_eq!((mine[0].placements[0].x, mine[0].placements[0].y), (0, 0));
+}
+
+#[test]
+fn names_slugify_and_suffix_on_collision() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    let names: Vec<_> = ["My Home", "my  home!", "My Home", "***"]
+        .iter()
+        .map(|t| engine.create_dashboard(t).unwrap().metadata.name)
+        .collect();
+    assert_eq!(names, ["my-home", "my-home-2", "my-home-3", "dashboard"]);
+}
+
+#[test]
+fn add_widget_places_below_with_default_size() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.add_widget("u:1", "service-catalog").unwrap();
+    let view = engine.add_widget("u:1", "welcome").unwrap();
+    let [first, second] = &view.placements[..] else {
+        panic!("two placements")
+    };
+    assert_eq!((first.y, first.h), (0, 4));
+    assert_eq!((second.x, second.y), (0, 4));
+    assert!(matches!(
+        engine.add_widget("u:1", "nope"),
+        Err(pharos_engine::EngineError::UnknownWidget(_))
+    ));
+}
+
+#[test]
+fn missing_widget_in_user_dashboard_is_missing() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.add_widget("u:1", "welcome").unwrap();
+    // Remove the widget from the repo (and from home, which places it).
+    f.remove("widgets/welcome");
+    let home = std::fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
+    let kept: Vec<_> = home.lines().filter(|l| !l.contains("welcome")).collect();
+    f.write("dashboards/home.yaml", &(kept.join("\n") + "\n"));
+    f.resync(&mut engine, "drop welcome");
+
+    let dashboards = engine.dashboards().unwrap();
+
+    let mine = dashboards.iter().find(|d| d.id == "u:1").unwrap();
+    assert_eq!(mine.placements.len(), 1);
+    assert_eq!(mine.placements[0].status, PlacementStatus::Missing);
+    assert!(mine.placements[0].manifest.is_none());
+}
+
+#[test]
+fn stale_landing_falls_back() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.set_landing(Some("u:999")).unwrap();
+
+    let ids: Vec<_> = engine
+        .dashboards()
+        .unwrap()
+        .into_iter()
+        .map(|d| d.id)
+        .collect();
+
+    assert_eq!(ids, ["p:home", "u:1"]);
+}
+
+#[test]
+fn landing_moves_a_valid_dashboard_first_and_clears() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.create_dashboard("B").unwrap();
+    let ids =
+        |e: &Engine| -> Vec<String> { e.dashboards().unwrap().into_iter().map(|d| d.id).collect() };
+    assert_eq!(ids(&engine), ["p:home", "u:1", "u:2"]);
+
+    engine.set_landing(Some("u:2")).unwrap();
+    assert_eq!(ids(&engine), ["u:2", "p:home", "u:1"]);
+    engine.set_landing(Some("p:home")).unwrap();
+    assert_eq!(ids(&engine), ["p:home", "u:1", "u:2"]);
+    engine.set_landing(Some("u:2")).unwrap();
+    engine.set_landing(None).unwrap();
+    assert_eq!(ids(&engine), ["p:home", "u:1", "u:2"]);
+    assert!(engine.set_landing(Some("garbage")).is_err());
+}
+
+#[test]
+fn remove_widget_returns_fresh_view() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.add_widget("u:1", "service-catalog").unwrap();
+    let view = engine.add_widget("u:1", "welcome").unwrap();
+    let doomed = view.placements[0].id.unwrap();
+
+    let fresh = engine.remove_widget("u:1", doomed).unwrap();
+
+    assert_eq!(fresh.placements.len(), 1);
+    assert_eq!(fresh.placements[0].widget, "welcome");
+    assert!(engine.remove_widget("u:1", doomed).is_err());
+}
+
+#[test]
+fn delete_dashboard_cascades() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.add_widget("u:1", "welcome").unwrap();
+    engine.delete_dashboard("u:1").unwrap();
+    assert!(user_ids(&engine).is_empty());
+    let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
+    let rows: i64 = db
+        .query_row("SELECT COUNT(*) FROM placements", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rows, 0);
+}
+
+#[test]
+fn platform_dashboards_cannot_be_mutated_and_rename_works() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    assert!(engine.rename_dashboard("p:home", "x").is_err());
+    assert!(engine.delete_dashboard("p:home").is_err());
+    assert!(engine.add_widget("p:home", "welcome").is_err());
+    assert!(engine.remove_widget("p:home", 1).is_err());
+    assert!(engine.delete_dashboard("u:42").is_err());
+
+    engine.rename_dashboard("u:1", "Renamed").unwrap();
+
+    let d = engine.dashboards().unwrap();
+    let mine = d.iter().find(|d| d.id == "u:1").unwrap();
+    assert_eq!(mine.metadata.title.as_deref(), Some("Renamed"));
+    let catalog = engine.catalog().unwrap();
+    assert_eq!(catalog.len(), 5);
+    let containers: Vec<_> = catalog
+        .iter()
+        .filter(|w| w.container)
+        .map(|w| w.name.as_str())
+        .collect();
+    assert_eq!(containers, ["on-call-overview"]);
+}
+
+#[test]
+fn over_deep_container_chain_is_not_available_not_a_stack_overflow() {
+    const CHAIN: usize = 40; // deeper than the engine's expansion cap (32)
+    let f = Fixture::new();
+    f.write("widgets/chain-leaf/widget.yaml", &leaf("chain-leaf"));
+    for i in 0..CHAIN {
+        let child = if i + 1 == CHAIN {
+            "chain-leaf".to_string()
+        } else {
+            format!("chain-{}", i + 1)
+        };
+        f.write(
+            &format!("widgets/chain-{i}/widget.yaml"),
+            &format!(
+                "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: {{ name: chain-{i} }}\n\
+                 spec:\n  widgets:\n    - {{ widget: {child}, x: 0, y: 0, w: 12, h: 2 }}\n"
+            ),
+        );
+    }
+    let home = std::fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
+    f.write(
+        "dashboards/home.yaml",
+        &format!("{home}    - {{ widget: chain-0, x: 0, y: 8, w: 12, h: 2 }}\n"),
+    );
+    f.commit("deep chain");
+    let engine = f.synced_engine();
+
+    let dashboards = engine.dashboards().unwrap();
+
+    let mut node = dashboards[0]
+        .placements
+        .iter()
+        .find(|p| p.widget == "chain-0")
+        .unwrap();
+    let mut depth = 0;
+    while let Some(child) = node.children.first() {
+        node = child;
+        depth += 1;
+    }
+    assert_eq!(depth, 32, "expansion stops at the cap");
+    assert_eq!(node.widget, "chain-32");
+    assert!(matches!(node.status, PlacementStatus::NotAvailable { .. }));
+    assert!(node.children.is_empty());
 }

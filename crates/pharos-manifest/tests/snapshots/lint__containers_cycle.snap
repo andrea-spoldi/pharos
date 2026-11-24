@@ -1,0 +1,6 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"containers-cycle\"))"
+---
+error: widgets/a/widget.yaml: spec.widgets: widget cycle: a -> b -> a [widget-cycle]
+-- 1 errors, 0 warnings

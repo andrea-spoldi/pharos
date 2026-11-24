@@ -16,7 +16,7 @@ const render = (ui: () => JSX.Element) => {
   history.set({ value: "/d/home" });
   return renderUi(() => (
     <MemoryRouter history={history}>
-      <Route path={["/d/:name", "/settings"]} component={ui} />
+      <Route path={["/d/:id", "/settings"]} component={ui} />
     </MemoryRouter>
   ));
 };
@@ -42,11 +42,13 @@ function placement(
     },
     status: { kind: "runnable" },
     reads: "catalog/services/*.yaml",
+    id: null,
+    children: [],
     ...over,
   };
 }
 
-const slot = { dashboard: "home", index: 2 };
+const slot = { dashboardId: "p:home", path: [2] };
 
 const rows: WidgetData = { rows: [{ metadata: { name: "payment-service" }, _source: "p.yaml" }], truncated: false };
 
@@ -111,7 +113,7 @@ describe("WidgetFrame", () => {
     expect(await screen.findByText("payment-service")).toBeTruthy();
     expect(screen.queryByLabelText("Loading")).toBeNull();
     expect(screen.getByText("Service Catalog")).toBeTruthy();
-    expect(commands.runPlacement).toHaveBeenCalledWith("home", 2);
+    expect(commands.runPlacement).toHaveBeenCalledWith("p:home", [2]);
   });
 
   it("says where it looked when there are no rows", async () => {
@@ -216,5 +218,73 @@ describe("WidgetFrame", () => {
     ));
     fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
     await waitFor(() => expect(decodeURIComponent(history.get())).toBe("/settings?focus=secret:GITLAB_TOKEN"));
+  });
+
+  it("renders_container_children_as_subgrid", async () => {
+    const child = (name: string, path: number[]) =>
+      placement({
+        widget: name,
+        manifest: {
+          apiVersion: "pharos.io/v1alpha1",
+          kind: "Widget",
+          metadata: { name, title: name.toUpperCase(), version: null, description: null },
+          spec: { source: null, refresh: null, inputs: {}, view: { type: "markdown", content: `hi ${name}` }, permissions: { hosts: [] } },
+        },
+        status: { kind: "static" },
+        reads: null,
+        w: 6,
+        h: 2,
+        x: path[0] * 6,
+      });
+    render(() => (
+      <WidgetFrame
+        slot={{ dashboardId: "p:home", path: [3] }}
+        placement={placement({
+          widget: "pair",
+          status: { kind: "runnable" },
+          manifest: {
+            apiVersion: "pharos.io/v1alpha1",
+            kind: "Widget",
+            metadata: { name: "pair", title: "Pair", version: null, description: null },
+            spec: { source: null, refresh: null, inputs: {}, view: null, permissions: { hosts: [] } },
+          },
+          children: [child("one", [0]), child("two", [1])],
+        })}
+        version={0}
+      />
+    ));
+    const sub = screen.getByRole("region", { name: "Pair" });
+    expect(sub.querySelectorAll("article.widget").length).toBe(2);
+    expect(screen.getByText("ONE", { selector: "header *" })).toBeTruthy();
+    expect(screen.getByText("TWO", { selector: "header *" })).toBeTruthy();
+    // The container itself is not run, nor shows the leaf status switch.
+    expect(commands.runPlacement).not.toHaveBeenCalled();
+  });
+
+  it("runs container children by parent path plus child index", async () => {
+    const leaf = (name: string) => placement({ widget: name });
+    render(() => (
+      <WidgetFrame
+        slot={{ dashboardId: "p:home", path: [3] }}
+        placement={placement({ widget: "pair", children: [leaf("a"), leaf("b")] })}
+        version={0}
+      />
+    ));
+    await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(commands.runPlacement).mock.calls).toEqual([
+      ["p:home", [3, 0]],
+      ["p:home", [3, 1]],
+    ]);
+  });
+
+  it("says so when a leaf has no view", () => {
+    render(() => (
+      <WidgetFrame
+        slot={slot}
+        placement={placement({ status: { kind: "static" } }, null, null)}
+        version={0}
+      />
+    ));
+    expect(screen.getByText("No view")).toBeTruthy();
   });
 });

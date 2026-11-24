@@ -45,6 +45,14 @@ fixture! {
     views => "views",
     catalog => "catalog",
     platform_spec => "platform-spec",
+    containers => "containers",
+    containers_both => "containers-both",
+    containers_empty => "containers-empty",
+    containers_unknown_child => "containers-unknown-child",
+    containers_cycle => "containers-cycle",
+    containers_self => "containers-self",
+    containers_cycle3 => "containers-cycle3",
+    containers_nested => "containers-nested",
 }
 
 #[test]
@@ -64,7 +72,7 @@ fn example_repo_is_clean() {
             report.summary.dashboards,
             report.summary.catalog_files
         ),
-        (4, 1, 4)
+        (5, 1, 4)
     );
     insta::assert_json_snapshot!(report.capabilities);
 }

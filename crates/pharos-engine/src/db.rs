@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const MIGRATION_LIST: &[M<'_>] = &[
     M::up(include_str!("migrations/001_sources.sql")),
     M::up(include_str!("migrations/002_settings.sql")),
+    M::up(include_str!("migrations/003_dashboards.sql")),
 ];
 const MIGRATIONS: Migrations<'_> = Migrations::from_slice(MIGRATION_LIST);
 
@@ -264,6 +265,130 @@ pub fn all_secrets(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>>
         .collect()
 }
 
+// ── User dashboards ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DashboardRow {
+    pub id: i64,
+    pub name: String,
+    pub title: Option<String>,
+    pub position: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacementRow {
+    pub id: i64,
+    pub parent_id: Option<i64>,
+    pub widget: String,
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+    pub position: i64,
+    /// JSON object text.
+    pub inputs: String,
+}
+
+/// Appends after the existing dashboards.
+pub fn insert_dashboard(
+    conn: &Connection,
+    name: &str,
+    title: Option<&str>,
+) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO dashboards (name, title, position)
+         VALUES (?1, ?2, (SELECT COALESCE(MAX(position) + 1, 0) FROM dashboards))",
+        params![name, title],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn rename_dashboard(conn: &Connection, id: i64, title: Option<&str>) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE dashboards SET title = ?2 WHERE id = ?1",
+        params![id, title],
+    )
+    .map(drop)
+}
+
+/// Placements go with it (`ON DELETE CASCADE`; needs `foreign_keys = ON`, which `open` sets).
+pub fn delete_dashboard(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM dashboards WHERE id = ?1", [id])
+        .map(drop)
+}
+
+pub fn user_dashboards(conn: &Connection) -> rusqlite::Result<Vec<DashboardRow>> {
+    let mut stmt =
+        conn.prepare("SELECT id, name, title, position FROM dashboards ORDER BY position, id")?;
+    stmt.query_map([], |r| {
+        Ok(DashboardRow {
+            id: r.get(0)?,
+            name: r.get(1)?,
+            title: r.get(2)?,
+            position: r.get(3)?,
+        })
+    })?
+    .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn insert_placement(
+    conn: &Connection,
+    dashboard_id: i64,
+    parent_id: Option<i64>,
+    widget: &str,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    position: i64,
+    inputs_json: &str,
+) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO placements (dashboard_id, parent_id, widget, x, y, w, h, position, inputs)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            dashboard_id,
+            parent_id,
+            widget,
+            x,
+            y,
+            w,
+            h,
+            position,
+            inputs_json
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Child placements go with it (`ON DELETE CASCADE`).
+pub fn delete_placement(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM placements WHERE id = ?1", [id])
+        .map(drop)
+}
+
+pub fn placements_of(conn: &Connection, dashboard_id: i64) -> rusqlite::Result<Vec<PlacementRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, parent_id, widget, x, y, w, h, position, inputs
+         FROM placements WHERE dashboard_id = ?1 ORDER BY position, id",
+    )?;
+    stmt.query_map([dashboard_id], |r| {
+        Ok(PlacementRow {
+            id: r.get(0)?,
+            parent_id: r.get(1)?,
+            widget: r.get(2)?,
+            x: r.get(3)?,
+            y: r.get(4)?,
+            w: r.get(5)?,
+            h: r.get(6)?,
+            position: r.get(7)?,
+            inputs: r.get(8)?,
+        })
+    })?
+    .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,5 +396,41 @@ mod tests {
     #[test]
     fn migrations_are_valid() {
         MIGRATIONS.validate().unwrap();
+    }
+
+    #[test]
+    fn user_dashboard_roundtrip() {
+        MIGRATIONS.validate().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        MIGRATIONS.to_latest(&mut conn).unwrap();
+
+        let d = insert_dashboard(&conn, "mine", Some("Mine")).unwrap();
+        // Inserted out of order to prove `position` drives the ordering.
+        let b = insert_placement(&conn, d, None, "b-widget", 6, 0, 6, 4, 1, "{\"k\":1}").unwrap();
+        let a = insert_placement(&conn, d, None, "a-widget", 0, 0, 6, 4, 0, "{}").unwrap();
+
+        let ds = user_dashboards(&conn).unwrap();
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].id, d);
+        assert_eq!(ds[0].name, "mine");
+        assert_eq!(ds[0].title.as_deref(), Some("Mine"));
+
+        let ps = placements_of(&conn, d).unwrap();
+        assert_eq!(ps.iter().map(|p| p.id).collect::<Vec<_>>(), vec![a, b]);
+        assert_eq!(ps[1].widget, "b-widget");
+        assert_eq!((ps[1].x, ps[1].y, ps[1].w, ps[1].h), (6, 0, 6, 4));
+        assert_eq!(ps[1].inputs, "{\"k\":1}");
+        assert_eq!(ps[0].parent_id, None);
+
+        rename_dashboard(&conn, d, None).unwrap();
+        assert_eq!(user_dashboards(&conn).unwrap()[0].title, None);
+
+        delete_placement(&conn, a).unwrap();
+        assert_eq!(placements_of(&conn, d).unwrap().len(), 1);
+
+        delete_dashboard(&conn, d).unwrap();
+        assert!(user_dashboards(&conn).unwrap().is_empty());
+        assert!(placements_of(&conn, d).unwrap().is_empty());
     }
 }

@@ -38,6 +38,13 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_search_path,
             commands::disconnect,
             commands::run_placement,
+            commands::list_catalog,
+            commands::create_dashboard,
+            commands::rename_dashboard,
+            commands::delete_dashboard,
+            commands::add_widget,
+            commands::remove_widget,
+            commands::set_landing,
         ])
 }
 

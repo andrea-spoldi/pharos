@@ -59,7 +59,7 @@ describe("App", () => {
     render(() => <App />);
     expect((await screen.findByTestId("source")).textContent).toContain(source.url);
     expect(screen.queryByText("Connect your platform repo")).toBeNull();
-    expect(await screen.findByText("The platform repo defines no dashboards yet.")).toBeTruthy();
+    expect(await screen.findByText("No dashboards yet. Click + New dashboard to create one.")).toBeTruthy();
   });
 
   it("disconnect returns to a pre-filled onboarding", async () => {

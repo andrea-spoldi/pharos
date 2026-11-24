@@ -1,0 +1,11 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata:
+  name: on-call-overview
+  title: On-call overview
+  version: 0.1.0
+  description: Service catalog next to the cluster context.
+spec:
+  widgets:
+    - { widget: service-catalog, x: 0, y: 0, w: 8, h: 4 }
+    - { widget: k8s-context, x: 8, y: 0, w: 4, h: 4 }
