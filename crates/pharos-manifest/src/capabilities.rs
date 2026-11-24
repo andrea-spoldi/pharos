@@ -28,6 +28,19 @@ impl Capabilities {
     pub fn is_empty(&self) -> bool {
         self.hosts.is_empty() && self.executables.is_empty() && self.paths.is_empty()
     }
+
+    /// Unions `other` into `self`. Destructures exhaustively so a new capability kind
+    /// fails to compile here instead of being silently dropped from a union.
+    pub fn extend(&mut self, other: Capabilities) {
+        let Capabilities {
+            hosts,
+            executables,
+            paths,
+        } = other;
+        self.hosts.extend(hosts);
+        self.executables.extend(executables);
+        self.paths.extend(paths);
+    }
 }
 
 /// Capabilities of every widget in a repo, keyed by widget name. This is what users consent to.
@@ -84,10 +97,7 @@ fn for_container(repo: &Repo, root: &Loaded<Widget>) -> Capabilities {
             continue;
         }
         let spec = &widget.manifest.spec;
-        let own = for_widget(repo, widget);
-        caps.hosts.extend(own.hosts);
-        caps.executables.extend(own.executables);
-        caps.paths.extend(own.paths);
+        caps.extend(for_widget(repo, widget));
         for placement in &spec.widgets {
             if let Some(child) = by_name.get(placement.widget.as_str()) {
                 stack.push(child);
@@ -251,10 +261,16 @@ mod tests {
             "k",
             "  source: { type: command, executable: kubectl }\n  view: { type: raw }",
         );
+        std::fs::write(root.join("data.json"), "{}").unwrap();
+        write_widget(
+            root,
+            "f",
+            "  source: { type: file, path: ../../data.json }\n  view: { type: raw }",
+        );
         write_widget(
             root,
             "mid",
-            "  widgets:\n    - { widget: k, x: 0, y: 0, w: 6, h: 2 }",
+            "  widgets:\n    - { widget: k, x: 0, y: 0, w: 6, h: 2 }\n    - { widget: f, x: 0, y: 2, w: 6, h: 2 }",
         );
         write_widget(
             root,
@@ -272,9 +288,11 @@ mod tests {
         let top = set.widgets.get("top").expect("container has an entry");
         assert!(top.hosts.contains("https://g.example"));
         assert!(top.executables.contains("kubectl"));
+        assert!(top.paths.contains("data.json"));
         // Nested container unions its own subtree under its own name.
         let mid = set.widgets.get("mid").expect("nested container entry");
         assert!(mid.executables.contains("kubectl"));
+        assert!(mid.paths.contains("data.json"));
         assert!(mid.hosts.is_empty());
         // Leaves are unchanged.
         assert_eq!(set.widgets["g"].hosts.len(), 1);
