@@ -376,6 +376,34 @@ h3 {
   font-weight: 600;
 }
 
+.toolbar {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.landing-mark {
+  color: var(--accent);
+}
+
+.widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* A container's parts lay out on their own 12-column grid inside its body. */
+.subgrid {
+  grid-auto-rows: 64px;
+}
+
+.catalog-list {
+  position: static;
+  box-shadow: none;
+  max-height: 20rem;
+  overflow: auto;
+}
+
 .more {
   position: relative;
 }

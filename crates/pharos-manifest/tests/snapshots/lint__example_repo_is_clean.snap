@@ -13,6 +13,14 @@ expression: report.capabilities
       "https://gitlab.com"
     ]
   },
+  "on-call-overview": {
+    "executables": [
+      "kubectl"
+    ],
+    "paths": [
+      "catalog/services"
+    ]
+  },
   "service-catalog": {
     "paths": [
       "catalog/services"

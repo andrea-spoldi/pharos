@@ -300,6 +300,12 @@ fn platform_dashboards_cannot_be_mutated_and_rename_works() {
     let d = engine.dashboards().unwrap();
     let mine = d.iter().find(|d| d.id == "u:1").unwrap();
     assert_eq!(mine.metadata.title.as_deref(), Some("Renamed"));
-    assert_eq!(engine.catalog().unwrap().len(), 4);
-    assert!(engine.catalog().unwrap().iter().all(|w| !w.container));
+    let catalog = engine.catalog().unwrap();
+    assert_eq!(catalog.len(), 5);
+    let containers: Vec<_> = catalog
+        .iter()
+        .filter(|w| w.container)
+        .map(|w| w.name.as_str())
+        .collect();
+    assert_eq!(containers, ["on-call-overview"]);
 }

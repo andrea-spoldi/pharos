@@ -72,7 +72,7 @@ fn example_repo_is_clean() {
             report.summary.dashboards,
             report.summary.catalog_files
         ),
-        (4, 1, 4)
+        (5, 1, 4)
     );
     insta::assert_json_snapshot!(report.capabilities);
 }

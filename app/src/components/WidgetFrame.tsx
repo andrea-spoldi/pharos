@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { createResource, type JSX, Match, Show, Switch } from "solid-js";
+import { createResource, Index, type JSX, Match, Show, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
 import { unwrap, type IpcError } from "../ipc";
@@ -47,8 +47,11 @@ export function WidgetFrame(props: {
   version: number;
   /** The platform's label for an input key ("Your team"), if it declares one. */
   inputLabel?: (key: string) => string | null | undefined;
+  /** Present only where the user may take this placement off its dashboard. */
+  onRemove?: () => void;
 }) {
   const p = () => props.placement;
+  const name = () => p().manifest?.metadata.title ?? p().widget;
   const style = () => ({
     "grid-column": `${p().x + 1} / span ${p().w}`,
     "grid-row": `${p().y + 1} / span ${p().h}`,
@@ -65,9 +68,31 @@ export function WidgetFrame(props: {
     <article class="widget" style={style()}>
       <header class="widget-head">
         <strong>{p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
+        <Show when={props.onRemove}>
+          {(remove) => (
+            <button type="button" class="link" aria-label={`Remove ${name()}`} onClick={() => remove()()}>
+              Remove
+            </button>
+          )}
+        </Show>
       </header>
       <div class="widget-body">
         <Switch>
+          <Match when={p().children.length > 0}>
+            {/* A container: its parts, each run by this placement's path plus its index. */}
+            <section class="grid subgrid" aria-label={name()}>
+              <Index each={p().children}>
+                {(child, i) => (
+                  <WidgetFrame
+                    placement={child()}
+                    slot={{ dashboardId: props.slot.dashboardId, path: [...props.slot.path, i] }}
+                    version={props.version}
+                    inputLabel={props.inputLabel}
+                  />
+                )}
+              </Index>
+            </section>
+          </Match>
           <Match when={status().kind === "missing"}>
             <State tone="danger" title="Missing widget">
               This dashboard places <code>{p().widget}</code>, which the platform repo doesn't define.
@@ -105,6 +130,9 @@ export function WidgetFrame(props: {
           </Match>
           <Match when={status().kind === "notAvailable" && (status() as { feature: string })}>
             {(s) => <State title="Not available yet">{s().feature} arrive in a later version.</State>}
+          </Match>
+          <Match when={(status().kind === "static" || status().kind === "runnable") && p().manifest?.spec.view === null}>
+            <State title="No view">This widget doesn't say how to show anything.</State>
           </Match>
           <Match when={status().kind === "static" && p().manifest}>
             {(m) => <MarkdownView content={m().spec.view?.content ?? ""} />}
