@@ -50,6 +50,9 @@ fixture! {
     containers_empty => "containers-empty",
     containers_unknown_child => "containers-unknown-child",
     containers_cycle => "containers-cycle",
+    containers_self => "containers-self",
+    containers_cycle3 => "containers-cycle3",
+    containers_nested => "containers-nested",
 }
 
 #[test]

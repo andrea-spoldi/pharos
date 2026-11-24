@@ -1,0 +1,5 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"containers-nested\"))"
+---
+-- 0 errors, 0 warnings
