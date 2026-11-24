@@ -3,7 +3,7 @@
 mod common;
 
 use common::Fixture;
-use pharos_engine::{Engine, PlacementStatus};
+use pharos_engine::{Engine, Origin, PlacementStatus};
 
 #[test]
 fn home_placements_have_status_and_reads() {
@@ -83,4 +83,49 @@ fn platform_after_apply() {
         platform.metadata.title.as_deref(),
         Some("ACME Developer Portal")
     );
+}
+
+fn leaf(name: &str) -> String {
+    format!(
+        "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: {{ name: {name} }}\n\
+         spec:\n  source: {{ type: command, executable: kubectl }}\n  view: {{ type: raw }}\n"
+    )
+}
+
+#[test]
+fn platform_composite_expands_children() {
+    let f = Fixture::new();
+    f.write("widgets/leaf-a/widget.yaml", &leaf("leaf-a"));
+    f.write("widgets/leaf-b/widget.yaml", &leaf("leaf-b"));
+    f.write(
+        "widgets/pair/widget.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: { name: pair }\n\
+         spec:\n  widgets:\n    - { widget: leaf-a, x: 0, y: 0, w: 6, h: 2 }\n    \
+         - { widget: leaf-b, x: 6, y: 0, w: 6, h: 2 }\n",
+    );
+    let home = std::fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
+    f.write(
+        "dashboards/home.yaml",
+        &format!("{home}    - {{ widget: pair, x: 0, y: 8, w: 12, h: 2 }}\n"),
+    );
+    let engine = {
+        f.commit("composite");
+        f.synced_engine()
+    };
+
+    let dashboards = engine.dashboards().unwrap();
+
+    let home = &dashboards[0];
+    assert_eq!(home.id, "p:home");
+    assert_eq!(home.origin, Origin::Platform);
+    assert!(!home.editable);
+    let pair = home.placements.iter().find(|p| p.widget == "pair").unwrap();
+    assert_eq!(pair.status, PlacementStatus::Runnable);
+    assert_eq!(pair.children.len(), 2);
+    for (child, name) in pair.children.iter().zip(["leaf-a", "leaf-b"]) {
+        assert_eq!(child.widget, name);
+        assert_eq!(child.status, PlacementStatus::Runnable);
+        assert!(child.children.is_empty());
+        assert!(child.manifest.is_some());
+    }
 }

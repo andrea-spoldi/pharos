@@ -38,11 +38,26 @@ pub struct PlacementView {
     pub status: PlacementStatus,
     /// For runnable file widgets: what is read, relative to the repo root.
     pub reads: Option<String>,
+    /// For container widgets: the child placements, expanded recursively. Empty for leaves.
+    pub children: Vec<PlacementView>,
+}
+
+/// Where a dashboard comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Origin {
+    Platform,
+    User,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct DashboardView {
+    /// `p:<name>` for platform dashboards.
+    pub id: String,
+    pub origin: Origin,
+    pub editable: bool,
     pub metadata: Metadata,
     pub placements: Vec<PlacementView>,
 }
@@ -66,7 +81,12 @@ pub(crate) fn placement_status(
             secrets: secrets.into_iter().collect(),
         };
     }
-    let view = widget.spec.view.kind;
+    // Containers have no view; their status comes from `container_status`.
+    let Some(view) = widget.spec.view.as_ref().map(|v| v.kind) else {
+        return PlacementStatus::NotAvailable {
+            feature: "a widget without a view".to_string(),
+        };
+    };
     let unavailable = match (&widget.spec.source, view) {
         (Some(_), ViewType::Table | ViewType::List | ViewType::Card | ViewType::Raw) => None,
         (Some(_), ViewType::Markdown) => Some("markdown from a data source".to_string()),
@@ -76,6 +96,40 @@ pub(crate) fn placement_status(
     match unavailable {
         Some(feature) => PlacementStatus::NotAvailable { feature },
         None => PlacementStatus::Runnable,
+    }
+}
+
+/// Status of a container placement from its (already expanded) children.
+///
+/// `Runnable` if any descendant leaf is runnable (a child container is itself `Runnable`
+/// exactly then); otherwise the child status that wins by `placement_status` precedence
+/// (missing, needs setup, not available, static). `Missing` when the widget is absent
+/// from the snapshot; a container with no children is `Static`.
+pub(crate) fn container_status(widget_exists: bool, children: &[PlacementView]) -> PlacementStatus {
+    if !widget_exists {
+        return PlacementStatus::Missing;
+    }
+    if children
+        .iter()
+        .any(|c| c.status == PlacementStatus::Runnable)
+    {
+        return PlacementStatus::Runnable;
+    }
+    children
+        .iter()
+        .map(|c| &c.status)
+        .min_by_key(|s| rank(s))
+        .cloned()
+        .unwrap_or(PlacementStatus::Static)
+}
+
+fn rank(status: &PlacementStatus) -> u8 {
+    match status {
+        PlacementStatus::Missing => 0,
+        PlacementStatus::NeedsSetup { .. } => 1,
+        PlacementStatus::NotAvailable { .. } => 2,
+        PlacementStatus::Static => 3,
+        PlacementStatus::Runnable => 4,
     }
 }
 
@@ -276,5 +330,57 @@ mod tests {
                 secrets: vec!["GITLAB_TOKEN".into()],
             }
         );
+    }
+
+    fn child(status: PlacementStatus) -> PlacementView {
+        PlacementView {
+            widget: "c".into(),
+            x: 0,
+            y: 0,
+            w: 1,
+            h: 1,
+            manifest: None,
+            status,
+            reads: None,
+            children: vec![],
+        }
+    }
+
+    #[test]
+    fn container_status_precedence() {
+        let setup = PlacementStatus::NeedsSetup {
+            inputs: vec!["team".into()],
+            secrets: vec![],
+        };
+        let n_a = not_available("the kv view");
+        let status = |exists, kids: Vec<PlacementStatus>| {
+            let kids: Vec<_> = kids.into_iter().map(child).collect();
+            container_status(exists, &kids)
+        };
+        let runnable = PlacementStatus::Runnable;
+        assert_eq!(
+            status(false, vec![runnable.clone()]),
+            PlacementStatus::Missing
+        );
+        assert_eq!(
+            status(true, vec![setup.clone(), runnable.clone()]),
+            PlacementStatus::Runnable
+        );
+        assert_eq!(
+            status(
+                true,
+                vec![PlacementStatus::Static, n_a.clone(), setup.clone()]
+            ),
+            setup
+        );
+        assert_eq!(
+            status(true, vec![PlacementStatus::Static, n_a.clone()]),
+            n_a
+        );
+        assert_eq!(
+            status(true, vec![PlacementStatus::Missing, n_a]),
+            PlacementStatus::Missing
+        );
+        assert_eq!(status(true, vec![]), PlacementStatus::Static);
     }
 }

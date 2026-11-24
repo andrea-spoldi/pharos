@@ -26,7 +26,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use command::{CommandError, DEFAULT_SEARCH_PATH};
-pub use dashboard::{DashboardView, PlacementStatus, PlacementView};
+pub use dashboard::{DashboardView, Origin, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
 pub use http::{HttpError, MAX_BYTES, MAX_ROWS, TIMEOUT};
@@ -267,37 +267,66 @@ impl Engine {
                     .spec
                     .widgets
                     .iter()
-                    .map(|p| {
-                        let stored = db::widget(&self.conn, source.id, &p.widget)?;
-                        let manifest = stored.as_ref().map(|(_, json)| {
-                            serde_json::from_str::<Widget>(json)
-                                .expect("stored manifests are valid JSON")
-                        });
-                        let status = dashboard::placement_status(manifest.as_ref(), p, &setup);
-                        let reads = match (&status, &stored, &manifest) {
-                            (PlacementStatus::Runnable, Some((file, _)), Some(w)) => {
-                                file_reads(&root, file, w)
-                            }
-                            _ => None,
-                        };
-                        Ok(PlacementView {
-                            widget: p.widget.clone(),
-                            x: p.x,
-                            y: p.y,
-                            w: p.w,
-                            h: p.h,
-                            manifest,
-                            status,
-                            reads,
-                        })
-                    })
+                    .map(|p| self.placement_view(&source, &root, &setup, p))
                     .collect::<Result<_>>()?;
                 Ok(DashboardView {
+                    id: format!("p:{}", d.metadata.name),
+                    origin: Origin::Platform,
+                    editable: false,
                     metadata: d.metadata,
                     placements,
                 })
             })
             .collect()
+    }
+
+    /// One placement with its widget and status; a container's children are expanded
+    /// recursively (the manifest lint refuses cycles, so this terminates).
+    fn placement_view(
+        &self,
+        source: &Source,
+        root: &Path,
+        setup: &SetupState,
+        p: &Placement,
+    ) -> Result<PlacementView> {
+        let stored = db::widget(&self.conn, source.id, &p.widget)?;
+        let manifest = stored.as_ref().map(|(_, json)| {
+            serde_json::from_str::<Widget>(json).expect("stored manifests are valid JSON")
+        });
+        let children = match &manifest {
+            Some(w) => w
+                .spec
+                .widgets
+                .iter()
+                .map(|c| self.placement_view(source, root, setup, c))
+                .collect::<Result<Vec<_>>>()?,
+            None => Vec::new(),
+        };
+        let is_container = manifest
+            .as_ref()
+            .is_some_and(|w| !w.spec.widgets.is_empty());
+        let status = if is_container || manifest.is_none() {
+            dashboard::container_status(manifest.is_some(), &children)
+        } else {
+            dashboard::placement_status(manifest.as_ref(), p, setup)
+        };
+        let reads = match (&status, &stored, &manifest) {
+            (PlacementStatus::Runnable, Some((file, _)), Some(w)) if !is_container => {
+                file_reads(root, file, w)
+            }
+            _ => None,
+        };
+        Ok(PlacementView {
+            widget: p.widget.clone(),
+            x: p.x,
+            y: p.y,
+            w: p.w,
+            h: p.h,
+            manifest,
+            status,
+            reads,
+            children,
+        })
     }
 
     /// The platform manifest (`pharos.yaml`) of the last applied sync.
