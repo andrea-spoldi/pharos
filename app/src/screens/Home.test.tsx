@@ -28,6 +28,7 @@ vi.mock("../bindings", () => ({
     getPlatform: vi.fn(),
     runPlacement: vi.fn(),
     getSettings: vi.fn(),
+    getSearchPath: vi.fn(),
   },
 }));
 
@@ -244,6 +245,7 @@ describe("Home", () => {
       vi.mocked(commands.getSettings).mockResolvedValue(
         ok({ source: synced, platform: null, inputs: [], secrets: [], unused: [] }),
       );
+      vi.mocked(commands.getSearchPath).mockResolvedValue(ok([]));
       render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
       await screen.findByText("Kubernetes Context");
       await waitFor(() => expect(history.get()).toBe("/d/home"));

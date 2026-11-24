@@ -22,7 +22,7 @@ const render = (ui: () => JSX.Element, path = "/") =>
   ));
 
 vi.mock("./bindings", () => ({
-  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listDashboards: vi.fn(), getPlatform: vi.fn(), getSettings: vi.fn(), disconnect: vi.fn() },
+  commands: { getSource: vi.fn(), gitVersion: vi.fn(), pendingSync: vi.fn(), planSync: vi.fn(), listDashboards: vi.fn(), getPlatform: vi.fn(), getSettings: vi.fn(), disconnect: vi.fn(), getSearchPath: vi.fn() },
 }));
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
@@ -68,6 +68,7 @@ describe("App", () => {
       ok({ source, platform: { name: "acme-platform", title: null }, inputs: [], secrets: [], unused: [] }),
     );
     vi.mocked(commands.disconnect).mockResolvedValue(ok(null));
+    vi.mocked(commands.getSearchPath).mockResolvedValue(ok([]));
     render(() => <App />, "/settings");
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect…" }));
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));

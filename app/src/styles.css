@@ -97,7 +97,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   font-family: var(--mono);
   font-size: 0.9rem;
@@ -110,6 +111,7 @@ select {
 
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -461,8 +463,14 @@ h3 {
 }
 
 /* Error output is a log, not a caption: keep it left-aligned under the centred summary. */
-.state details pre {
+.state details pre,
+.state > div > pre {
   text-align: left;
+}
+
+/* Command output: the program's own text, left as it printed it. */
+pre.raw {
+  margin: 0;
 }
 
 .state summary {

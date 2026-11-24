@@ -1,7 +1,7 @@
 import { render, screen } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import type { Column, WidgetData } from "../bindings";
-import { CardView, ListView, TableView } from ".";
+import { CardView, ListView, RawView, TableView } from ".";
 
 const columns: Column[] = [
   { field: "metadata.name", label: "Service" },
@@ -55,5 +55,17 @@ describe("CardView", () => {
     const values = [...cards[0].querySelectorAll("dd")].map((d) => d.textContent);
     expect(terms).toEqual(["Tier", "Source"]);
     expect(values).toEqual(["2", "catalog/services/n.yaml"]);
+  });
+});
+
+describe("RawView", () => {
+  it("shows plain command output as is", () => {
+    render(() => <RawView data={{ rows: [{ value: "kind-dev" }], truncated: false }} />);
+    expect(document.querySelector("pre.raw")?.textContent).toBe("kind-dev");
+  });
+
+  it("pretty-prints structured rows", () => {
+    render(() => <RawView data={{ rows: [{ name: "a" }, { name: "b" }], truncated: false }} />);
+    expect(document.querySelector("pre.raw")?.textContent).toBe(JSON.stringify([{ name: "a" }, { name: "b" }], null, 2));
   });
 });

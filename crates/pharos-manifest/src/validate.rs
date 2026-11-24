@@ -469,6 +469,8 @@ pub(crate) fn executable_problem(executable: &str) -> Option<&'static str> {
         .any(|c| c.is_whitespace() || "|&;<>$`()*?".contains(c))
     {
         Some("must be a program name or path; arguments go in `args` (no shell is used)")
+    } else if executable.contains('/') && !executable.starts_with('/') {
+        Some("must be a program name or an absolute path")
     } else {
         None
     }
@@ -482,4 +484,18 @@ fn is_dns_label(name: &str) -> bool {
         && name
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::executable_problem;
+
+    #[test]
+    fn executables_are_names_or_absolute_paths() {
+        assert_eq!(executable_problem("kubectl"), None);
+        assert_eq!(executable_problem("/usr/local/bin/kubectl"), None);
+        assert!(executable_problem("bin/kubectl").is_some());
+        assert!(executable_problem("./run.sh").is_some());
+        assert!(executable_problem("kubectl get pods").is_some());
+    }
 }

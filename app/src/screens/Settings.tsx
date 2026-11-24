@@ -15,7 +15,8 @@ function ago(unixSeconds: number): string {
 
 /**
  * Platform inputs (saved as you edit) and secrets (OS keyring only; values are never shown
- * again). `?focus=input:KEY|secret:NAME` focuses a field, e.g. from a Needs setup card.
+ * again), and where command widgets find programs. `?focus=input:KEY|secret:NAME|search-path`
+ * focuses a field, e.g. from a Needs setup or Program not found card.
  * `onChanged` reloads the dashboards so statuses follow without a sync.
  */
 export function Settings(props: {
@@ -43,7 +44,8 @@ export function Settings(props: {
         if (focused || !s || !params.focus) return;
         focused = true;
         const [kind, key] = params.focus.split(":");
-        const field = document.querySelector<HTMLElement>(`#setting-${kind}-${CSS.escape(key ?? "")} :is(input, select)`);
+        const target = key === undefined ? `#setting-${kind}` : `#setting-${kind}-${CSS.escape(key)}`;
+        const field = document.querySelector<HTMLElement>(`${target} :is(input, select, textarea)`);
         field?.scrollIntoView({ block: "center" });
         field?.focus();
       },
@@ -110,6 +112,11 @@ export function Settings(props: {
                   {(secret) => <SecretRow secret={secret()} onChanged={changed} />}
                 </Index>
               </Show>
+            </section>
+
+            <section class="stack" aria-labelledby="settings-programs">
+              <h2 id="settings-programs">Programs</h2>
+              <SearchPathField />
             </section>
 
             <Show when={s().unused.length}>
@@ -207,6 +214,71 @@ function InputField(props: { input: InputView; onChanged: () => Promise<void> })
           </p>
         )}
       </Show>
+    </div>
+  );
+}
+
+/**
+ * Folders where command widgets look up programs like `kubectl`, one per line. Apps opened
+ * from Finder don't see the shell's PATH, so this is the user's to set (D-033). Which programs
+ * may run still comes from the capability review.
+ */
+function SearchPathField() {
+  const [path, { mutate }] = createResource(() => unwrap(commands.getSearchPath()));
+  const [saved, setSaved] = createSignal(false);
+  const [error, setError] = createSignal<IpcError>();
+  const id = "setting-search-path";
+
+  const save = async (entries: string[]) => {
+    setError(undefined);
+    setSaved(false);
+    try {
+      await unwrap(commands.setSearchPath(entries));
+      mutate(await unwrap(commands.getSearchPath()));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(toIpcError(err));
+    }
+  };
+  const onBlur = (text: string) => {
+    const entries = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (entries.join("\n") === (path.latest ?? []).join("\n")) return;
+    void save(entries);
+  };
+
+  return (
+    <div class="field" id={id}>
+      <div class="row field-head">
+        <label for={`${id}-control`}>Program search path</label>
+        <span class="muted" role="status">
+          {saved() ? "Saved" : ""}
+        </span>
+      </div>
+      <p class="muted" id={`${id}-help`}>
+        One folder per line, searched in order. Start a line with <code>~/</code> for your home folder.
+      </p>
+      <textarea
+        id={`${id}-control`}
+        rows={Math.max(3, (path.latest?.length ?? 0) + 1)}
+        spellcheck={false}
+        aria-describedby={[`${id}-help`, error() && `${id}-error`].filter(Boolean).join(" ")}
+        aria-invalid={!!error() || undefined}
+        value={(path.latest ?? []).join("\n")}
+        onBlur={(e) => onBlur(e.currentTarget.value)}
+      />
+      <Show when={error()}>
+        {(e) => (
+          <p class="danger-text" id={`${id}-error`}>
+            {e().message}
+          </p>
+        )}
+      </Show>
+      <div class="row">
+        <button type="button" onClick={() => save([])}>
+          Restore defaults
+        </button>
+      </div>
     </div>
   );
 }

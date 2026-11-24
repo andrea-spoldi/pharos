@@ -37,6 +37,13 @@ export const commands = {
 	removeSecret: (name: string) => typedError<null, CommandError>(__TAURI_INVOKE("remove_secret", { name })),
 	/**  Removes a stored row the applied manifest no longer declares (Settings "No longer used"). */
 	removeStored: (platform: string, kind: StoredKind, key: string) => typedError<null, CommandError>(__TAURI_INVOKE("remove_stored", { platform, kind, key })),
+	/**  Folders where command sources look up bare executable names (D-033). */
+	getSearchPath: () => typedError<string[], CommandError>(__TAURI_INVOKE("get_search_path")),
+	/**
+	 *  Replaces the search path; an empty list restores the default. Only where an approved
+	 *  executable is looked up changes: which executables may run still comes from consent.
+	 */
+	setSearchPath: (entries: string[]) => typedError<null, CommandError>(__TAURI_INVOKE("set_search_path", { entries })),
 	/**  Forgets the repo; with `forget`, also this platform's inputs and secrets. */
 	disconnect: (forget: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("disconnect", { forget })),
 	/**
@@ -104,6 +111,10 @@ export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | 
 "dataError" | 
 /**  The widget's host could not be reached (DNS, connection, TLS, timeout). */
 "network" | 
+/**  A command source's program is not in the Settings search path. */
+"executableNotFound" | 
+/**  A command source exited non-zero or timed out; `message` quotes its stderr. */
+"commandFailed" | 
 /**  A setting the platform repo does not declare. */
 "undeclared" | "invalidValue" | 
 /**  Nothing is applied yet, so there is no platform to configure. */
@@ -171,7 +182,7 @@ export type PlacementStatus =
 { kind: "missing" } | 
 /**  `user.*` inputs and secrets the placement or its source refers to. */
 { kind: "needsSetup"; inputs: string[]; secrets: string[] } | 
-/**  A part this version cannot run or render yet, e.g. `command sources`. */
+/**  A part this version cannot run or render yet, e.g. `the kv view`. */
 { kind: "notAvailable"; feature: string } | 
 /**  No source; the view renders the manifest's own content. */
 { kind: "static" } | { kind: "runnable" };

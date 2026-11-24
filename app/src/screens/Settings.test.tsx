@@ -13,6 +13,8 @@ vi.mock("../bindings", () => ({
     removeSecret: vi.fn(),
     removeStored: vi.fn(),
     disconnect: vi.fn(),
+    getSearchPath: vi.fn(),
+    setSearchPath: vi.fn(),
   },
 }));
 
@@ -75,6 +77,8 @@ describe("Settings", () => {
     vi.mocked(commands.setSecret).mockResolvedValue(ok(null));
     vi.mocked(commands.removeSecret).mockResolvedValue(ok(null));
     vi.mocked(commands.removeStored).mockResolvedValue(ok(null));
+    vi.mocked(commands.getSearchPath).mockResolvedValue(ok(["/opt/homebrew/bin", "/usr/bin"]));
+    vi.mocked(commands.setSearchPath).mockResolvedValue(ok(null));
   });
 
   it("shows the three sections", async () => {
@@ -267,5 +271,29 @@ describe("Settings", () => {
     fireEvent.click(within(section).getByRole("button", { name: "Remove" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Remove OLD?" })).getByRole("button", { name: "Remove" }));
     expect(await within(section).findByText(/locked/)).toBeTruthy();
+  });
+
+  it("edits the program search path one folder per line", async () => {
+    renderAt("/settings?focus=search-path");
+    const area = (await screen.findByLabelText("Program search path")) as HTMLTextAreaElement;
+    await waitFor(() => expect(area.value).toBe("/opt/homebrew/bin\n/usr/bin"));
+    await waitFor(() => expect(document.activeElement).toBe(area));
+    vi.mocked(commands.getSearchPath).mockResolvedValue(ok(["~/bin", "/usr/bin"]));
+    fireEvent.blur(area, { target: { value: " ~/bin \n\n/usr/bin" } });
+    await waitFor(() => expect(commands.setSearchPath).toHaveBeenCalledWith(["~/bin", "/usr/bin"]));
+    await waitFor(() => expect(area.value).toBe("~/bin\n/usr/bin"));
+  });
+
+  it("shows why a search path entry was refused and restores defaults", async () => {
+    renderAt();
+    const area = (await screen.findByLabelText("Program search path")) as HTMLTextAreaElement;
+    vi.mocked(commands.setSearchPath).mockResolvedValueOnce({
+      status: "error",
+      error: { kind: "invalidValue", message: "invalid value for `bin`: must be an absolute folder or start with ~/" },
+    });
+    fireEvent.blur(area, { target: { value: "bin" } });
+    expect(await screen.findByText(/must be an absolute folder/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Restore defaults" }));
+    await waitFor(() => expect(commands.setSearchPath).toHaveBeenLastCalledWith([]));
   });
 });

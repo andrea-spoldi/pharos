@@ -34,6 +34,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_secret,
             commands::remove_secret,
             commands::remove_stored,
+            commands::get_search_path,
+            commands::set_search_path,
             commands::disconnect,
             commands::run_placement,
         ])
