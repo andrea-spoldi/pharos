@@ -45,6 +45,11 @@ fixture! {
     views => "views",
     catalog => "catalog",
     platform_spec => "platform-spec",
+    containers => "containers",
+    containers_both => "containers-both",
+    containers_empty => "containers-empty",
+    containers_unknown_child => "containers-unknown-child",
+    containers_cycle => "containers-cycle",
 }
 
 #[test]

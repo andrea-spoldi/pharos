@@ -1,0 +1,6 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"containers-empty\"))"
+---
+error: widgets/nothing/widget.yaml: spec: widget `nothing` needs a view, or children in `widgets` [empty-widget]
+-- 1 errors, 0 warnings

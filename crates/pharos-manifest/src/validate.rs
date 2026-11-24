@@ -29,6 +29,8 @@ pub(crate) fn validate(repo: &Repo, out: &mut Vec<Diagnostic>) {
         validate_widget(repo, platform, w, &mut sink);
     }
 
+    validate_containers(&widgets, out);
+
     let mut dashboards: HashMap<&str, &Loaded<Dashboard>> = HashMap::new();
     for d in &repo.dashboards {
         let mut sink = Sink { file: &d.file, out };
@@ -245,7 +247,10 @@ fn validate_widget(
         None => {}
     }
 
-    validate_view(spec, sink);
+    if let Some(view) = &spec.view {
+        validate_view(spec, view, sink);
+    }
+    validate_shape(widget, sink);
 
     for (i, host) in spec.permissions.hosts.iter().enumerate() {
         if let Err(e) = bare_origin(host) {
@@ -265,8 +270,103 @@ fn validate_widget(
     }
 }
 
-fn validate_view(spec: &WidgetSpec, sink: &mut Sink) {
-    let view = &spec.view;
+/// A widget is a leaf (`view`) or a container (`widgets`), never both or neither.
+fn validate_shape(widget: &Loaded<Widget>, sink: &mut Sink) {
+    let name = &widget.manifest.metadata.name;
+    let spec = &widget.manifest.spec;
+    if spec.widgets.is_empty() {
+        if spec.view.is_none() {
+            sink.error(
+                "empty-widget",
+                "spec",
+                format!("widget `{name}` needs a view, or children in `widgets`"),
+            );
+        }
+    } else if spec.view.is_some() || spec.source.is_some() {
+        sink.error(
+            "container-with-view",
+            "spec",
+            format!(
+                "container widget `{name}` has no source or view: remove them or its `widgets`"
+            ),
+        );
+    }
+}
+
+/// Children of containers must exist, and containers must not contain themselves.
+fn validate_containers(widgets: &HashMap<&str, &Loaded<Widget>>, out: &mut Vec<Diagnostic>) {
+    let mut names: Vec<&str> = widgets.keys().copied().collect();
+    names.sort_unstable();
+
+    for name in &names {
+        let w = widgets[name];
+        let mut sink = Sink { file: &w.file, out };
+        for (i, p) in w.manifest.spec.widgets.iter().enumerate() {
+            if !widgets.contains_key(p.widget.as_str()) {
+                sink.error(
+                    "unknown-widget",
+                    &format!("spec.widgets[{i}].widget"),
+                    format!(
+                        "container `{name}` has no child widget named `{}`",
+                        p.widget
+                    ),
+                );
+            }
+        }
+    }
+
+    // DFS with white/grey/black colouring; each cycle is reported once, at its first member.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Mark {
+        Visiting,
+        Done,
+    }
+    fn visit<'a>(
+        name: &'a str,
+        widgets: &HashMap<&'a str, &'a Loaded<Widget>>,
+        marks: &mut HashMap<&'a str, Mark>,
+        stack: &mut Vec<&'a str>,
+        out: &mut Vec<Diagnostic>,
+    ) {
+        marks.insert(name, Mark::Visiting);
+        stack.push(name);
+        for p in &widgets[name].manifest.spec.widgets {
+            let Some((&child, _)) = widgets.get_key_value(p.widget.as_str()) else {
+                continue;
+            };
+            match marks.get(child) {
+                Some(Mark::Done) => {}
+                Some(Mark::Visiting) => {
+                    let start = stack.iter().position(|n| *n == child).unwrap_or(0);
+                    let mut cycle: Vec<&str> = stack[start..].to_vec();
+                    cycle.push(child);
+                    let first = widgets[child];
+                    Sink {
+                        file: &first.file,
+                        out,
+                    }
+                    .error(
+                        "widget-cycle",
+                        "spec.widgets",
+                        format!("widget cycle: {}", cycle.join(" -> ")),
+                    );
+                }
+                None => visit(child, widgets, marks, stack, out),
+            }
+        }
+        stack.pop();
+        marks.insert(name, Mark::Done);
+    }
+
+    let mut marks = HashMap::new();
+    for name in names {
+        if !marks.contains_key(name) {
+            visit(name, widgets, &mut marks, &mut Vec::new(), out);
+        }
+    }
+}
+
+fn validate_view(spec: &WidgetSpec, view: &View, sink: &mut Sink) {
     if view.kind == ViewType::Table && view.columns.is_empty() {
         sink.error(
             "missing-columns",

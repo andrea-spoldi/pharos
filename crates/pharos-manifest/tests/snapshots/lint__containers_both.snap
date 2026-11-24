@@ -1,0 +1,6 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"containers-both\"))"
+---
+error: widgets/both/widget.yaml: spec: container widget `both` has no source or view: remove them or its `widgets` [container-with-view]
+-- 1 errors, 0 warnings
