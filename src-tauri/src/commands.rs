@@ -4,7 +4,7 @@
 
 use pharos_engine::{
     CommandError as RunCommandError, DashboardView, Engine, EngineError, FileError, GitError,
-    HttpError, SettingsView, Source, StoredKind, SyncPlan, WidgetData,
+    HttpError, SettingsView, Source, StoredKind, SyncPlan, WidgetData, WidgetSummary,
 };
 use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
@@ -38,6 +38,12 @@ pub enum ErrorKind {
     ConsentRequired,
     StalePlan,
     UnknownWidget,
+    /// A dashboard id that does not exist.
+    UnknownDashboard,
+    /// A platform dashboard cannot be edited, renamed or deleted.
+    ReadOnly,
+    /// Only a leaf widget can be placed on a dashboard, not a container.
+    NotALeaf,
     /// Static widget, or a source type not supported yet.
     NotRunnable,
     /// An input or secret the widget needs is not set.
@@ -84,6 +90,9 @@ impl From<EngineError> for CommandError {
             EngineError::UnknownWidget(_) | EngineError::UnknownPlacement { .. } => {
                 ErrorKind::UnknownWidget
             }
+            EngineError::UnknownDashboard(..) => ErrorKind::UnknownDashboard,
+            EngineError::ReadOnlyDashboard(..) => ErrorKind::ReadOnly,
+            EngineError::NotALeaf(..) => ErrorKind::NotALeaf,
             EngineError::NoDataSource(_) | EngineError::NotAvailable(_) => ErrorKind::NotRunnable,
             EngineError::NeedsSetup(_) | EngineError::MissingValue(_) => ErrorKind::NeedsSetup,
             EngineError::Http(e) if e.is_auth() => ErrorKind::PermissionDenied,
@@ -296,16 +305,79 @@ pub async fn disconnect(state: State<'_, AppState>, forget: bool) -> CmdResult<(
     with_engine(state, move |e| e.disconnect(forget)).await
 }
 
-/// The frontend names the dashboard slot only (D-031); what is read or called, with which
-/// inputs and secrets, comes from the stored manifests and the approved capabilities.
+/// Widgets a user can place on a dashboard.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_catalog(state: State<'_, AppState>) -> CmdResult<Vec<WidgetSummary>> {
+    with_engine(state, |e| e.catalog()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_dashboard(
+    state: State<'_, AppState>,
+    title: String,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| e.create_dashboard(&title)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_dashboard(
+    state: State<'_, AppState>,
+    id: String,
+    title: String,
+) -> CmdResult<()> {
+    with_engine(state, move |e| e.rename_dashboard(&id, &title)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_dashboard(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    with_engine(state, move |e| e.delete_dashboard(&id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn add_widget(
+    state: State<'_, AppState>,
+    dashboard_id: String,
+    widget: String,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| e.add_widget(&dashboard_id, &widget)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_widget(
+    state: State<'_, AppState>,
+    dashboard_id: String,
+    placement_id: u32,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| e.remove_widget(&dashboard_id, placement_id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_landing(
+    state: State<'_, AppState>,
+    dashboard_id: Option<String>,
+) -> CmdResult<()> {
+    with_engine(state, move |e| e.set_landing(dashboard_id.as_deref())).await
+}
+
+/// The frontend names the dashboard slot only (D-031): a dashboard id and child indices.
+/// What is read or called, with which inputs and secrets, comes from the stored manifests
+/// and the approved capabilities.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_placement(
     state: State<'_, AppState>,
-    dashboard: String,
-    index: u32,
+    dashboard_id: String,
+    path: Vec<u32>,
 ) -> CmdResult<WidgetData> {
-    with_engine(state, move |e| e.run_placement(&dashboard, index as usize)).await
+    let path: Vec<usize> = path.into_iter().map(|i| i as usize).collect();
+    with_engine(state, move |e| e.run_placement(&dashboard_id, &path)).await
 }
 
 #[cfg(test)]

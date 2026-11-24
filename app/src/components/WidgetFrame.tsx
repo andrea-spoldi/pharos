@@ -39,11 +39,11 @@ function State(props: { tone?: "danger" | "setup"; title: string; children: JSX.
 /**
  * One dashboard placement: a card placed on the 12-column grid, showing exactly one state.
  * The engine decides the status (D-024); only runnable placements run, by their slot: the
- * dashboard and the placement's position in it (D-031).
+ * dashboard and the placement's path in it (D-031).
  */
 export function WidgetFrame(props: {
   placement: PlacementView;
-  slot: { dashboard: string; index: number };
+  slot: { dashboardId: string; path: number[] };
   version: number;
   /** The platform's label for an input key ("Your team"), if it declares one. */
   inputLabel?: (key: string) => string | null | undefined;
@@ -107,7 +107,7 @@ export function WidgetFrame(props: {
             {(s) => <State title="Not available yet">{s().feature} arrive in a later version.</State>}
           </Match>
           <Match when={status().kind === "static" && p().manifest}>
-            {(m) => <MarkdownView content={m().spec.view.content ?? ""} />}
+            {(m) => <MarkdownView content={m().spec.view?.content ?? ""} />}
           </Match>
           <Match when={status().kind === "runnable" && p().manifest}>
             {(m) => (
@@ -129,22 +129,22 @@ export function WidgetFrame(props: {
 /** Keyed on the sync version; a re-run keeps the previous rows on screen (no skeleton flash). */
 function Run(props: {
   widget: Manifest<WidgetSpec>;
-  slot: { dashboard: string; index: number };
+  slot: { dashboardId: string; path: number[] };
   reads: string | null;
   version: number;
   onSettings: (focus?: string) => void;
 }) {
   // A string key, so a new manifest object for the same slot and version doesn't re-run.
   const [data] = createResource(
-    () => JSON.stringify([props.version, props.slot.dashboard, props.slot.index]),
+    () => JSON.stringify([props.version, props.slot.dashboardId, props.slot.path]),
     (key) => {
-      const [, dashboard, index] = JSON.parse(key) as [number, string, number];
-      return unwrap(commands.runPlacement(dashboard, index));
+      const [, dashboardId, path] = JSON.parse(key) as [number, string, number[]];
+      return unwrap(commands.runPlacement(dashboardId, path));
     },
   );
   // A refused token is fixed in Settings; a file outside the approval is not.
   const refused = (err: IpcError) => err.kind === "permissionDenied" && props.widget.spec.source?.type === "http";
-  const view = () => views[props.widget.spec.view.type as keyof typeof views];
+  const view = () => views[props.widget.spec.view?.type as keyof typeof views];
 
   return (
     <Switch>
@@ -196,7 +196,7 @@ function Run(props: {
               </State>
             </Match>
             <Match when={d()}>
-              <Dynamic component={view()} columns={props.widget.spec.view.columns} data={d()} />
+              <Dynamic component={view()} columns={props.widget.spec.view?.columns ?? []} data={d()} />
             </Match>
           </Switch>
         )}

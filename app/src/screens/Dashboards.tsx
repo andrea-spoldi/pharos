@@ -9,24 +9,26 @@ const MAX_TABS = 5;
 const label = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
 
 /**
- * Platform dashboards of the last applied sync, read-only. `#/d/:name` picks one; a missing
- * or unknown name goes to the first, which the engine orders `home` first (D-025).
+ * Platform dashboards of the last applied sync, read-only. `#/d/:id` picks one; a missing
+ * or unknown id goes to the first, which the engine orders `home` first (D-025).
  * Bump `version` after a sync to reload.
  */
 export function Dashboards(props: { version: number; inputLabel?: (key: string) => string | null | undefined }) {
-  const params = useParams<{ name?: string }>();
+  const params = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const [dashboards, { refetch }] = createResource(
     () => props.version,
     () => unwrap(commands.listDashboards()),
   );
-  const current = () => dashboards.latest?.find((d) => d.metadata.name === params.name);
-  const open = (name: string) => navigate(`/d/${encodeURIComponent(name)}`);
+  // Ids contain `:`, which navigation percent-encodes; compare the decoded form.
+  const routeId = () => (params.id === undefined ? undefined : safeDecode(params.id));
+  const current = () => dashboards.latest?.find((d) => d.id === routeId());
+  const open = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
 
   createEffect(() => {
     if (dashboards.error) return;
     const list = dashboards.latest;
-    if (list?.length && !current()) navigate(`/d/${encodeURIComponent(list[0].metadata.name)}`, { replace: true });
+    if (list?.length && !current()) navigate(`/d/${encodeURIComponent(list[0].id)}`, { replace: true });
   });
 
   return (
@@ -48,7 +50,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
       <Match when={current()}>
         {(d) => (
           <section class="stack">
-            <Tabs dashboards={dashboards.latest ?? []} current={d().metadata.name} onOpen={open} />
+            <Tabs dashboards={dashboards.latest ?? []} current={d().id} onOpen={open} />
             <Show
               when={d().placements.length}
               fallback={
@@ -69,7 +71,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
                   {(p) => (
                     <WidgetFrame
                       placement={p().placement}
-                      slot={{ dashboard: d().metadata.name, index: p().index }}
+                      slot={{ dashboardId: d().id, path: [p().index] }}
                       version={props.version}
                       inputLabel={props.inputLabel}
                     />
@@ -84,7 +86,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
   );
 }
 
-function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (name: string) => void }) {
+function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (id: string) => void }) {
   const [menuOpen, setMenuOpen] = createSignal(false);
   let more: HTMLDivElement | undefined;
 
@@ -101,8 +103,8 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (na
     <button
       type="button"
       class="tab"
-      aria-current={d.metadata.name === props.current ? "page" : undefined}
-      onClick={() => props.onOpen(d.metadata.name)}
+      aria-current={d.id === props.current ? "page" : undefined}
+      onClick={() => props.onOpen(d.id)}
     >
       {label(d)}
     </button>
@@ -116,7 +118,7 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (na
           <button
             type="button"
             class="tab"
-            classList={{ active: props.dashboards.slice(MAX_TABS).some((d) => d.metadata.name === props.current) }}
+            classList={{ active: props.dashboards.slice(MAX_TABS).some((d) => d.id === props.current) }}
             aria-expanded={menuOpen()}
             onClick={() => setMenuOpen((o) => !o)}
           >
@@ -130,10 +132,10 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (na
                     <button
                       type="button"
                       class="menu-item"
-                      aria-current={d.metadata.name === props.current ? "page" : undefined}
+                      aria-current={d.id === props.current ? "page" : undefined}
                       onClick={() => {
                         setMenuOpen(false);
-                        props.onOpen(d.metadata.name);
+                        props.onOpen(d.id);
                       }}
                     >
                       {label(d)}
@@ -147,4 +149,12 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; onOpen: (na
       </Show>
     </nav>
   );
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }

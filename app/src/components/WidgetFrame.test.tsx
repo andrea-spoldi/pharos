@@ -16,7 +16,7 @@ const render = (ui: () => JSX.Element) => {
   history.set({ value: "/d/home" });
   return renderUi(() => (
     <MemoryRouter history={history}>
-      <Route path={["/d/:name", "/settings"]} component={ui} />
+      <Route path={["/d/:id", "/settings"]} component={ui} />
     </MemoryRouter>
   ));
 };
@@ -42,11 +42,13 @@ function placement(
     },
     status: { kind: "runnable" },
     reads: "catalog/services/*.yaml",
+    id: null,
+    children: [],
     ...over,
   };
 }
 
-const slot = { dashboard: "home", index: 2 };
+const slot = { dashboardId: "p:home", path: [2] };
 
 const rows: WidgetData = { rows: [{ metadata: { name: "payment-service" }, _source: "p.yaml" }], truncated: false };
 
@@ -111,7 +113,7 @@ describe("WidgetFrame", () => {
     expect(await screen.findByText("payment-service")).toBeTruthy();
     expect(screen.queryByLabelText("Loading")).toBeNull();
     expect(screen.getByText("Service Catalog")).toBeTruthy();
-    expect(commands.runPlacement).toHaveBeenCalledWith("home", 2);
+    expect(commands.runPlacement).toHaveBeenCalledWith("p:home", [2]);
   });
 
   it("says where it looked when there are no rows", async () => {

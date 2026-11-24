@@ -13,6 +13,9 @@ const ok = <T,>(data: T) => ({ status: "ok" as const, data });
 
 function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView {
   return {
+    id: `p:${name}`,
+    origin: "platform",
+    editable: false,
     metadata: { name, title: name[0].toUpperCase() + name.slice(1), version: null, description: null },
     placements: widgets.map((w, i) => ({
       widget: w,
@@ -23,6 +26,8 @@ function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView
       manifest: null,
       status: { kind: "missing" },
       reads: null,
+      id: null,
+      children: [],
     })),
   };
 }
@@ -32,7 +37,7 @@ function renderAt(path: string, version: () => number = () => 0) {
   history.set({ value: path });
   render(() => (
     <MemoryRouter history={history}>
-      <Route path={["/", "/d/:name"]} component={() => <Dashboards version={version()} />} />
+      <Route path={["/", "/d/:id"]} component={() => <Dashboards version={version()} />} />
     </MemoryRouter>
   ));
   return history;
@@ -43,6 +48,9 @@ const rows = { rows: [{ metadata: { name: "payment-service" }, _source: "p.yaml"
 /** A fresh list with one runnable file widget; new objects on every call, as after a sync. */
 function runnableHome(): DashboardView {
   return {
+    id: "p:home",
+    origin: "platform",
+    editable: false,
     metadata: { name: "home", title: "Home", version: null, description: null },
     placements: [
       {
@@ -65,6 +73,8 @@ function runnableHome(): DashboardView {
         },
         status: { kind: "runnable" },
         reads: "catalog/services/*.yaml",
+        id: null,
+        children: [],
       },
     ],
   };
@@ -79,21 +89,21 @@ describe("Dashboards", () => {
 
   it("redirects to the first dashboard", async () => {
     const history = renderAt("/");
-    await waitFor(() => expect(history.get()).toBe("/d/home"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     expect(tab("Home").getAttribute("aria-current")).toBe("page");
     expect(tab("Ops").getAttribute("aria-current")).toBeNull();
   });
 
   it("redirects an unknown dashboard", async () => {
-    const history = renderAt("/d/nope");
-    await waitFor(() => expect(history.get()).toBe("/d/home"));
+    const history = renderAt("/d/p:nope");
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
   });
 
   it("switches dashboards from the tabs", async () => {
-    const history = renderAt("/d/home");
+    const history = renderAt("/d/p:home");
     await screen.findByText("welcome", { selector: "header *" });
     fireEvent.click(tab("Ops"));
-    await waitFor(() => expect(history.get()).toBe("/d/ops"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Aops"));
     expect(await screen.findByText("k8s", { selector: "header *" })).toBeTruthy();
     expect(screen.queryByText("welcome", { selector: "header *" })).toBeNull();
   });
@@ -101,7 +111,7 @@ describe("Dashboards", () => {
   it("more menu closes on escape and selection", async () => {
     const names = ["home", "a", "b", "c", "d", "e", "f"];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
-    const history = renderAt("/d/home");
+    const history = renderAt("/d/p:home");
     await screen.findByRole("button", { name: "More ▾" });
     expect(screen.getByRole("navigation", { name: "Dashboards" }).querySelectorAll(".tab").length).toBe(6);
     expect(screen.queryByRole("button", { name: "E" })).toBeNull();
@@ -113,7 +123,7 @@ describe("Dashboards", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "More ▾" }));
     fireEvent.click(screen.getByRole("button", { name: "E" }));
-    await waitFor(() => expect(history.get()).toBe("/d/e"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ae"));
     expect(screen.queryByRole("button", { name: "F" })).toBeNull();
   });
 
@@ -126,17 +136,17 @@ describe("Dashboards", () => {
 
   it("shows an empty dashboard notice", async () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home", [])]));
-    renderAt("/d/home");
+    renderAt("/d/p:home");
     expect(await screen.findByText("This dashboard is empty.")).toBeTruthy();
   });
 
   it("falls back when the current dashboard disappears", async () => {
     const [version, setVersion] = createSignal(0);
-    const history = renderAt("/d/ops", version);
+    const history = renderAt("/d/p:ops", version);
     await screen.findByText("k8s", { selector: "header *" });
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home")]));
     setVersion(1);
-    await waitFor(() => expect(history.get()).toBe("/d/home"));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
   });
 
@@ -147,11 +157,11 @@ describe("Dashboards", () => {
     home.placements = [{ ...first, widget: "lower", y: 4 }, first];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([home]));
     vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
-    renderAt("/d/home");
+    renderAt("/d/p:home");
     await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(2));
     expect(vi.mocked(commands.runPlacement).mock.calls).toEqual([
-      ["home", 1],
-      ["home", 0],
+      ["p:home", [1]],
+      ["p:home", [0]],
     ]);
   });
 
@@ -159,7 +169,7 @@ describe("Dashboards", () => {
     vi.mocked(commands.listDashboards).mockImplementation(async () => ok([runnableHome()]));
     vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
     const [version, setVersion] = createSignal(0);
-    renderAt("/d/home", version);
+    renderAt("/d/p:home", version);
     await screen.findByText("payment-service");
 
     vi.mocked(commands.runPlacement).mockReturnValue(new Promise(() => {}));
@@ -186,7 +196,7 @@ describe("Dashboards", () => {
   it("marks More as active when the current dashboard is in the menu", async () => {
     const names = ["home", "a", "b", "c", "d", "e", "f"];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
-    renderAt("/d/e");
+    renderAt("/d/p:e");
     const more = await screen.findByRole("button", { name: "More ▾" });
     expect(more.classList.contains("active")).toBe(true);
     expect(tab("Home").getAttribute("aria-current")).toBeNull();

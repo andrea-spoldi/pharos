@@ -7,13 +7,13 @@ import { Home } from "./Home";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
-/** Home lives inside the router (`#/d/:name`), as in index.tsx. */
+/** Home lives inside the router (`#/d/:id`), as in index.tsx. */
 let history = createMemoryHistory();
 const render = (ui: () => JSX.Element) => {
   history = createMemoryHistory();
   return renderUi(() => (
     <MemoryRouter history={history}>
-      <Route path={["/", "/d/:name", "/settings"]} component={ui} />
+      <Route path={["/", "/d/:id", "/settings"]} component={ui} />
     </MemoryRouter>
   ));
 };
@@ -62,6 +62,9 @@ const firstPlan: SyncPlan = {
 };
 
 const home: DashboardView = {
+  id: "p:home",
+  origin: "platform",
+  editable: false,
   metadata: { name: "home", title: "Home", version: null, description: null },
   placements: [
     {
@@ -84,6 +87,8 @@ const home: DashboardView = {
       },
       status: { kind: "notAvailable", feature: "command sources" },
       reads: null,
+      id: null,
+      children: [],
     },
   ],
 };
@@ -248,7 +253,7 @@ describe("Home", () => {
       vi.mocked(commands.getSearchPath).mockResolvedValue(ok([]));
       render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
       await screen.findByText("Kubernetes Context");
-      await waitFor(() => expect(history.get()).toBe("/d/home"));
+      await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
 
       fireEvent.click(screen.getByRole("button", { name: "Settings" }));
       expect(await screen.findByRole("heading", { name: "Repository" })).toBeTruthy();
@@ -256,7 +261,7 @@ describe("Home", () => {
       expect(screen.queryByText("Kubernetes Context")).toBeNull();
 
       fireEvent.click(screen.getByRole("button", { name: "← Back to dashboards" }));
-      await waitFor(() => expect(history.get()).toBe("/d/home"));
+      await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
       expect(await screen.findByText("Kubernetes Context")).toBeTruthy();
     });
 
