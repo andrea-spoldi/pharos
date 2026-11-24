@@ -92,7 +92,8 @@ function runnableHome(): DashboardView {
   };
 }
 
-const tab = (name: string) => screen.getByRole("button", { name });
+// A landing tab's accessible name carries a "(Landing dashboard)" suffix, so match the title prefix.
+const tab = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}\\b`) });
 
 describe("Dashboards", () => {
   beforeEach(() => {
@@ -142,7 +143,7 @@ describe("Dashboards", () => {
   it("shows no tabs when there are no dashboards", async () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([]));
     renderAt("/");
-    expect(await screen.findByText("The platform repo defines no dashboards yet.")).toBeTruthy();
+    expect(await screen.findByText("No dashboards yet. Click + New dashboard to create one.")).toBeTruthy();
     expect(screen.queryByRole("navigation")).toBeNull();
   });
 
@@ -301,20 +302,22 @@ describe("Dashboards compose", () => {
     renderAt("/d/u:1");
     await screen.findByText("Add your first widget");
     // Until one is chosen, the app opens on the first (platform) dashboard.
-    expect(tab("Home").contains(screen.getByLabelText("Landing dashboard"))).toBe(true);
+    expect(tab("Home").contains(screen.getByText(/\(Landing dashboard\)/))).toBe(true);
+    // The cue is in the accessibility tree: it is part of the tab's accessible name.
+    expect(screen.getByRole("button", { name: /^Home\s*\(Landing dashboard\)$/ })).toBeTruthy();
 
     // The engine moves the landing dashboard to the front of the list.
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([mine, dashboard("home")]));
     fireEvent.click(screen.getByRole("button", { name: "Set as landing" }));
     await waitFor(() => expect(commands.setLanding).toHaveBeenCalledWith("u:1"));
-    await waitFor(() => expect(tab("Mine").contains(screen.queryByLabelText("Landing dashboard"))).toBe(true));
-    expect(tab("Home").querySelector(".landing-mark")).toBeNull();
+    await waitFor(() => expect(tab("Mine").contains(screen.queryByText(/\(Landing dashboard\)/))).toBe(true));
+    expect(tab("Home").querySelector(".landing-mark, .sr-only")).toBeNull();
 
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
     fireEvent.click(screen.getByRole("button", { name: "Clear landing" }));
     await waitFor(() => expect(commands.setLanding).toHaveBeenLastCalledWith(null));
-    await waitFor(() => expect(tab("Home").contains(screen.queryByLabelText("Landing dashboard"))).toBe(true));
-    expect(tab("Home").contains(screen.getByLabelText("Landing dashboard"))).toBe(true);
+    await waitFor(() => expect(tab("Home").contains(screen.queryByText(/\(Landing dashboard\)/))).toBe(true));
+    expect(screen.getByRole("button", { name: /^Home\s*\(Landing dashboard\)$/ })).toBeTruthy();
   });
 
   it("renames and deletes after confirmation", async () => {

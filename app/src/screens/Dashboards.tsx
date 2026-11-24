@@ -57,7 +57,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
         <section class="stack">
           <DashboardToolbar landing={false} onChanged={refetch} onCreated={created} onDeleted={refetch} />
           <div class="notice">
-            <p>The platform repo defines no dashboards yet.</p>
+            <p>No dashboards yet. Click + New dashboard to create one.</p>
           </div>
         </section>
       </Match>
@@ -143,11 +143,12 @@ function Tabs(props: { dashboards: DashboardView[]; current: string; landing?: s
     >
       {label(d)}
       <Show when={props.dashboards.length > 1 && d.id === props.landing}>
-        {/* Hidden from the accessible name so a tab keeps its plain title. */}
-        <span class="landing-mark" aria-hidden="true" aria-label="Landing dashboard" title="Landing dashboard">
+        {/* The star is decorative; the sr-only text puts the cue in the tab's accessible name. */}
+        <span class="landing-mark" aria-hidden="true" title="Landing dashboard">
           {" "}
           ★
         </span>
+        <span class="sr-only">{" (Landing dashboard)"}</span>
       </Show>
     </button>
   );

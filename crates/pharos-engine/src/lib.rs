@@ -108,6 +108,10 @@ pub struct Engine {
     store: Box<dyn SecretStore>,
 }
 
+/// Deepest container nesting `placement_view` expands; a container at this depth is
+/// reported `NotAvailable` instead of being expanded further.
+const MAX_PLACEMENT_DEPTH: usize = 32;
+
 impl Engine {
     /// Opens (and migrates) the state in `data_dir`, creating it if needed. Secrets go to
     /// the OS keyring.
@@ -274,7 +278,7 @@ impl Engine {
                 .spec
                 .widgets
                 .iter()
-                .map(|p| self.placement_view(&source, &root, &setup, p))
+                .map(|p| self.placement_view(&source, &root, &setup, p, 0))
                 .collect::<Result<_>>()?;
             views.push(DashboardView {
                 id: format!("p:{}", d.metadata.name),
@@ -305,7 +309,7 @@ impl Engine {
     ) -> Result<DashboardView> {
         let mut placements = Vec::new();
         for r in top_level(db::placements_of(&self.conn, row.id)?) {
-            let mut view = self.placement_view(source, root, setup, &placement_of(&r))?;
+            let mut view = self.placement_view(source, root, setup, &placement_of(&r), 0)?;
             view.id = Some(r.id as u32);
             placements.push(view);
         }
@@ -452,24 +456,46 @@ impl Engine {
     }
 
     /// One placement with its widget and status; a container's children are expanded
-    /// recursively (the manifest lint refuses cycles, so this terminates).
+    /// recursively (the manifest lint refuses cycles; `MAX_PLACEMENT_DEPTH` bounds a
+    /// pathologically deep acyclic chain so one widget cannot break the whole list).
     fn placement_view(
         &self,
         source: &Source,
         root: &Path,
         setup: &SetupState,
         p: &Placement,
+        depth: usize,
     ) -> Result<PlacementView> {
         let stored = db::widget(&self.conn, source.id, &p.widget)?;
         let manifest = stored.as_ref().map(|(_, json)| {
             serde_json::from_str::<Widget>(json).expect("stored manifests are valid JSON")
         });
+        if depth >= MAX_PLACEMENT_DEPTH
+            && manifest
+                .as_ref()
+                .is_some_and(|w| !w.spec.widgets.is_empty())
+        {
+            return Ok(PlacementView {
+                id: None,
+                widget: p.widget.clone(),
+                x: p.x,
+                y: p.y,
+                w: p.w,
+                h: p.h,
+                manifest,
+                status: PlacementStatus::NotAvailable {
+                    feature: "widgets nested this deeply".to_string(),
+                },
+                reads: None,
+                children: Vec::new(),
+            });
+        }
         let children = match &manifest {
             Some(w) => w
                 .spec
                 .widgets
                 .iter()
-                .map(|c| self.placement_view(source, root, setup, c))
+                .map(|c| self.placement_view(source, root, setup, c, depth + 1))
                 .collect::<Result<Vec<_>>>()?,
             None => Vec::new(),
         };

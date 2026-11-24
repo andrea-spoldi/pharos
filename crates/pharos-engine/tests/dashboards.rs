@@ -309,3 +309,48 @@ fn platform_dashboards_cannot_be_mutated_and_rename_works() {
         .collect();
     assert_eq!(containers, ["on-call-overview"]);
 }
+
+#[test]
+fn over_deep_container_chain_is_not_available_not_a_stack_overflow() {
+    const CHAIN: usize = 40; // deeper than the engine's expansion cap (32)
+    let f = Fixture::new();
+    f.write("widgets/chain-leaf/widget.yaml", &leaf("chain-leaf"));
+    for i in 0..CHAIN {
+        let child = if i + 1 == CHAIN {
+            "chain-leaf".to_string()
+        } else {
+            format!("chain-{}", i + 1)
+        };
+        f.write(
+            &format!("widgets/chain-{i}/widget.yaml"),
+            &format!(
+                "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: {{ name: chain-{i} }}\n\
+                 spec:\n  widgets:\n    - {{ widget: {child}, x: 0, y: 0, w: 12, h: 2 }}\n"
+            ),
+        );
+    }
+    let home = std::fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
+    f.write(
+        "dashboards/home.yaml",
+        &format!("{home}    - {{ widget: chain-0, x: 0, y: 8, w: 12, h: 2 }}\n"),
+    );
+    f.commit("deep chain");
+    let engine = f.synced_engine();
+
+    let dashboards = engine.dashboards().unwrap();
+
+    let mut node = dashboards[0]
+        .placements
+        .iter()
+        .find(|p| p.widget == "chain-0")
+        .unwrap();
+    let mut depth = 0;
+    while let Some(child) = node.children.first() {
+        node = child;
+        depth += 1;
+    }
+    assert_eq!(depth, 32, "expansion stops at the cap");
+    assert_eq!(node.widget, "chain-32");
+    assert!(matches!(node.status, PlacementStatus::NotAvailable { .. }));
+    assert!(node.children.is_empty());
+}
