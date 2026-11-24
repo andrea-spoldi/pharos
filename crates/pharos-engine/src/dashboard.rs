@@ -29,6 +29,9 @@ pub enum PlacementStatus {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PlacementView {
+    /// Row id of a user dashboard's top-level placement (what `remove_widget` takes);
+    /// `None` for platform placements and expanded children.
+    pub id: Option<u32>,
     pub widget: String,
     pub x: u32,
     pub y: u32,
@@ -334,6 +337,7 @@ mod tests {
 
     fn child(status: PlacementStatus) -> PlacementView {
         PlacementView {
+            id: None,
             widget: "c".into(),
             x: 0,
             y: 0,

@@ -16,8 +16,8 @@ mod settings;
 mod sync;
 
 use pharos_manifest::{
-    Dashboard, InputDef, Namespace, Placement, Platform, TemplateError, TemplateRef, Widget,
-    render_template, template_refs,
+    Dashboard, InputDef, Metadata, Namespace, Placement, Platform, TemplateError, TemplateRef,
+    ViewType, Widget, render_template, template_refs,
 };
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
@@ -70,6 +70,12 @@ pub enum EngineError {
     NotAvailable(String),
     #[error("dashboard `{dashboard}` has no widget at position {index}")]
     UnknownPlacement { dashboard: String, index: usize },
+    #[error("no dashboard `{0}`")]
+    UnknownDashboard(String),
+    #[error("dashboard `{0}` comes from the platform and cannot be changed")]
+    ReadOnlyDashboard(String),
+    #[error("`{0}` is a container; only widgets with a data source can run")]
+    NotALeaf(String),
     #[error("widget `{0}` needs setup in Settings")]
     NeedsSetup(String),
     #[error("`{{{{ {0} }}}}` has no value")]
@@ -250,34 +256,199 @@ impl Engine {
         self.load_manifests("dashboard_templates")
     }
 
-    /// Platform dashboards as the UI renders them: `home` first, then by name, each
-    /// placement with its widget manifest and status.
+    /// Dashboards as the UI renders them: platform `home` first, then platform by name,
+    /// then the user's own by position; a valid `home.landing` dashboard moves to the
+    /// front (a stale or malformed landing id is ignored). Each placement carries its
+    /// widget manifest and status.
     pub fn dashboards(&self) -> Result<Vec<DashboardView>> {
         let Some(source) = self.source()? else {
             return Ok(Vec::new());
         };
         let root = fs::canonicalize(&source.local_path)?;
         let setup = self.settings()?.setup_state();
-        let mut dashboards: Vec<Dashboard> = self.dashboard_templates()?;
-        dashboards.sort_by_key(|d| d.metadata.name != "home");
-        dashboards
+        let mut templates: Vec<Dashboard> = self.dashboard_templates()?;
+        templates.sort_by_key(|d| d.metadata.name != "home");
+        let mut views = Vec::new();
+        for d in templates {
+            let placements = d
+                .spec
+                .widgets
+                .iter()
+                .map(|p| self.placement_view(&source, &root, &setup, p))
+                .collect::<Result<_>>()?;
+            views.push(DashboardView {
+                id: format!("p:{}", d.metadata.name),
+                origin: Origin::Platform,
+                editable: false,
+                metadata: d.metadata,
+                placements,
+            });
+        }
+        for row in db::user_dashboards(&self.conn)? {
+            views.push(self.user_view(&source, &root, &setup, row)?);
+        }
+        if let Some(landing) = db::app_setting(&self.conn, LANDING_KEY)?
+            && let Some(at) = views.iter().position(|v| v.id == landing)
+        {
+            let view = views.remove(at);
+            views.insert(0, view);
+        }
+        Ok(views)
+    }
+
+    fn user_view(
+        &self,
+        source: &Source,
+        root: &Path,
+        setup: &SetupState,
+        row: db::DashboardRow,
+    ) -> Result<DashboardView> {
+        let mut placements = Vec::new();
+        for r in top_level(db::placements_of(&self.conn, row.id)?) {
+            let mut view = self.placement_view(source, root, setup, &placement_of(&r))?;
+            view.id = Some(r.id as u32);
+            placements.push(view);
+        }
+        Ok(DashboardView {
+            id: format!("u:{}", row.id),
+            origin: Origin::User,
+            editable: true,
+            metadata: Metadata {
+                name: row.name,
+                title: row.title,
+                version: None,
+                description: None,
+            },
+            placements,
+        })
+    }
+
+    fn user_view_by_id(&self, row_id: i64) -> Result<DashboardView> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let root = fs::canonicalize(&source.local_path)?;
+        let setup = self.settings()?.setup_state();
+        let row = db::user_dashboards(&self.conn)?
             .into_iter()
-            .map(|d| {
-                let placements = d
-                    .spec
-                    .widgets
-                    .iter()
-                    .map(|p| self.placement_view(&source, &root, &setup, p))
-                    .collect::<Result<_>>()?;
-                Ok(DashboardView {
-                    id: format!("p:{}", d.metadata.name),
-                    origin: Origin::Platform,
-                    editable: false,
-                    metadata: d.metadata,
-                    placements,
-                })
+            .find(|d| d.id == row_id)
+            .ok_or_else(|| EngineError::UnknownDashboard(format!("u:{row_id}")))?;
+        self.user_view(&source, &root, &setup, row)
+    }
+
+    /// Widgets a user can place, by name.
+    pub fn catalog(&self) -> Result<Vec<WidgetSummary>> {
+        Ok(self
+            .widgets()?
+            .into_iter()
+            .map(|w| WidgetSummary {
+                container: !w.spec.widgets.is_empty(),
+                title: w.metadata.title,
+                name: w.metadata.name,
             })
-            .collect()
+            .collect())
+    }
+
+    /// Creates an empty user dashboard. Its `name` is the slug of `title`, with a numeric
+    /// suffix (`-2`, `-3`, ...) when another user dashboard already has it.
+    pub fn create_dashboard(&mut self, title: &str) -> Result<DashboardView> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(EngineError::InvalidValue {
+                key: "title".into(),
+                reason: "empty".into(),
+            });
+        }
+        let taken: Vec<String> = db::user_dashboards(&self.conn)?
+            .into_iter()
+            .map(|d| d.name)
+            .collect();
+        let base = slugify(title);
+        let mut name = base.clone();
+        let mut n = 2;
+        while taken.contains(&name) {
+            name = format!("{base}-{n}");
+            n += 1;
+        }
+        let id = db::insert_dashboard(&self.conn, &name, Some(title))?;
+        self.user_view_by_id(id)
+    }
+
+    pub fn rename_dashboard(&mut self, id: &str, title: &str) -> Result<()> {
+        let row_id = self.user_dashboard_id(id)?;
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(EngineError::InvalidValue {
+                key: "title".into(),
+                reason: "empty".into(),
+            });
+        }
+        Ok(db::rename_dashboard(&self.conn, row_id, Some(title))?)
+    }
+
+    /// Deletes the dashboard and its placements.
+    pub fn delete_dashboard(&mut self, id: &str) -> Result<()> {
+        let row_id = self.user_dashboard_id(id)?;
+        Ok(db::delete_dashboard(&self.conn, row_id)?)
+    }
+
+    /// Appends `widget` below the existing placements, full grid-left, at a default size
+    /// for its view. Only top-level placements exist in 8a (a platform composite's
+    /// children come from its manifest, not from rows).
+    pub fn add_widget(&mut self, dashboard_id: &str, widget: &str) -> Result<DashboardView> {
+        let row_id = self.user_dashboard_id(dashboard_id)?;
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let (_, json) = db::widget(&self.conn, source.id, widget)?
+            .ok_or_else(|| EngineError::UnknownWidget(widget.into()))?;
+        let manifest: Widget =
+            serde_json::from_str(&json).expect("stored manifests are valid JSON");
+        let (w, h) = default_size(&manifest);
+        let rows = top_level(db::placements_of(&self.conn, row_id)?);
+        let y = rows.iter().map(|r| r.y + r.h).max().unwrap_or(0);
+        let position = rows.iter().map(|r| r.position + 1).max().unwrap_or(0);
+        db::insert_placement(&self.conn, row_id, None, widget, 0, y, w, h, position, "{}")?;
+        self.user_view_by_id(row_id)
+    }
+
+    /// Removes the top-level placement whose row id is `placement_id` (`PlacementView::id`).
+    pub fn remove_widget(
+        &mut self,
+        dashboard_id: &str,
+        placement_id: u32,
+    ) -> Result<DashboardView> {
+        let row_id = self.user_dashboard_id(dashboard_id)?;
+        let rows = db::placements_of(&self.conn, row_id)?;
+        let row = top_level(rows)
+            .into_iter()
+            .find(|r| r.id == i64::from(placement_id))
+            .ok_or_else(|| EngineError::UnknownPlacement {
+                dashboard: dashboard_id.into(),
+                index: placement_id as usize,
+            })?;
+        db::delete_placement(&self.conn, row.id)?;
+        self.user_view_by_id(row_id)
+    }
+
+    /// Chooses the dashboard shown first; `None` clears it. A dashboard that later
+    /// disappears just stops mattering (`dashboards` ignores a stale id).
+    pub fn set_landing(&mut self, dashboard_id: Option<&str>) -> Result<()> {
+        match dashboard_id {
+            None => Ok(db::delete_app_setting(&self.conn, LANDING_KEY)?),
+            Some(id) => {
+                parse_id(id)?;
+                Ok(db::set_app_setting(&self.conn, LANDING_KEY, id)?)
+            }
+        }
+    }
+
+    /// The row id of an existing user dashboard; platform ids are read-only.
+    fn user_dashboard_id(&self, id: &str) -> Result<i64> {
+        let DashboardId::User(row_id) = parse_id(id)? else {
+            return Err(EngineError::ReadOnlyDashboard(id.into()));
+        };
+        db::user_dashboards(&self.conn)?
+            .iter()
+            .any(|d| d.id == row_id)
+            .then_some(row_id)
+            .ok_or_else(|| EngineError::UnknownDashboard(id.into()))
     }
 
     /// One placement with its widget and status; a container's children are expanded
@@ -317,6 +488,7 @@ impl Engine {
             _ => None,
         };
         Ok(PlacementView {
+            id: None,
             widget: p.widget.clone(),
             x: p.x,
             y: p.y,
@@ -467,25 +639,32 @@ impl Engine {
         Ok((platform, fs::canonicalize(&source.local_path)?))
     }
 
-    /// Runs the widget at `index` on `dashboard` as of the last applied sync, within the
-    /// capabilities the user approved. The frontend names the slot only (D-031); the source,
-    /// its inputs and its secrets all come from the stored manifests and settings.
-    pub fn run_placement(&self, dashboard: &str, index: usize) -> Result<WidgetData> {
+    /// Runs the leaf widget addressed by `path` on `dashboard_id` (`p:<name>` or `u:<id>`) as
+    /// of the last applied sync, within the capabilities the user approved. `path` lists
+    /// child indices: the first picks a top-level placement, each further one a child of
+    /// the previous placement's container widget. The frontend names the slot only (D-031,
+    /// superseded by this addressing); the leaf, its source, inputs and secrets are all
+    /// re-derived here from the stored manifests, rows and settings. A path that does not
+    /// resolve, or that ends on a container, is an error, never a panic.
+    ///
+    /// Consent is enforced at the addressed leaf: the approved capabilities looked up
+    /// below are the leaf widget's own, so a leaf inside a composite is denied unless its
+    /// own host/executable/path was approved.
+    ///
+    /// Not propagated, by design (in-app instance inputs are a non-goal of slice 8a): a
+    /// container placement's own `inputs` do not reach its children, and a `user.*`
+    /// reference on a container's own placement is not checked for `NeedsSetup`.
+    pub fn run_placement(&self, dashboard_id: &str, path: &[usize]) -> Result<WidgetData> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
-        let placement = self
-            .dashboard_templates()?
-            .into_iter()
-            .find(|d| d.metadata.name == dashboard)
-            .and_then(|d| d.spec.widgets.into_iter().nth(index))
-            .ok_or_else(|| EngineError::UnknownPlacement {
-                dashboard: dashboard.into(),
-                index,
-            })?;
+        let placement = self.resolve_path(&source, dashboard_id, path)?;
         let name = &placement.widget;
         let (file, manifest) = db::widget(&self.conn, source.id, name)?
             .ok_or_else(|| EngineError::UnknownWidget(name.clone()))?;
         let widget: Widget =
             serde_json::from_str(&manifest).expect("stored manifests are valid JSON");
+        if !widget.spec.widgets.is_empty() {
+            return Err(EngineError::NotALeaf(name.clone()));
+        }
         let settings = self.settings()?;
         // The same decision the dashboard showed: only runnable placements run.
         match dashboard::placement_status(Some(&widget), &placement, &settings.setup_state()) {
@@ -572,6 +751,58 @@ impl Engine {
             }
             None => unreachable!("placement_status only lets sources run"),
         }
+    }
+
+    /// Walks `path` from the addressed dashboard's top-level placements down through
+    /// container widgets (read fresh from the stored snapshot) and returns the placement
+    /// it ends on. Every step is bounds-checked.
+    fn resolve_path(
+        &self,
+        source: &Source,
+        dashboard_id: &str,
+        path: &[usize],
+    ) -> Result<Placement> {
+        let unknown = |index| EngineError::UnknownPlacement {
+            dashboard: dashboard_id.into(),
+            index,
+        };
+        let top: Vec<Placement> = match parse_id(dashboard_id)? {
+            DashboardId::Platform(name) => {
+                self.dashboard_templates()?
+                    .into_iter()
+                    .find(|d| d.metadata.name == name)
+                    .ok_or_else(|| EngineError::UnknownDashboard(dashboard_id.into()))?
+                    .spec
+                    .widgets
+            }
+            DashboardId::User(row_id) => {
+                if !db::user_dashboards(&self.conn)?
+                    .iter()
+                    .any(|d| d.id == row_id)
+                {
+                    return Err(EngineError::UnknownDashboard(dashboard_id.into()));
+                }
+                top_level(db::placements_of(&self.conn, row_id)?)
+                    .iter()
+                    .map(placement_of)
+                    .collect()
+            }
+        };
+        let (&first, rest) = path.split_first().ok_or_else(|| unknown(0))?;
+        let mut current = top.get(first).cloned().ok_or_else(|| unknown(first))?;
+        for &index in rest {
+            let (_, json) = db::widget(&self.conn, source.id, &current.widget)?
+                .ok_or_else(|| EngineError::UnknownWidget(current.widget.clone()))?;
+            let widget: Widget =
+                serde_json::from_str(&json).expect("stored manifests are valid JSON");
+            current = widget
+                .spec
+                .widgets
+                .into_iter()
+                .nth(index)
+                .ok_or_else(|| unknown(index))?;
+        }
+        Ok(current)
     }
 
     /// Folders where command sources look up bare executable names, in order (D-033).
@@ -715,6 +946,85 @@ fn file_reads(root: &Path, widget_file: &str, widget: &Widget) -> Option<String>
 }
 
 const SEARCH_PATH_KEY: &str = "command.search_path";
+const LANDING_KEY: &str = "home.landing";
+
+/// A widget a user can place.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct WidgetSummary {
+    pub name: String,
+    pub title: Option<String>,
+    /// Composed of other widgets rather than showing data itself.
+    pub container: bool,
+}
+
+enum DashboardId {
+    Platform(String),
+    User(i64),
+}
+
+/// `p:<name>` or `u:<row id>`.
+fn parse_id(id: &str) -> Result<DashboardId> {
+    if let Some(name) = id.strip_prefix("p:") {
+        return Ok(DashboardId::Platform(name.into()));
+    }
+    id.strip_prefix("u:")
+        .and_then(|n| n.parse().ok())
+        .map(DashboardId::User)
+        .ok_or_else(|| EngineError::UnknownDashboard(id.into()))
+}
+
+/// Rows with no parent: in 8a all user placements (a platform composite's children come
+/// from its widget manifest, not from rows).
+fn top_level(rows: Vec<db::PlacementRow>) -> Vec<db::PlacementRow> {
+    rows.into_iter().filter(|r| r.parent_id.is_none()).collect()
+}
+
+fn placement_of(row: &db::PlacementRow) -> Placement {
+    Placement {
+        widget: row.widget.clone(),
+        x: row.x,
+        y: row.y,
+        w: row.w,
+        h: row.h,
+        inputs: serde_json::from_str(&row.inputs).unwrap_or_default(),
+    }
+}
+
+/// Lowercase ASCII letters and digits joined by single dashes; `dashboard` if nothing is left.
+fn slugify(title: &str) -> String {
+    let slug = title
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    if slug.is_empty() {
+        "dashboard".into()
+    } else {
+        slug
+    }
+}
+
+/// Default grid size for a newly placed widget, by view kind; containers get a wide band.
+fn default_size(widget: &Widget) -> (u32, u32) {
+    if !widget.spec.widgets.is_empty() {
+        return (12, 4);
+    }
+    match widget.spec.view.as_ref().map(|v| v.kind) {
+        Some(ViewType::Table | ViewType::List) => (12, 4),
+        Some(ViewType::Markdown) => (6, 2),
+        _ => (6, 3),
+    }
+}
 
 fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")

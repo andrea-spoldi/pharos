@@ -106,7 +106,7 @@ fn sends_the_templated_request_and_returns_rows() {
     )]);
     let engine = engine_for(&server.origin, true);
 
-    let data = engine.run_placement("local", 0).unwrap();
+    let data = engine.run_placement("p:local", &[0]).unwrap();
 
     assert_eq!(
         data.rows,
@@ -130,7 +130,7 @@ fn needs_setup_until_team_and_token_are_set() {
     let engine = engine_for(&server.origin, false);
 
     assert!(matches!(
-        engine.run_placement("local", 0),
+        engine.run_placement("p:local", &[0]),
         Err(EngineError::NeedsSetup(name)) if name == "local-api"
     ));
     assert!(server.requests.lock().unwrap().is_empty());
@@ -142,7 +142,7 @@ fn auth_failures_never_echo_the_token() {
     let server = serve(vec![response("401 Unauthorized", "", &body)]);
     let engine = engine_for(&server.origin, true);
 
-    let err = engine.run_placement("local", 0).unwrap_err();
+    let err = engine.run_placement("p:local", &[0]).unwrap_err();
 
     let EngineError::Http(http) = &err else {
         panic!("{err:?}")
@@ -166,7 +166,7 @@ fn does_not_follow_redirects() {
     ]);
     let engine = engine_for(&server.origin, true);
 
-    let err = engine.run_placement("local", 0).unwrap_err();
+    let err = engine.run_placement("p:local", &[0]).unwrap_err();
 
     assert!(
         matches!(&err, EngineError::Http(HttpError::Redirected { location, .. }) if location == "https://elsewhere.example/steal"),
@@ -181,7 +181,7 @@ fn reports_bodies_that_are_not_json() {
     let engine = engine_for(&server.origin, true);
 
     assert!(matches!(
-        engine.run_placement("local", 0),
+        engine.run_placement("p:local", &[0]),
         Err(EngineError::Http(HttpError::Parse { .. }))
     ));
 }
@@ -195,7 +195,7 @@ fn reports_unreachable_hosts() {
     };
     let engine = engine_for(&origin, true);
 
-    let err = engine.run_placement("local", 0).unwrap_err();
+    let err = engine.run_placement("p:local", &[0]).unwrap_err();
 
     assert!(
         matches!(&err, EngineError::Http(HttpError::Request { origin: o, .. }) if *o == origin),
