@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-30T22:51:07+00:00",
+  "generatedAt": "2026-11-25T00:00:00+00:00",
   "title": "Design System: Pharos",
   "extensions": {
     "colorMeta": {
@@ -8,392 +8,241 @@
         "role": "primary",
         "displayName": "Signal Blue",
         "canonical": "#2f5bd3",
-        "tonalRamp": [
-          "#182035",
-          "#243563",
-          "#2b4896",
-          "#2d58cf",
-          "#6280d4",
-          "#96a8da",
-          "#c5cee5",
-          "#eef0f6"
-        ]
+        "tonalRamp": ["#182035", "#243563", "#2b4896", "#2d58cf", "#6280d4", "#96a8da", "#c5cee5", "#eef0f6"]
       },
       "signal-ink": {
         "role": "primary",
         "displayName": "Signal Ink",
         "canonical": "#ffffff",
-        "tonalRamp": [
-          "#262626",
-          "#434343",
-          "#616161",
-          "#7e7e7e",
-          "#9b9b9b",
-          "#b8b8b8",
-          "#d5d5d5",
-          "#f2f2f2"
-        ]
+        "tonalRamp": ["#262626", "#434343", "#616161", "#7e7e7e", "#9b9b9b", "#b8b8b8", "#d5d5d5", "#f2f2f2"]
+      },
+      "accent-wash": {
+        "role": "primary",
+        "displayName": "Accent Wash",
+        "canonical": "rgba(47, 91, 211, 0.09)",
+        "tonalRamp": ["#e7ebf8", "#eef1fb", "#f3f5fc", "#f6f8fd", "#f8fafe", "#fafbfe", "#fcfdff", "#feffff"]
+      },
+      "accent-weak": {
+        "role": "primary",
+        "displayName": "Accent Weak",
+        "canonical": "rgba(47, 91, 211, 0.24)",
+        "tonalRamp": ["#c2cef0", "#d0daf4", "#dde4f7", "#e6ecf9", "#eef2fb", "#f4f6fd", "#f9fbfe", "#fdfeff"]
+      },
+      "page": {
+        "role": "neutral",
+        "displayName": "Page",
+        "canonical": "#eceff4",
+        "tonalRamp": ["#23262b", "#3b3f47", "#545965", "#6d7382", "#9095a1", "#b1b6bf", "#d2d5db", "#eceff4"]
       },
       "open-white": {
         "role": "neutral",
         "displayName": "Open White",
         "canonical": "#ffffff",
-        "tonalRamp": [
-          "#262626",
-          "#434343",
-          "#616161",
-          "#7e7e7e",
-          "#9b9b9b",
-          "#b8b8b8",
-          "#d5d5d5",
-          "#f2f2f2"
-        ]
+        "tonalRamp": ["#262626", "#434343", "#616161", "#7e7e7e", "#9b9b9b", "#b8b8b8", "#d5d5d5", "#f2f2f2"]
       },
       "mist-surface": {
         "role": "neutral",
         "displayName": "Mist",
-        "canonical": "#f5f6f8",
-        "tonalRamp": [
-          "#22252a",
-          "#3b414c",
-          "#525c6f",
-          "#687694",
-          "#8b96aa",
-          "#afb5c1",
-          "#d1d4da",
-          "#f1f2f3"
-        ]
+        "canonical": "#f3f6fa",
+        "tonalRamp": ["#22262b", "#3a4049", "#535b69", "#6c7688", "#8f96a6", "#b0b6c0", "#d1d5dc", "#f3f6fa"]
       },
       "ink": {
         "role": "neutral",
         "displayName": "Ink",
         "canonical": "#1a1a1a",
-        "tonalRamp": [
-          "#262626",
-          "#434343",
-          "#616161",
-          "#7e7e7e",
-          "#9b9b9b",
-          "#b8b8b8",
-          "#d5d5d5",
-          "#f2f2f2"
-        ]
+        "tonalRamp": ["#262626", "#434343", "#616161", "#7e7e7e", "#9b9b9b", "#b8b8b8", "#d5d5d5", "#f2f2f2"]
       },
       "slate-muted": {
         "role": "neutral",
         "displayName": "Slate Muted",
         "canonical": "#5f6672",
-        "tonalRamp": [
-          "#242628",
-          "#3f4248",
-          "#595f68",
-          "#727b89",
-          "#9399a3",
-          "#b3b7bd",
-          "#d3d5d7",
-          "#f2f2f3"
-        ]
+        "tonalRamp": ["#242628", "#3f4248", "#595f68", "#727b89", "#9399a3", "#b3b7bd", "#d3d5d7", "#f2f2f3"]
       },
       "fog-line": {
         "role": "neutral",
         "displayName": "Fog Line",
-        "canonical": "#d8dce3",
-        "tonalRamp": [
-          "#23252a",
-          "#3b414b",
-          "#535d6e",
-          "#697892",
-          "#8c97a9",
-          "#afb6c1",
-          "#d1d4d9",
-          "#f1f2f3"
-        ]
+        "canonical": "#dce1ea",
+        "tonalRamp": ["#23262b", "#3b404a", "#535b6c", "#69748e", "#8c96a8", "#afb6c2", "#d1d5dd", "#dce1ea"]
+      },
+      "fog-soft": {
+        "role": "neutral",
+        "displayName": "Fog Soft",
+        "canonical": "#e8ebf1",
+        "tonalRamp": ["#23262b", "#3b4049", "#545b67", "#6d7684", "#9096a4", "#b1b6c0", "#d2d6dd", "#e8ebf1"]
       },
       "buoy-green": {
         "role": "state",
         "displayName": "Buoy Green",
         "canonical": "#1e7a46",
-        "tonalRamp": [
-          "#193424",
-          "#266140",
-          "#2f925a",
-          "#32c974",
-          "#66d094",
-          "#98d8b4",
-          "#c6e4d3",
-          "#eff6f2"
-        ]
+        "tonalRamp": ["#193424", "#266140", "#2f925a", "#32c974", "#66d094", "#98d8b4", "#c6e4d3", "#eff6f2"]
       },
       "flare-red": {
         "role": "state",
         "displayName": "Flare Red",
         "canonical": "#b42318",
-        "tonalRamp": [
-          "#371815",
-          "#68241e",
-          "#a02a21",
-          "#dd2c1e",
-          "#de6158",
-          "#e09690",
-          "#e8c5c2",
-          "#f7eeee"
-        ]
+        "tonalRamp": ["#371815", "#68241e", "#a02a21", "#dd2c1e", "#de6158", "#e09690", "#e8c5c2", "#f7eeee"]
       },
       "flare-wash": {
         "role": "state",
         "displayName": "Flare Wash",
         "canonical": "#fdf1f0",
-        "tonalRamp": [
-          "#371815",
-          "#68241e",
-          "#a02b21",
-          "#dd2d1e",
-          "#de6258",
-          "#e09690",
-          "#e8c5c2",
-          "#f7eeee"
-        ]
+        "tonalRamp": ["#371815", "#68241e", "#a02b21", "#dd2d1e", "#de6258", "#e09690", "#e8c5c2", "#f7eeee"]
       },
       "flare-ink": {
         "role": "state",
         "displayName": "Flare Ink",
         "canonical": "#ffffff",
-        "tonalRamp": [
-          "#262626",
-          "#434343",
-          "#616161",
-          "#7e7e7e",
-          "#9b9b9b",
-          "#b8b8b8",
-          "#d5d5d5",
-          "#f2f2f2"
-        ]
+        "tonalRamp": ["#262626", "#434343", "#616161", "#7e7e7e", "#9b9b9b", "#b8b8b8", "#d5d5d5", "#f2f2f2"]
       },
       "signal-blue-dark": {
         "role": "primary",
         "displayName": "Signal Blue (dark)",
         "canonical": "#6b8cff",
-        "tonalRamp": [
-          "#101a3c",
-          "#132974",
-          "#0e33b3",
-          "#0139fa",
-          "#446af2",
-          "#849bec",
-          "#bcc7ee",
-          "#eceff8"
-        ]
+        "tonalRamp": ["#101a3c", "#132974", "#0e33b3", "#0139fa", "#446af2", "#849bec", "#bcc7ee", "#eceff8"]
       },
       "signal-ink-dark": {
         "role": "primary",
         "displayName": "Signal Ink (dark)",
         "canonical": "#0d1020",
-        "tonalRamp": [
-          "#1d2030",
-          "#2f3558",
-          "#3e4983",
-          "#495ab2",
-          "#7682c0",
-          "#a2a9ce",
-          "#cbcee0",
-          "#f0f1f5"
-        ]
+        "tonalRamp": ["#1d2030", "#2f3558", "#3e4983", "#495ab2", "#7682c0", "#a2a9ce", "#cbcee0", "#f0f1f5"]
       },
-      "harbour-night": {
+      "accent-wash-dark": {
+        "role": "primary",
+        "displayName": "Accent Wash (dark)",
+        "canonical": "rgba(107, 140, 255, 0.15)",
+        "tonalRamp": ["#1a1f2d", "#222a3f", "#2b3654", "#35436c", "#4a567f", "#6a759a", "#9aa3bc", "#cdd3e2"]
+      },
+      "accent-weak-dark": {
+        "role": "primary",
+        "displayName": "Accent Weak (dark)",
+        "canonical": "rgba(107, 140, 255, 0.3)",
+        "tonalRamp": ["#20283c", "#2b3959", "#374a78", "#445c97", "#5c74b2", "#7e93c9", "#a9bae0", "#d6e0f4"]
+      },
+      "page-dark": {
         "role": "neutral",
-        "displayName": "Harbour Night",
-        "canonical": "#16181d",
-        "tonalRamp": [
-          "#232529",
-          "#3d414a",
-          "#555c6c",
-          "#6d768f",
-          "#8f96a7",
-          "#b1b5bf",
-          "#d2d4d9",
-          "#f1f2f3"
-        ]
+        "displayName": "Page (dark)",
+        "canonical": "#0e1016",
+        "tonalRamp": ["#0e1016", "#1b1f28", "#2b313e", "#3d4558", "#5a6377", "#838c9f", "#b2b9c7", "#e3e6ed"]
       },
       "deep-slate-surface": {
         "role": "neutral",
         "displayName": "Deep Slate",
-        "canonical": "#1f2229",
-        "tonalRamp": [
-          "#232529",
-          "#3d414a",
-          "#555c6c",
-          "#6c778f",
-          "#8f96a7",
-          "#b1b5bf",
-          "#d2d4d9",
-          "#f1f2f3"
-        ]
+        "canonical": "#171a21",
+        "tonalRamp": ["#171a21", "#232834", "#333b4b", "#475165", "#646f86", "#8d97ab", "#bac0ce", "#e7e9ef"]
+      },
+      "mist-surface-dark": {
+        "role": "neutral",
+        "displayName": "Mist (dark)",
+        "canonical": "#1e222b",
+        "tonalRamp": ["#1e222b", "#2a303c", "#3a4252", "#4e586c", "#6b768d", "#949eb1", "#c0c6d2", "#eaecf1"]
       },
       "moon-gray": {
         "role": "neutral",
         "displayName": "Moon Gray",
         "canonical": "#e6e6e6",
-        "tonalRamp": [
-          "#262626",
-          "#434343",
-          "#616161",
-          "#7e7e7e",
-          "#9b9b9b",
-          "#b8b8b8",
-          "#d5d5d5",
-          "#f2f2f2"
-        ]
+        "tonalRamp": ["#262626", "#434343", "#616161", "#7e7e7e", "#9b9b9b", "#b8b8b8", "#d5d5d5", "#f2f2f2"]
       },
       "slate-muted-dark": {
         "role": "neutral",
         "displayName": "Slate Muted (dark)",
         "canonical": "#9aa1ad",
-        "tonalRamp": [
-          "#242629",
-          "#3e4248",
-          "#585e69",
-          "#717a8b",
-          "#9298a4",
-          "#b3b7bd",
-          "#d3d4d8",
-          "#f2f2f3"
-        ]
+        "tonalRamp": ["#242629", "#3e4248", "#585e69", "#717a8b", "#9298a4", "#b3b7bd", "#d3d4d8", "#f2f2f3"]
       },
       "fog-line-dark": {
         "role": "neutral",
         "displayName": "Fog Line (dark)",
-        "canonical": "#343843",
-        "tonalRamp": [
-          "#232529",
-          "#3d4149",
-          "#565c6b",
-          "#6e768d",
-          "#9096a6",
-          "#b1b5bf",
-          "#d2d4d8",
-          "#f2f2f3"
-        ]
+        "canonical": "#262b35",
+        "tonalRamp": ["#262b35", "#333a47", "#454e60", "#5a657d", "#77839c", "#9fa9bd", "#c6ccd8", "#ecedf2"]
+      },
+      "fog-soft-dark": {
+        "role": "neutral",
+        "displayName": "Fog Soft (dark)",
+        "canonical": "#20242d",
+        "tonalRamp": ["#20242d", "#2c313d", "#3d4453", "#525b6e", "#6f7a90", "#99a2b4", "#c3c9d4", "#eaecf1"]
       },
       "buoy-green-dark": {
         "role": "state",
         "displayName": "Buoy Green (dark)",
         "canonical": "#4cc38a",
-        "tonalRamp": [
-          "#1b3127",
-          "#2b5b44",
-          "#378a62",
-          "#40bc80",
-          "#6fc69d",
-          "#9ed2b9",
-          "#c9e2d6",
-          "#eff5f2"
-        ]
+        "tonalRamp": ["#1b3127", "#2b5b44", "#378a62", "#40bc80", "#6fc69d", "#9ed2b9", "#c9e2d6", "#eff5f2"]
       },
       "flare-red-dark": {
         "role": "state",
         "displayName": "Flare Red (dark)",
         "canonical": "#ff8a7f",
-        "tonalRamp": [
-          "#3c1410",
-          "#741b13",
-          "#b31c0e",
-          "#fa1601",
-          "#f25344",
-          "#ec8d84",
-          "#eec0bc",
-          "#f8edec"
-        ]
+        "tonalRamp": ["#3c1410", "#741b13", "#b31c0e", "#fa1601", "#f25344", "#ec8d84", "#eec0bc", "#f8edec"]
       },
       "flare-wash-dark": {
         "role": "state",
         "displayName": "Flare Wash (dark)",
         "canonical": "#2c1a1a",
-        "tonalRamp": [
-          "#2c2121",
-          "#503737",
-          "#764b4b",
-          "#9e5e5e",
-          "#b18484",
-          "#c5abab",
-          "#dccfcf",
-          "#f4f1f1"
-        ]
+        "tonalRamp": ["#2c2121", "#503737", "#764b4b", "#9e5e5e", "#b18484", "#c5abab", "#dccfcf", "#f4f1f1"]
       },
       "flare-ink-dark": {
         "role": "state",
         "displayName": "Flare Ink (dark)",
         "canonical": "#1a0d0c",
-        "tonalRamp": [
-          "#2e1f1e",
-          "#553432",
-          "#7f4642",
-          "#ac5650",
-          "#bb7f7b",
-          "#cba7a5",
-          "#decdcc",
-          "#f4f0f0"
-        ]
+        "tonalRamp": ["#2e1f1e", "#553432", "#7f4642", "#ac5650", "#bb7f7b", "#cba7a5", "#decdcc", "#f4f0f0"]
       }
     },
     "typographyMeta": {
-      "headline": {
-        "displayName": "Headline",
-        "purpose": "Screen h1 on Onboarding and Settings."
-      },
-      "title": {
-        "displayName": "Title",
-        "purpose": "Section h2, dialog titles, and the dashboard top bar h1."
-      },
-      "title-small": {
-        "displayName": "Title Small",
-        "purpose": "h3: card and markdown headings."
-      },
-      "body": {
-        "displayName": "Body",
-        "purpose": "Default text; screens cap width at 44rem."
-      },
-      "body-small": {
-        "displayName": "Body Small",
-        "purpose": "Tables and field lists inside widgets."
-      },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Form labels, table headers, capability verbs."
-      },
-      "mono": {
-        "displayName": "Mono",
-        "purpose": "Code, pre, paths, hosts, executables, SHAs."
-      },
-      "mono-input": {
-        "displayName": "Mono Input",
-        "purpose": "All text inputs."
-      }
+      "headline": { "displayName": "Headline", "purpose": "Screen h1 on Onboarding and Settings." },
+      "title": { "displayName": "Title", "purpose": "Section h2, dialog titles, and the dashboard top bar h1." },
+      "title-small": { "displayName": "Title Small", "purpose": "h3: card and markdown headings." },
+      "body": { "displayName": "Body", "purpose": "Default text; screens cap width at 44rem." },
+      "body-small": { "displayName": "Body Small", "purpose": "Tables and field lists inside widgets." },
+      "label": { "displayName": "Label", "purpose": "Form labels, table headers, capability verbs, segmented options." },
+      "mono": { "displayName": "Mono", "purpose": "Code, pre, paths, hosts, executables, SHAs." },
+      "mono-input": { "displayName": "Mono Input", "purpose": "All text inputs." }
     },
-    "shadows": [],
+    "shadows": [
+      {
+        "name": "shadow-card",
+        "value": "0 1px 2px rgba(20,30,55,.05), 0 2px 6px rgba(20,30,55,.06)",
+        "purpose": "A widget at rest, lifting off the tinted page. Dark: 0 1px 2px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.30)."
+      },
+      {
+        "name": "shadow-pop",
+        "value": "0 12px 34px rgba(20,30,55,.16)",
+        "purpose": "Overlays (dialog, menu) and a widget on hover. Dark: 0 14px 38px rgba(0,0,0,.55)."
+      }
+    ],
+    "gradients": [
+      {
+        "name": "beam",
+        "value": "radial-gradient(120% 70% at 50% -20%, rgba(47,91,211,.10), transparent 60%)",
+        "purpose": "The one ambient lighthouse glow, fixed at the top of the app frame (body::before, ~220px). Dark uses rgba(107,140,255,.16). Never repeated per widget."
+      }
+    ],
     "motion": [
+      {
+        "name": "state-transition",
+        "value": "background-color/border-color/box-shadow/transform 150ms ease",
+        "purpose": "State changes on buttons, widgets, tabs and table rows. Inside prefers-reduced-motion: no-preference."
+      },
       {
         "name": "skeleton-pulse",
         "value": "pulse 1.2s ease-in-out infinite (opacity to 0.4 at 50%)",
-        "purpose": "Loading skeleton bars in widget states. The only motion in the system; a reduced-motion policy is still open."
+        "purpose": "Loading skeleton bars. Stilled under prefers-reduced-motion: reduce; the bars still read as loading."
       }
     ],
     "breakpoints": [
       {
         "name": "dashboard-collapse",
         "value": "900px",
-        "purpose": "Below this width the 12-column grid becomes a single column and widgets cap at 24rem."
+        "purpose": "Below this width the 12-column grid becomes one column, wide-screen side padding drops to 1rem, and top-level widgets cap at 24rem."
       }
     ],
     "scrims": [
-      {
-        "name": "dialog-backdrop",
-        "value": "rgb(0 0 0 / 40%)",
-        "purpose": "Behind in-app dialogs."
-      }
+      { "name": "dialog-backdrop", "value": "rgb(0 0 0 / 40%)", "purpose": "Behind in-app dialogs." }
     ],
     "focus": {
       "value": "2px solid var(--accent); outline-offset 1px",
-      "purpose": "All buttons and inputs on :focus-visible."
+      "purpose": "All buttons, inputs and segmented options on :focus-visible."
+    },
+    "themeOverride": {
+      "value": "data-theme=\"light|dark\" on <html>; absent/\"system\" follows prefers-color-scheme",
+      "purpose": "The Appearance control pins a theme over the OS; dark tokens apply under :root:not([data-theme=light]) in the media query and under :root[data-theme=dark] explicitly."
     }
   },
   "components": [
@@ -403,7 +252,7 @@
       "refersTo": "button-default",
       "description": "Quiet default for most actions: Sync now, Discard, Cancel.",
       "html": "<button class=\"ds-btn\">Sync now</button>",
-      "css": ".ds-btn{font:inherit;font-family:system-ui,-apple-system,sans-serif;padding:0.5rem 1rem;color:var(--fg,#1a1a1a);background:var(--surface,#f5f6f8);border:1px solid var(--border,#d8dce3);border-radius:var(--radius,6px);cursor:pointer}.ds-btn:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}.ds-btn:disabled{opacity:.5;cursor:default}"
+      "css": ".ds-btn{font:inherit;font-family:system-ui,-apple-system,sans-serif;padding:0.5rem 1rem;color:var(--fg,#1a1a1a);background:var(--surface,#fff);border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px);cursor:pointer;transition:background-color 150ms ease,border-color 150ms ease}.ds-btn:hover{background:var(--border,#dce1ea)}.ds-btn:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}.ds-btn:disabled{opacity:.5;cursor:default}"
     },
     {
       "name": "Primary Button",
@@ -411,39 +260,47 @@
       "refersTo": "button-primary",
       "description": "The single lit action per view: Connect, Approve and apply, Save.",
       "html": "<button class=\"ds-btn ds-btn-primary\">Approve and apply</button>",
-      "css": ".ds-btn{font:inherit;font-family:system-ui,-apple-system,sans-serif;padding:0.5rem 1rem;color:var(--fg,#1a1a1a);background:var(--surface,#f5f6f8);border:1px solid var(--border,#d8dce3);border-radius:var(--radius,6px);cursor:pointer}.ds-btn:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}.ds-btn:disabled{opacity:.5;cursor:default}.ds-btn-primary{color:var(--accent-fg,#fff);background:var(--accent,#2f5bd3);border-color:var(--accent,#2f5bd3)}"
+      "css": ".ds-btn{font:inherit;font-family:system-ui,-apple-system,sans-serif;padding:0.5rem 1rem;border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px);cursor:pointer}.ds-btn-primary{color:var(--accent-fg,#fff);background:var(--accent,#2f5bd3);border-color:var(--accent,#2f5bd3)}.ds-btn-primary:hover{filter:brightness(0.92)}.ds-btn-primary:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
     },
     {
       "name": "Link Button",
       "kind": "button",
       "refersTo": "button-link",
-      "description": "Boxless inline navigation such as Review the repo or Back.",
+      "description": "Boxless inline navigation such as Review the repo, Back, or the widget-header Remove.",
       "html": "<button class=\"ds-btn-link\">Review the repo</button>",
-      "css": ".ds-btn-link{font:inherit;font-family:system-ui,-apple-system,sans-serif;padding:0;border:none;background:none;color:var(--accent,#2f5bd3);cursor:pointer}.ds-btn-link:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
+      "css": ".ds-btn-link{font:inherit;font-family:system-ui,-apple-system,sans-serif;padding:0;border:none;background:none;color:var(--accent,#2f5bd3);cursor:pointer}.ds-btn-link:hover{text-decoration:underline}.ds-btn-link:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
     },
     {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Mono field with a stacked weight-500 label.",
+      "description": "Mono field, Open White so it stays crisp on the tinted page, with a stacked weight-500 label.",
       "html": "<label class=\"ds-label\">Repository URL<input class=\"ds-input\" value=\"git@gitlab.acme:platform/pharos.git\"></label>",
-      "css": ".ds-label{display:flex;flex-direction:column;gap:0.25rem;font-weight:500;font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a)}.ds-input{font:inherit;font-weight:400;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:0.9rem;padding:0.5rem;color:var(--fg,#1a1a1a);background:var(--bg,#fff);border:1px solid var(--border,#d8dce3);border-radius:var(--radius,6px)}.ds-input:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
+      "css": ".ds-label{display:flex;flex-direction:column;gap:0.25rem;font-weight:500;font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a)}.ds-input{font:inherit;font-weight:400;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:0.9rem;padding:0.5rem;color:var(--fg,#1a1a1a);background:var(--surface,#fff);border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px)}.ds-input:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
     },
     {
       "name": "Dashboard Tabs",
       "kind": "nav",
       "refersTo": "tab-active",
-      "description": "Dashboard switcher with a 2px Signal Blue underline on the current tab.",
+      "description": "Dashboard switcher: a 2px Signal Blue underline plus an accent wash on the current tab. Wraps to a second row in a narrow window.",
       "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">Home</button><button class=\"ds-tab\">Services</button><button class=\"ds-tab\">Pipelines</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:0.25rem;border-bottom:1px solid var(--border,#d8dce3);font-family:system-ui,-apple-system,sans-serif}.ds-tab{font:inherit;background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:0.5rem 1rem;color:var(--muted,#5f6672);cursor:pointer}.ds-tab[aria-current=page]{color:var(--fg,#1a1a1a);border-bottom-color:var(--accent,#2f5bd3);font-weight:600}.ds-tab:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
+      "css": ".ds-tabs{display:flex;flex-wrap:wrap;gap:0.25rem;row-gap:0;border-bottom:1px solid var(--border-soft,#e8ebf1);font-family:system-ui,-apple-system,sans-serif}.ds-tab{font:inherit;background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:0.5rem 1rem;color:var(--muted,#5f6672);cursor:pointer;transition:background-color 150ms ease,color 150ms ease}.ds-tab:hover{color:var(--fg,#1a1a1a)}.ds-tab[aria-current=page]{color:var(--fg,#1a1a1a);border-bottom-color:var(--accent,#2f5bd3);background:var(--accent-wash,rgba(47,91,211,.09));font-weight:600}.ds-tab:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
+    },
+    {
+      "name": "Theme Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented-option",
+      "description": "Appearance switcher: Light / Dark / System. Native radios styled as joined segments; the selected one takes the accent wash.",
+      "html": "<fieldset class=\"ds-seg\" aria-label=\"Theme\"><label><input type=\"radio\" name=\"t\">Light</label><label class=\"sel\"><input type=\"radio\" name=\"t\" checked>Dark</label><label><input type=\"radio\" name=\"t\">System</label></fieldset>",
+      "css": ".ds-seg{display:inline-flex;min-inline-size:0;margin:0;padding:2px;gap:2px;background:var(--surface,#fff);border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px);font-family:system-ui,-apple-system,sans-serif}.ds-seg label{display:inline-flex;align-items:center;padding:0.25rem 1rem;border-radius:4px;color:var(--muted,#5f6672);font-weight:500;white-space:nowrap;cursor:pointer}.ds-seg label.sel{background:var(--accent-wash,rgba(47,91,211,.09));color:var(--fg,#1a1a1a)}.ds-seg label:hover:not(.sel){color:var(--fg,#1a1a1a)}.ds-seg input{position:absolute;width:1px;height:1px;margin:0;opacity:0;pointer-events:none}"
     },
     {
       "name": "Widget Frame",
       "kind": "card",
       "refersTo": "widget-frame",
-      "description": "Mist-toned dashboard tile with a ruled header and a scrolling body.",
-      "html": "<section class=\"ds-widget\"><header class=\"ds-widget-head\"><strong>Service Catalog</strong></header><div class=\"ds-widget-body\"><table class=\"ds-table\"><tr><th>name</th><th>owner</th><th>tier</th></tr><tr><td>billing</td><td>payments</td><td>1</td></tr><tr><td>search</td><td>discovery</td><td>2</td></tr></table></div></section>",
-      "css": ".ds-widget{display:flex;flex-direction:column;background:var(--surface,#f5f6f8);border:1px solid var(--border,#d8dce3);border-radius:var(--radius,6px);font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a);max-width:28rem}.ds-widget-head{padding:0.5rem 1rem;border-bottom:1px solid var(--border,#d8dce3)}.ds-widget-body{padding:1rem;overflow:auto}.ds-table{width:100%;border-collapse:collapse;font-size:0.9rem}.ds-table th,.ds-table td{text-align:left;padding:0.25rem 0.5rem;border-bottom:1px solid var(--border,#d8dce3)}.ds-table th{font-weight:500;color:var(--muted,#5f6672)}"
+      "description": "Open White dashboard tile lifting off the page on a soft shadow, with a ruled header and a scrolling body; rises on hover.",
+      "html": "<section class=\"ds-widget\"><header class=\"ds-widget-head\"><strong>Service Catalog</strong></header><div class=\"ds-widget-body\"><table class=\"ds-table\"><thead><tr><th>name</th><th>owner</th><th>tier</th></tr></thead><tbody><tr><td>billing</td><td>payments</td><td>1</td></tr><tr><td>search</td><td>discovery</td><td>2</td></tr></tbody></table></div></section>",
+      "css": ".ds-widget{display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px);box-shadow:0 1px 2px rgba(20,30,55,.05),0 2px 6px rgba(20,30,55,.06);font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a);max-width:28rem;transition:box-shadow 150ms ease,border-color 150ms ease,transform 150ms ease}.ds-widget:hover{border-color:var(--accent-weak,rgba(47,91,211,.24));box-shadow:0 12px 34px rgba(20,30,55,.16);transform:translateY(-2px)}.ds-widget-head{padding:0.5rem 1rem;border-bottom:1px solid var(--border-soft,#e8ebf1)}.ds-widget-body{padding:1rem;overflow:auto}.ds-table{width:100%;border-collapse:collapse;font-size:0.9rem}.ds-table th,.ds-table td{text-align:left;padding:0.25rem 0.5rem;border-bottom:1px solid var(--border-soft,#e8ebf1)}.ds-table thead th{position:sticky;top:0;background:var(--surface-2,#f3f6fa);font-weight:500;color:var(--muted,#5f6672)}.ds-table tbody tr:hover{background:var(--surface-2,#f3f6fa)}"
     },
     {
       "name": "Danger Notice",
@@ -451,7 +308,7 @@
       "refersTo": "notice-danger",
       "description": "Error and lint-blocked state with a red heading and Ink body.",
       "html": "<div class=\"ds-notice ds-notice-danger\"><strong>git could not clone the repository</strong><p>repository '/tmp/nope' does not exist</p></div>",
-      "css": ".ds-notice{padding:1rem;border:1px solid var(--border,#d8dce3);border-radius:var(--radius,6px);background:var(--surface,#f5f6f8);font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a)}.ds-notice p{margin:0.5rem 0 0}.ds-notice-danger{border-color:var(--danger,#b42318);background:var(--danger-bg,#fdf1f0)}.ds-notice-danger>strong{color:var(--danger,#b42318)}"
+      "css": ".ds-notice{padding:1rem;border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px);background:var(--surface,#fff);font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a)}.ds-notice p{margin:0.5rem 0 0}.ds-notice-danger{border-color:var(--danger,#b42318);background:var(--danger-bg,#fdf1f0)}.ds-notice-danger>strong{color:var(--danger,#b42318)}"
     },
     {
       "name": "Capability List",
@@ -463,13 +320,14 @@
   ],
   "narrative": {
     "northStar": "The Harbour Light",
-    "overview": "Pharos is named after a lighthouse, and its interface works like one. The frame stays still and quiet so that one signal stands out. That signal is a single blue, kept for the places where the developer's attention belongs: the current tab, the one primary action on a screen, and the prompt that says a widget needs setup. Everything else is neutral: system type, pale tonal surfaces, thin fog-colored borders. The platform team's own content and data fill the frame; Pharos itself stays in the background.\n\nThis is an Operate-mode tool, used daily and at a glance, so density stays moderate and the layout is predictable. The aim for components is **soft and approachable**. Developers should feel the app is helping them, not auditing them, even on screens that ask for trust (capability consent, lint errors). Today that shows up as 6px corners, tonal surfaces in place of hard boxes, and gray default buttons. A future refinement may push the softness further.\n\n**This is a provisional baseline.** It accurately records the system as it stands at slice 5, which is still close to the scaffold. Tokens and the rules below hold until they are changed on purpose. These areas are explicitly open: the type scale (there's no display role, and headings use browser-default weights), how far the accent can extend beyond its current uses, a warning/caution color distinct from danger, and a reduced-motion policy.",
+    "overview": "Pharos is named after a lighthouse, and its interface works like one. The page is a cool tinted neutral, like water at dusk; the widgets are crisp white and lift off it toward a single soft beam at the top of the frame. One blue is the lamp, kept for the places where the developer's attention belongs: the current tab, the one primary action on a screen, and the prompt that says a widget needs setup. Everything else is quiet — system type, pale tonal surfaces, thin fog-colored borders. The platform team's own content and data fill the frame; Pharos itself stays in the background.\n\nThis is an Operate-mode tool, used daily and at a glance, so density stays moderate and the layout is predictable. The aim for components is soft and approachable — developers should feel the app is helping them, not auditing them, even on screens that ask for trust (capability consent, lint errors). That shows up as 6px corners, white widgets separated from the page by a single soft shadow, a low-alpha accent wash that marks the current place, and gentle 150ms transitions.\n\nDepth here is earned by inversion plus one shadow, not by boxes stacked on boxes. The page recedes, the widgets advance, and a single ambient beam gives the frame its one moment of atmosphere. The reduced-motion policy that earlier versions left open is now settled. Appearance follows the OS by default and can be pinned to light or dark from Settings.",
     "keyCharacteristics": [
-      "One accent (Signal Blue). Everything else is neutral or a state color.",
-      "Light and dark themes follow `prefers-color-scheme`, defined as token overrides on `:root`.",
+      "One accent (Signal Blue), now with a low-alpha wash (`accent-wash`) for the current place.",
+      "Inverted surfaces: a tinted page, white widgets that lift.",
+      "Light and dark follow `prefers-color-scheme`, overridable with `data-theme` on `<html>`.",
       "System UI type. Mono for anything a machine reads: inputs, paths, hosts, code.",
-      "Flat surfaces separated by tone and 1px borders. No shadows.",
-      "A single radius (6px) on every enclosed shape."
+      "One shadow family, for overlays and widget hover only. One ambient beam, app-level.",
+      "A single radius (6px) on every enclosed shape; 4px on segments nested inside one."
     ],
     "rules": [
       {
@@ -478,8 +336,13 @@
         "section": "colors"
       },
       {
+        "name": "The Halo Rule",
+        "body": "The accent may appear as a low-alpha wash (`accent-wash`) or weak border (`accent-weak`) in addition to its solid fill — but only where the One Lamp Rule already allows it: the current place (active tab, selected segment), a hovered widget, focus. Never as decoration, and never a second hue.",
+        "section": "colors"
+      },
+      {
         "name": "The Paired Theme Rule",
-        "body": "Each color token has a dark-mode value, overridden on `:root` under `prefers-color-scheme: dark`. A new color isn't finished until both values exist.",
+        "body": "Each color token has a dark-mode value. System appearance follows `prefers-color-scheme`; an explicit choice is pinned with `data-theme=\"light|dark\"` on `<html>`, which overrides the OS. A new color isn't finished until both values exist.",
         "section": "colors"
       },
       {
@@ -488,21 +351,27 @@
         "section": "typography"
       },
       {
-        "name": "The Tone Not Shadow Rule",
-        "body": "Separate a surface with a tonal step or a Fog Line border, never a shadow. If something needs to feel raised, it's an overlay and gets a scrim.",
+        "name": "The Tone First, One Shadow Rule",
+        "body": "Depth comes first from the surface inversion and a tonal step; a shadow is allowed only for overlays and widget hover, never elsewhere. If a resting surface needs separating, use tone and a Fog border, not a shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Beam Rule",
+        "body": "Exactly one ambient expression of the lighthouse, at the top of the app frame. Never repeated on a widget, a card or a section.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do use the existing tokens (`--accent`, `--surface`, `--border`, `--space-*`, `--radius`) rather than literal values, and define every new color for both themes.",
+      "Do use the tokens (`--accent`, `--accent-wash`, `--surface`, `--border`, `--border-soft`, `--shadow-card`, `--space-*`, `--radius`) rather than literal values, and define every new color for both themes.",
       "Do keep a single primary (Signal Blue) button per view. Make everything else a default or link button.",
+      "Do keep the page tinted and the widgets Open White, so widgets lift off the page.",
       "Do set paths, hosts, commands, SHAs and inputs in mono (`--mono`).",
-      "Do separate surfaces with a tonal step (Open White and Mist) and 1px Fog Line borders.",
       "Do reuse the shared widget states (empty, loading, error, needs setup) rather than designing new ones for each widget."
     ],
     "donts": [
-      "Don't add box shadows. Depth is tonal, and overlays get a scrim.",
-      "Don't introduce a second accent hue, or use Signal Blue for decoration.",
+      "Don't add a shadow outside the two allowed places (overlays, widget hover). Resting surfaces separate by tone and a Fog border.",
+      "Don't repeat the beam, or add a second ambient glow. It belongs once, at the top of the frame.",
+      "Don't introduce a second accent hue, or use Signal Blue — solid or washed — for decoration rather than to mark place, action or setup.",
       "Don't load remote fonts, icon fonts or CDN assets. The strict CSP allows only the app's own scripts and styles.",
       "Don't use browser `prompt()` or `alert()`. Use the in-app Dialog.",
       "Don't let the platform's branding replace the Pharos frame. Platform titles appear as content."
