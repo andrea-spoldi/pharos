@@ -344,7 +344,7 @@ pub async fn add_widget(
     dashboard_id: String,
     widget: String,
 ) -> CmdResult<DashboardView> {
-    with_engine(state, move |e| e.add_widget(&dashboard_id, &widget)).await
+    with_engine(state, move |e| e.add_widget(&dashboard_id, &widget, None)).await
 }
 
 #[tauri::command]

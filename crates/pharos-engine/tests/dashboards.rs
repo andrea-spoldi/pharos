@@ -149,7 +149,7 @@ fn compose_and_persist() {
     assert_eq!(created.metadata.name, "my-home");
     assert_eq!(created.metadata.title.as_deref(), Some("My Home"));
     assert!(created.editable);
-    engine.add_widget("u:1", "service-catalog").unwrap();
+    engine.add_widget("u:1", "service-catalog", None).unwrap();
     drop(engine);
 
     let engine = Engine::open(&f.data).unwrap();
@@ -182,15 +182,15 @@ fn add_widget_places_below_with_default_size() {
     let f = Fixture::new();
     let mut engine = f.synced_engine();
     engine.create_dashboard("A").unwrap();
-    engine.add_widget("u:1", "service-catalog").unwrap();
-    let view = engine.add_widget("u:1", "welcome").unwrap();
+    engine.add_widget("u:1", "service-catalog", None).unwrap();
+    let view = engine.add_widget("u:1", "welcome", None).unwrap();
     let [first, second] = &view.placements[..] else {
         panic!("two placements")
     };
     assert_eq!((first.y, first.h), (0, 4));
     assert_eq!((second.x, second.y), (0, 4));
     assert!(matches!(
-        engine.add_widget("u:1", "nope"),
+        engine.add_widget("u:1", "nope", None),
         Err(pharos_engine::EngineError::UnknownWidget(_))
     ));
 }
@@ -200,7 +200,7 @@ fn missing_widget_in_user_dashboard_is_missing() {
     let f = Fixture::new();
     let mut engine = f.synced_engine();
     engine.create_dashboard("A").unwrap();
-    engine.add_widget("u:1", "welcome").unwrap();
+    engine.add_widget("u:1", "welcome", None).unwrap();
     // Remove the widget from the repo (and from home, which places it).
     f.remove("widgets/welcome");
     let home = std::fs::read_to_string(f.origin.join("dashboards/home.yaml")).unwrap();
@@ -258,8 +258,8 @@ fn remove_widget_returns_fresh_view() {
     let f = Fixture::new();
     let mut engine = f.synced_engine();
     engine.create_dashboard("A").unwrap();
-    engine.add_widget("u:1", "service-catalog").unwrap();
-    let view = engine.add_widget("u:1", "welcome").unwrap();
+    engine.add_widget("u:1", "service-catalog", None).unwrap();
+    let view = engine.add_widget("u:1", "welcome", None).unwrap();
     let doomed = view.placements[0].id.unwrap();
 
     let fresh = engine.remove_widget("u:1", doomed).unwrap();
@@ -274,7 +274,7 @@ fn delete_dashboard_cascades() {
     let f = Fixture::new();
     let mut engine = f.synced_engine();
     engine.create_dashboard("A").unwrap();
-    engine.add_widget("u:1", "welcome").unwrap();
+    engine.add_widget("u:1", "welcome", None).unwrap();
     engine.delete_dashboard("u:1").unwrap();
     assert!(user_ids(&engine).is_empty());
     let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
@@ -291,7 +291,7 @@ fn platform_dashboards_cannot_be_mutated_and_rename_works() {
     engine.create_dashboard("A").unwrap();
     assert!(engine.rename_dashboard("p:home", "x").is_err());
     assert!(engine.delete_dashboard("p:home").is_err());
-    assert!(engine.add_widget("p:home", "welcome").is_err());
+    assert!(engine.add_widget("p:home", "welcome", None).is_err());
     assert!(engine.remove_widget("p:home", 1).is_err());
     assert!(engine.delete_dashboard("u:42").is_err());
 
@@ -413,4 +413,81 @@ fn an_empty_user_group_is_a_static_container() {
     let group = &view.placements[0];
     assert!(group.container && group.children.is_empty());
     assert_eq!(group.status, PlacementStatus::Static);
+}
+
+#[test]
+fn create_group_adds_an_empty_titled_container() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let view = engine.create_group("u:1", "Infra", None).unwrap();
+    let [group] = &view.placements[..] else {
+        panic!("one placement")
+    };
+    assert!(group.container && group.children.is_empty());
+    assert_eq!(group.title.as_deref(), Some("Infra"));
+    assert!(group.id.is_some());
+    assert!(engine.create_group("u:1", "  ", None).is_err());
+}
+
+#[test]
+fn add_widget_into_a_group_nests_it() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let view = engine.create_group("u:1", "Infra", None).unwrap();
+    let gid = view.placements[0].id.unwrap();
+    engine
+        .add_widget("u:1", "service-catalog", Some(gid))
+        .unwrap();
+    let view = engine.add_widget("u:1", "welcome", Some(gid)).unwrap();
+    assert_eq!(view.placements.len(), 1);
+    let kids = &view.placements[0].children;
+    assert_eq!(kids.len(), 2);
+    assert!(kids.iter().all(|k| k.id.is_some()));
+    assert_eq!((kids[0].y, kids[0].h), (0, 4));
+    assert_eq!(kids[1].y, 4);
+}
+
+#[test]
+fn rename_placement_changes_a_group_title() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let view = engine.create_group("u:1", "Infra", None).unwrap();
+    let gid = view.placements[0].id.unwrap();
+    let view = engine.rename_placement("u:1", gid, "K8s").unwrap();
+    assert_eq!(view.placements[0].title.as_deref(), Some("K8s"));
+    assert!(engine.rename_placement("u:1", 9999, "x").is_err());
+}
+
+#[test]
+fn remove_widget_removes_a_nested_group_and_members() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let view = engine.create_group("u:1", "Infra", None).unwrap();
+    let gid = view.placements[0].id.unwrap();
+    engine.add_widget("u:1", "welcome", Some(gid)).unwrap();
+    let view = engine.remove_widget("u:1", gid).unwrap();
+    assert!(view.placements.is_empty());
+    // And a nested member can be removed on its own.
+    let view = engine.create_group("u:1", "Again", None).unwrap();
+    let gid = view.placements[0].id.unwrap();
+    let view = engine.add_widget("u:1", "welcome", Some(gid)).unwrap();
+    let member = view.placements[0].children[0].id.unwrap();
+    let view = engine.remove_widget("u:1", member).unwrap();
+    assert_eq!(view.placements.len(), 1);
+    assert!(view.placements[0].children.is_empty());
+}
+
+#[test]
+fn add_widget_rejects_an_unknown_parent() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    assert!(matches!(
+        engine.add_widget("u:1", "welcome", Some(9999)),
+        Err(pharos_engine::EngineError::UnknownPlacement { .. })
+    ));
 }

@@ -220,8 +220,9 @@ export type PlacementStatus =
 
 export type PlacementView = {
 	/**
-	 *  Row id of a user dashboard's top-level placement (what `remove_widget` takes);
-	 *  `None` for platform placements and expanded children.
+	 *  Row id of a user dashboard's placement at any depth, groups and their members
+	 *  included (what `remove_widget`/`rename_placement` take); `None` for platform
+	 *  placements and the children a composite widget expands into.
 	 */
 	id: number | null,
 	widget: string,
