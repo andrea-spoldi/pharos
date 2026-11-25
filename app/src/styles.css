@@ -497,7 +497,7 @@ h3 {
 }
 
 /* A user group reads as a frame around its members: a dashed edge, not a second card. */
-.widget.group {
+.widget.widget-group {
   border-style: dashed;
 }
 

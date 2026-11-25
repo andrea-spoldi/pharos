@@ -533,4 +533,40 @@ mod tests {
         let row = placements_of(&conn, dash).unwrap().remove(0);
         assert_eq!(row.title.as_deref(), Some("Renamed"));
     }
+
+    #[test]
+    fn migrating_004_over_populated_003_data_preserves_placements() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        // The pre-004 (slice 8a) schema.
+        MIGRATIONS.to_version(&mut conn, 3).unwrap();
+        conn.execute(
+            "INSERT INTO dashboards (id, name, title) VALUES (1, 'd', 'D')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO placements (id, dashboard_id, parent_id, widget, x, y, w, h, position, inputs)
+             VALUES (10, 1, NULL, 'alpha', 0, 0, 6, 2, 0, '{\"k\":\"v\"}'),
+                    (11, 1, NULL, 'beta', 6, 0, 6, 2, 1, '{}')",
+            [],
+        )
+        .unwrap();
+
+        MIGRATIONS.to_latest(&mut conn).unwrap();
+
+        let rows = placements_of(&conn, 1).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].id, 10);
+        assert_eq!(rows[0].widget.as_deref(), Some("alpha"));
+        assert_eq!(rows[0].title, None);
+        assert_eq!(rows[0].inputs, "{\"k\":\"v\"}");
+        assert_eq!((rows[0].x, rows[0].w, rows[0].h), (0, 6, 2));
+        assert_eq!(rows[1].widget.as_deref(), Some("beta"));
+        assert_eq!(rows[1].title, None);
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM placements", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 2);
+    }
 }

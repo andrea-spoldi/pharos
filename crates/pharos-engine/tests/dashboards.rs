@@ -638,3 +638,51 @@ fn customize_copies_a_container_as_one_row() {
     assert_eq!(pair.children.len(), 2);
     assert!(pair.children.iter().all(|c| c.id.is_none()));
 }
+
+#[test]
+fn customize_copies_each_placements_inputs() {
+    let f = Fixture::new();
+    f.write(
+        "dashboards/withinputs.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Dashboard\n\
+         metadata: { name: withinputs, title: With inputs }\n\
+         spec:\n  widgets:\n    \
+         - { widget: my-pipelines, x: 0, y: 0, w: 6, h: 2, inputs: { project: \"42\" } }\n",
+    );
+    f.commit("inputs dashboard");
+    let mut engine = f.synced_engine();
+
+    let view = engine.customize_dashboard("p:withinputs").unwrap();
+
+    let conn = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
+    let id = view.placements[0].id.expect("a user row id");
+    let stored: String = conn
+        .query_row("SELECT inputs FROM placements WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let stored: serde_json::Value = serde_json::from_str(&stored).unwrap();
+    assert_eq!(stored, serde_json::json!({ "project": "42" }));
+}
+
+#[test]
+fn customize_a_blank_titled_platform_dashboard_falls_back_to_the_slug() {
+    let f = Fixture::new();
+    f.write(
+        "dashboards/blank.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Dashboard\nmetadata: { name: blank, title: \"  \" }\n\
+         spec:\n  widgets: []\n",
+    );
+    f.write(
+        "dashboards/empty-title.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Dashboard\nmetadata: { name: empty-title, title: \"\" }\n\
+         spec:\n  widgets: []\n",
+    );
+    f.commit("blank titles");
+    let mut engine = f.synced_engine();
+
+    let blank = engine.customize_dashboard("p:blank").unwrap();
+    assert_eq!(blank.metadata.title.as_deref(), Some("blank"));
+    let empty = engine.customize_dashboard("p:empty-title").unwrap();
+    assert_eq!(empty.metadata.title.as_deref(), Some("empty-title"));
+}

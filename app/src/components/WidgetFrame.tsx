@@ -56,8 +56,6 @@ export function WidgetFrame(props: {
   version: number;
   /** The platform's label for an input key ("Your team"), if it declares one. */
   inputLabel?: (key: string) => string | null | undefined;
-  /** Present only where the user may take this placement off its dashboard. */
-  onRemove?: () => void;
   /** Compose affordances, threaded down so a group's members can be removed too. */
   edit?: WidgetEdit;
 }) {
@@ -77,7 +75,6 @@ export function WidgetFrame(props: {
     return e?.editable && id !== null ? { e, id } : undefined;
   };
   const remove = () => {
-    if (props.onRemove) return props.onRemove;
     const ed = editing();
     return ed ? () => ed.e.onRemove(ed.id, heading()) : undefined;
   };
@@ -89,7 +86,7 @@ export function WidgetFrame(props: {
   };
 
   return (
-    <article class="widget" classList={{ group: p().container }} style={style()}>
+    <article class="widget" classList={{ "widget-group": p().container }} style={style()}>
       <header class="widget-head">
         <strong>{p().title ?? p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
         <span class="widget-actions">

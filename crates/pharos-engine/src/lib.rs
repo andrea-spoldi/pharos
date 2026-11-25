@@ -438,7 +438,13 @@ impl Engine {
             .into_iter()
             .find(|d| d.metadata.name == name)
             .ok_or_else(|| EngineError::UnknownDashboard(platform_id.into()))?;
-        let title = template.metadata.title.as_deref().unwrap_or(&name);
+        // A blank title counts as absent: Customize seeds, it never errors on a degenerate one.
+        let title = template
+            .metadata
+            .title
+            .as_deref()
+            .filter(|t| !t.trim().is_empty())
+            .unwrap_or(&name);
         let created = self.create_dashboard(title)?;
         let row_id = self.user_dashboard_id(&created.id)?;
         for (position, p) in template.spec.widgets.iter().enumerate() {
