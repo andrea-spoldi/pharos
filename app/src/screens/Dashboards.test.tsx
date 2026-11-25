@@ -279,7 +279,7 @@ describe("Dashboards compose", () => {
     expect(within(dialog).getByRole("button", { name: /pair/ })).toBeTruthy();
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), one]));
     fireEvent.click(within(dialog).getByRole("button", { name: /Welcome/ }));
-    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome"));
+    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome", null));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove welcome" }));

@@ -43,6 +43,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::rename_dashboard,
             commands::delete_dashboard,
             commands::add_widget,
+            commands::create_group,
+            commands::rename_placement,
+            commands::customize_dashboard,
             commands::remove_widget,
             commands::set_landing,
         ])

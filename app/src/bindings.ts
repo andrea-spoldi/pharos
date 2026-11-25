@@ -57,7 +57,10 @@ export const commands = {
 	createDashboard: (title: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("create_dashboard", { title })),
 	renameDashboard: (id: string, title: string) => typedError<null, CommandError>(__TAURI_INVOKE("rename_dashboard", { id, title })),
 	deleteDashboard: (id: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_dashboard", { id })),
-	addWidget: (dashboardId: string, widget: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("add_widget", { dashboardId, widget })),
+	addWidget: (dashboardId: string, widget: string, parentId: number | null) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("add_widget", { dashboardId, widget, parentId })),
+	createGroup: (dashboardId: string, title: string, parentId: number | null) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("create_group", { dashboardId, title, parentId })),
+	renamePlacement: (dashboardId: string, placementId: number, title: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("rename_placement", { dashboardId, placementId, title })),
+	customizeDashboard: (platformId: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("customize_dashboard", { platformId })),
 	removeWidget: (dashboardId: string, placementId: number) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("remove_widget", { dashboardId, placementId })),
 	setLanding: (dashboardId: string | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_landing", { dashboardId })),
 };

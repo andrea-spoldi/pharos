@@ -249,7 +249,7 @@ export function DashboardToolbar(props: {
               open={open() === "add"}
               onClose={close}
               onPick={async (widget) => {
-                await unwrap(commands.addWidget(d().id, widget));
+                await unwrap(commands.addWidget(d().id, widget, null));
                 props.onChanged();
               }}
             />
