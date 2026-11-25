@@ -354,3 +354,63 @@ fn over_deep_container_chain_is_not_available_not_a_stack_overflow() {
     assert!(matches!(node.status, PlacementStatus::NotAvailable { .. }));
     assert!(node.children.is_empty());
 }
+
+/// Inserts a group (no widget) and optionally a widget child under it into user
+/// dashboard 1 straight through SQLite (no engine API creates groups yet).
+fn insert_group(f: &Fixture, with_member: bool) {
+    let conn = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
+    conn.execute(
+        "INSERT INTO placements (dashboard_id, parent_id, widget, title, x, y, w, h, position, inputs)
+         VALUES (1, NULL, NULL, 'My K8s', 0, 0, 12, 4, 0, '{}')",
+        [],
+    )
+    .unwrap();
+    if with_member {
+        let gid = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO placements (dashboard_id, parent_id, widget, title, x, y, w, h, position, inputs)
+             VALUES (1, ?1, 'service-catalog', NULL, 0, 0, 6, 2, 0, '{}')",
+            [gid],
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn a_user_group_becomes_a_titled_container_with_children_and_ids() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    insert_group(&f, true);
+    let view = engine
+        .dashboards()
+        .unwrap()
+        .into_iter()
+        .find(|d| d.id == "u:1")
+        .unwrap();
+    let group = &view.placements[0];
+    assert!(group.container);
+    assert_eq!(group.title.as_deref(), Some("My K8s"));
+    assert!(group.id.is_some());
+    assert!(group.manifest.is_none());
+    assert_eq!(group.children.len(), 1);
+    assert!(group.children[0].id.is_some());
+    assert_eq!(group.status, PlacementStatus::Runnable);
+}
+
+#[test]
+fn an_empty_user_group_is_a_static_container() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    insert_group(&f, false);
+    let view = engine
+        .dashboards()
+        .unwrap()
+        .into_iter()
+        .find(|d| d.id == "u:1")
+        .unwrap();
+    let group = &view.placements[0];
+    assert!(group.container && group.children.is_empty());
+    assert_eq!(group.status, PlacementStatus::Static);
+}

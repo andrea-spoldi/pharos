@@ -33,6 +33,10 @@ pub struct PlacementView {
     /// `None` for platform placements and expanded children.
     pub id: Option<u32>,
     pub widget: String,
+    /// True for a placement that holds children: a composite widget or a user group.
+    pub container: bool,
+    /// A user group's title; `None` for widget placements (the frontend uses the manifest title).
+    pub title: Option<String>,
     pub x: u32,
     pub y: u32,
     pub w: u32,
@@ -339,6 +343,8 @@ mod tests {
         PlacementView {
             id: None,
             widget: "c".into(),
+            container: false,
+            title: None,
             x: 0,
             y: 0,
             w: 1,

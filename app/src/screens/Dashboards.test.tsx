@@ -31,6 +31,8 @@ function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView
     metadata: { name, title: name[0].toUpperCase() + name.slice(1), version: null, description: null },
     placements: widgets.map((w, i) => ({
       widget: w,
+      container: false,
+      title: null,
       x: 0,
       y: i * 2,
       w: 4,
@@ -67,6 +69,8 @@ function runnableHome(): DashboardView {
     placements: [
       {
         widget: "service-catalog",
+        container: false,
+        title: null,
         x: 0,
         y: 0,
         w: 8,

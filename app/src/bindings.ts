@@ -225,6 +225,10 @@ export type PlacementView = {
 	 */
 	id: number | null,
 	widget: string,
+	/**  True for a placement that holds children: a composite widget or a user group. */
+	container: boolean,
+	/**  A user group's title; `None` for widget placements (the frontend uses the manifest title). */
+	title: string | null,
 	x: number,
 	y: number,
 	w: number,

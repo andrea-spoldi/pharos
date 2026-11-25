@@ -30,6 +30,8 @@ function placement(
 ): PlacementView {
   return {
     widget: "service-catalog",
+    container: false,
+    title: null,
     x: 0,
     y: 0,
     w: 8,

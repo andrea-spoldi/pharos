@@ -307,12 +307,12 @@ impl Engine {
         setup: &SetupState,
         row: db::DashboardRow,
     ) -> Result<DashboardView> {
-        let mut placements = Vec::new();
-        for r in top_level(db::placements_of(&self.conn, row.id)?) {
-            let mut view = self.placement_view(source, root, setup, &placement_of(&r), 0)?;
-            view.id = Some(r.id as u32);
-            placements.push(view);
-        }
+        let rows = db::placements_of(&self.conn, row.id)?;
+        let placements = rows
+            .iter()
+            .filter(|r| r.parent_id.is_none())
+            .map(|r| self.user_placement_view(source, root, setup, &rows, r, 0))
+            .collect::<Result<Vec<_>>>()?;
         Ok(DashboardView {
             id: format!("u:{}", row.id),
             origin: Origin::User,
@@ -324,6 +324,48 @@ impl Engine {
                 description: None,
             },
             placements,
+        })
+    }
+
+    /// One user placement: a widget row goes through the manifest path (its expanded
+    /// children are the composite's own parts, so they stay id-less); a group row (no
+    /// widget) is a titled container of the rows whose `parent_id` is its id.
+    fn user_placement_view(
+        &self,
+        source: &Source,
+        root: &Path,
+        setup: &SetupState,
+        rows: &[db::PlacementRow],
+        row: &db::PlacementRow,
+        depth: usize,
+    ) -> Result<PlacementView> {
+        if row.widget.is_some() {
+            let mut view = self.placement_view(source, root, setup, &placement_of(row), 0)?;
+            view.id = Some(row.id as u32);
+            return Ok(view);
+        }
+        let children = if depth >= MAX_PLACEMENT_DEPTH {
+            Vec::new()
+        } else {
+            rows.iter()
+                .filter(|c| c.parent_id == Some(row.id))
+                .map(|c| self.user_placement_view(source, root, setup, rows, c, depth + 1))
+                .collect::<Result<Vec<_>>>()?
+        };
+        let status = dashboard::container_status(true, &children);
+        Ok(PlacementView {
+            id: Some(row.id as u32),
+            widget: String::new(),
+            container: true,
+            title: row.title.clone(),
+            x: row.x,
+            y: row.y,
+            w: row.w,
+            h: row.h,
+            manifest: None,
+            status,
+            reads: None,
+            children,
         })
     }
 
@@ -482,14 +524,15 @@ impl Engine {
         let manifest = stored.as_ref().map(|(_, json)| {
             serde_json::from_str::<Widget>(json).expect("stored manifests are valid JSON")
         });
-        if depth >= MAX_PLACEMENT_DEPTH
-            && manifest
-                .as_ref()
-                .is_some_and(|w| !w.spec.widgets.is_empty())
-        {
+        let is_container = manifest
+            .as_ref()
+            .is_some_and(|w| !w.spec.widgets.is_empty());
+        if depth >= MAX_PLACEMENT_DEPTH && is_container {
             return Ok(PlacementView {
                 id: None,
                 widget: p.widget.clone(),
+                container: is_container,
+                title: None,
                 x: p.x,
                 y: p.y,
                 w: p.w,
@@ -511,9 +554,6 @@ impl Engine {
                 .collect::<Result<Vec<_>>>()?,
             None => Vec::new(),
         };
-        let is_container = manifest
-            .as_ref()
-            .is_some_and(|w| !w.spec.widgets.is_empty());
         let status = if is_container || manifest.is_none() {
             dashboard::container_status(manifest.is_some(), &children)
         } else {
@@ -528,6 +568,8 @@ impl Engine {
         Ok(PlacementView {
             id: None,
             widget: p.widget.clone(),
+            container: is_container,
+            title: None,
             x: p.x,
             y: p.y,
             w: p.w,
