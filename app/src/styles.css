@@ -404,6 +404,12 @@ h3 {
   gap: var(--space-2);
 }
 
+/* The Remove link sits inline with the title here, not below content: drop the stacked
+   link's top margin so it stays centered in the header. */
+.widget-head .link {
+  margin-top: 0;
+}
+
 /* A container's parts lay out on their own 12-column grid inside its body. */
 .subgrid {
   grid-auto-rows: 64px;
@@ -411,7 +417,6 @@ h3 {
 
 .catalog-list {
   position: static;
-  box-shadow: none;
   max-height: 20rem;
   overflow: auto;
 }
@@ -554,6 +559,14 @@ pre.raw {
   }
 }
 
+/* Reduced motion: hold the skeleton bars still. They still read as "loading" with
+   aria-busy and the visible bars; only the pulse is dropped. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton span {
+    animation: none;
+  }
+}
+
 /* Markdown headings start at h3 under the widget title; size them as body-weight labels
    rather than the browser's shrinking h5/h6 defaults. */
 .markdown :is(h3, h4, h5, h6) {
@@ -571,6 +584,11 @@ pre.raw {
   .widget {
     grid-column: auto !important;
     grid-row: auto !important;
+  }
+
+  /* Cap only top-level placements. A composite's children size to content and scroll
+     once, inside their parent's capped body — never a scroll box within a scroll box. */
+  .grid:not(.subgrid) > .widget {
     max-height: 24rem;
   }
 }

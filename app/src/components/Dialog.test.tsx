@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { Dialog } from "./Dialog";
 
@@ -25,5 +26,50 @@ describe("Dialog", () => {
     expect(document.activeElement).toBe(dialog);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("traps Tab inside the dialog, wrapping at both ends", () => {
+    render(() => (
+      <Dialog
+        title="Pick"
+        open={true}
+        onClose={() => {}}
+        actions={
+          <>
+            <button type="button">Cancel</button>
+            <button type="button">OK</button>
+          </>
+        }
+      >
+        <p>Body</p>
+      </Dialog>
+    ));
+    const [cancel, ok] = screen.getAllByRole("button");
+    // Tab off the last control wraps to the first.
+    ok.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(cancel);
+    // Shift+Tab off the first wraps to the last.
+    cancel.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(ok);
+  });
+
+  it("returns focus to whatever opened it when it closes", () => {
+    const [open, setOpen] = createSignal(false);
+    render(() => (
+      <>
+        <button type="button">Opener</button>
+        <Dialog title="Pick" open={open()} onClose={() => setOpen(false)} actions={<button type="button">OK</button>}>
+          <p>Body</p>
+        </Dialog>
+      </>
+    ));
+    const opener = screen.getByRole("button", { name: "Opener" });
+    opener.focus();
+    setOpen(true);
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+    setOpen(false);
+    expect(document.activeElement).toBe(opener);
   });
 });
