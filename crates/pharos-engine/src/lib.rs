@@ -408,7 +408,19 @@ impl Engine {
         let rows = top_level(db::placements_of(&self.conn, row_id)?);
         let y = rows.iter().map(|r| r.y + r.h).max().unwrap_or(0);
         let position = rows.iter().map(|r| r.position + 1).max().unwrap_or(0);
-        db::insert_placement(&self.conn, row_id, None, widget, 0, y, w, h, position, "{}")?;
+        db::insert_placement(
+            &self.conn,
+            row_id,
+            None,
+            Some(widget),
+            None,
+            0,
+            y,
+            w,
+            h,
+            position,
+            "{}",
+        )?;
         self.user_view_by_id(row_id)
     }
 
@@ -1008,7 +1020,7 @@ fn top_level(rows: Vec<db::PlacementRow>) -> Vec<db::PlacementRow> {
 
 fn placement_of(row: &db::PlacementRow) -> Placement {
     Placement {
-        widget: row.widget.clone(),
+        widget: row.widget.clone().unwrap_or_default(),
         x: row.x,
         y: row.y,
         w: row.w,
