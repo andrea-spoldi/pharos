@@ -425,6 +425,41 @@ impl Engine {
         self.user_view_by_id(id)
     }
 
+    /// Creates a user dashboard titled after the platform dashboard `platform_id` and
+    /// seeds it with copies of that dashboard's own placements (widget, geometry,
+    /// inputs). A container widget is copied as one row referencing it by name; it
+    /// re-expands from the manifest at render time, so no nesting is copied.
+    pub fn customize_dashboard(&mut self, platform_id: &str) -> Result<DashboardView> {
+        let DashboardId::Platform(name) = parse_id(platform_id)? else {
+            return Err(EngineError::UnknownDashboard(platform_id.into()));
+        };
+        let template = self
+            .dashboard_templates()?
+            .into_iter()
+            .find(|d| d.metadata.name == name)
+            .ok_or_else(|| EngineError::UnknownDashboard(platform_id.into()))?;
+        let title = template.metadata.title.as_deref().unwrap_or(&name);
+        let created = self.create_dashboard(title)?;
+        let row_id = self.user_dashboard_id(&created.id)?;
+        for (position, p) in template.spec.widgets.iter().enumerate() {
+            let inputs = serde_json::to_string(&p.inputs).expect("string maps serialize");
+            db::insert_placement(
+                &self.conn,
+                row_id,
+                None,
+                Some(&p.widget),
+                None,
+                p.x,
+                p.y,
+                p.w,
+                p.h,
+                position as i64,
+                &inputs,
+            )?;
+        }
+        self.user_view_by_id(row_id)
+    }
+
     pub fn rename_dashboard(&mut self, id: &str, title: &str) -> Result<()> {
         let row_id = self.user_dashboard_id(id)?;
         let title = title.trim();

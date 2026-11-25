@@ -547,3 +547,94 @@ fn a_group_nested_past_the_depth_limit_is_not_available() {
     );
     assert!(node.children.is_empty());
 }
+
+#[test]
+fn customize_seeds_a_user_dashboard_from_a_platform_one() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    let platform = engine.dashboards().unwrap().remove(0);
+    assert_eq!(platform.id, "p:home");
+
+    let view = engine.customize_dashboard("p:home").unwrap();
+
+    assert_eq!(view.origin, Origin::User);
+    assert!(view.editable);
+    assert_eq!(view.metadata.title, platform.metadata.title);
+    assert_eq!(view.placements.len(), platform.placements.len());
+    for (copy, orig) in view.placements.iter().zip(&platform.placements) {
+        assert_eq!(copy.widget, orig.widget);
+        assert_eq!(
+            (copy.x, copy.y, copy.w, copy.h),
+            (orig.x, orig.y, orig.w, orig.h)
+        );
+        assert!(copy.id.is_some());
+    }
+    // The platform dashboard is untouched and the copy is listed.
+    assert!(engine.dashboards().unwrap().iter().any(|d| d.id == view.id));
+}
+
+#[test]
+fn customize_twice_makes_two_independent_dashboards() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    let a = engine.customize_dashboard("p:home").unwrap();
+    let b = engine.customize_dashboard("p:home").unwrap();
+    assert_ne!(a.id, b.id);
+    assert_ne!(a.metadata.name, b.metadata.name);
+    engine.delete_dashboard(&a.id).unwrap();
+    let after = engine.dashboards().unwrap();
+    let kept = after.iter().find(|d| d.id == b.id).unwrap();
+    assert_eq!(kept.placements.len(), b.placements.len());
+}
+
+#[test]
+fn customize_an_unknown_or_empty_platform_dashboard() {
+    let f = Fixture::new();
+    f.write(
+        "dashboards/empty.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Dashboard\nmetadata: { name: empty }\n\
+         spec:\n  widgets: []\n",
+    );
+    f.commit("empty dashboard");
+    let mut engine = f.synced_engine();
+
+    assert!(matches!(
+        engine.customize_dashboard("p:does-not-exist"),
+        Err(pharos_engine::EngineError::UnknownDashboard(_))
+    ));
+    assert!(engine.customize_dashboard("u:1").is_err());
+    assert!(engine.customize_dashboard("garbage").is_err());
+    let view = engine.customize_dashboard("p:empty").unwrap();
+    assert_eq!(view.origin, Origin::User);
+    assert!(view.placements.is_empty());
+    assert_eq!(view.metadata.title.as_deref(), Some("empty"));
+}
+
+#[test]
+fn customize_copies_a_container_as_one_row() {
+    let f = Fixture::new();
+    f.write("widgets/leaf-a/widget.yaml", &leaf("leaf-a"));
+    f.write("widgets/leaf-b/widget.yaml", &leaf("leaf-b"));
+    f.write(
+        "widgets/pair/widget.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: { name: pair }\n\
+         spec:\n  widgets:\n    - { widget: leaf-a, x: 0, y: 0, w: 6, h: 2 }\n    \
+         - { widget: leaf-b, x: 6, y: 0, w: 6, h: 2 }\n",
+    );
+    f.write(
+        "dashboards/duo.yaml",
+        "apiVersion: pharos.io/v1alpha1\nkind: Dashboard\nmetadata: { name: duo, title: Duo }\n\
+         spec:\n  widgets:\n    - { widget: pair, x: 0, y: 0, w: 12, h: 2 }\n",
+    );
+    f.commit("duo");
+    let mut engine = f.synced_engine();
+
+    let view = engine.customize_dashboard("p:duo").unwrap();
+
+    assert_eq!(view.placements.len(), 1);
+    let pair = &view.placements[0];
+    assert_eq!(pair.widget, "pair");
+    // Re-expanded from the manifest, so the children carry no row ids of their own.
+    assert_eq!(pair.children.len(), 2);
+    assert!(pair.children.iter().all(|c| c.id.is_none()));
+}
