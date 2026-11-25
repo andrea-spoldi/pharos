@@ -250,6 +250,7 @@ describe("WidgetFrame", () => {
             metadata: { name: "pair", title: "Pair", version: null, description: null },
             spec: { source: null, refresh: null, inputs: {}, view: null, permissions: { hosts: [] } },
           },
+          container: true,
           children: [child("one", [0]), child("two", [1])],
         })}
         version={0}
@@ -268,7 +269,7 @@ describe("WidgetFrame", () => {
     render(() => (
       <WidgetFrame
         slot={{ dashboardId: "p:home", path: [3] }}
-        placement={placement({ widget: "pair", children: [leaf("a"), leaf("b")] })}
+        placement={placement({ widget: "pair", container: true, children: [leaf("a"), leaf("b")] })}
         version={0}
       />
     ));
@@ -288,5 +289,43 @@ describe("WidgetFrame", () => {
       />
     ));
     expect(screen.getByText("No view")).toBeTruthy();
+  });
+
+  describe("user groups", () => {
+    const edit = () => ({ editable: true, onAdd: vi.fn(), onRename: vi.fn(), onRemove: vi.fn() });
+    const group = (over: Partial<PlacementView>) =>
+      placement({ widget: "group", container: true, title: "Ops", manifest: null, status: { kind: "static" }, reads: null, id: 7, ...over });
+
+    it("renders an empty group as a titled sub-grid with an Add widget control", () => {
+      const e = edit();
+      render(() => <WidgetFrame slot={slot} placement={group({ children: [] })} version={0} edit={e} />);
+      const sub = screen.getByRole("region", { name: "Ops" });
+      expect(sub.classList.contains("subgrid")).toBe(true);
+      expect(screen.getByText("Ops", { selector: "header *" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Add widget to Ops" }));
+      expect(e.onAdd).toHaveBeenCalledWith(7);
+      expect(screen.queryByText("No view")).toBeNull();
+    });
+
+    it("offers no group controls when not editing", () => {
+      render(() => <WidgetFrame slot={slot} placement={group({ children: [] })} version={0} />);
+      expect(screen.getByRole("region", { name: "Ops" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Add widget/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Rename/ })).toBeNull();
+    });
+
+    it("wires rename and remove on the group, and remove on a member", () => {
+      const e = edit();
+      const member = placement({ widget: "welcome", manifest: null, status: { kind: "missing" }, reads: null, id: 9 });
+      render(() => <WidgetFrame slot={slot} placement={group({ children: [member] })} version={0} edit={e} />);
+      const sub = screen.getByRole("region", { name: "Ops" });
+      expect(sub.querySelectorAll("article.widget").length).toBe(1);
+      fireEvent.click(screen.getByRole("button", { name: "Remove welcome" }));
+      expect(e.onRemove).toHaveBeenCalledWith(9, "welcome");
+      fireEvent.click(screen.getByRole("button", { name: "Rename Ops" }));
+      expect(e.onRename).toHaveBeenCalledWith(7, "Ops");
+      fireEvent.click(screen.getByRole("button", { name: "Remove Ops" }));
+      expect(e.onRemove).toHaveBeenCalledWith(7, "Ops");
+    });
   });
 });

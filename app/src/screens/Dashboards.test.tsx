@@ -18,6 +18,9 @@ vi.mock("../bindings", () => ({
     addWidget: vi.fn(),
     removeWidget: vi.fn(),
     setLanding: vi.fn(),
+    createGroup: vi.fn(),
+    renamePlacement: vi.fn(),
+    customizeDashboard: vi.fn(),
   },
 }));
 
@@ -357,5 +360,40 @@ describe("Dashboards compose", () => {
     }
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
     expect(screen.queryByText("Add your first widget")).toBeNull();
+  });
+
+  it("shows + New group on an editable dashboard and creates a top-level group", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine")]));
+    vi.mocked(commands.createGroup).mockResolvedValue(ok(userDashboard(1, "Mine")));
+    renderAt("/d/u:1");
+    fireEvent.click(await screen.findByRole("button", { name: "+ New group" }));
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.input(dialog.getByLabelText("Title"), { target: { value: "Ops" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(commands.createGroup).toHaveBeenCalledWith("u:1", "Ops", null));
+  });
+
+  it("customizes a platform dashboard and opens the copy", async () => {
+    const copy = userDashboard(2, "Home copy");
+    vi.mocked(commands.customizeDashboard).mockResolvedValue(ok(copy));
+    const history = renderAt("/d/p:home");
+    await screen.findByRole("button", { name: "Home" });
+    expect(screen.queryByRole("button", { name: "+ New group" })).toBeNull();
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), copy]));
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    await waitFor(() => expect(commands.customizeDashboard).toHaveBeenCalledWith("p:home"));
+    await waitFor(() => expect(history.get()).toBe("/d/u%3A2"));
+  });
+
+  it("adds a widget into a group via its own Add widget control", async () => {
+    const mine = userDashboard(1, "Mine");
+    mine.placements = [{ ...dashboard("x").placements[0], widget: "group", container: true, title: "Ops", id: 5 }];
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    vi.mocked(commands.addWidget).mockResolvedValue(ok(mine));
+    renderAt("/d/u:1");
+    fireEvent.click(await screen.findByRole("button", { name: "Add widget to Ops" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByRole("button", { name: /Welcome/ }));
+    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome", 5));
   });
 });
