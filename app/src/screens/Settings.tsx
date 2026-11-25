@@ -4,6 +4,7 @@ import { commands, type InputView, type PlatformRef, type RepoSource, type Secre
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { Dialog } from "../components/Dialog";
 import { shortCommit } from "../components/SyncReview";
+import { ThemeControl } from "../components/ThemeControl";
 
 function ago(unixSeconds: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
@@ -58,6 +59,11 @@ export function Settings(props: {
 
   return (
     <section class="stack settings">
+      <section class="stack" aria-labelledby="settings-appearance">
+        <h2 id="settings-appearance">Appearance</h2>
+        <ThemeControl />
+      </section>
+
       <Show when={settings.error}>
         <div class="notice danger" role="alert">
           <strong>Could not load settings</strong>

@@ -1,15 +1,23 @@
 :root {
-  --bg: #ffffff;
-  --surface: #f5f6f8;
+  /* The page is a cool tinted neutral; widgets/cards/notices are open white that lifts off it. */
+  --bg: #eceff4;
+  --surface: #ffffff;
+  --surface-2: #f3f6fa;
   --fg: #1a1a1a;
   --muted: #5f6672;
-  --border: #d8dce3;
+  --border: #dce1ea;
+  --border-soft: #e8ebf1;
   --accent: #2f5bd3;
   --accent-fg: #ffffff;
+  --accent-wash: rgba(47, 91, 211, 0.09);
+  --accent-weak: rgba(47, 91, 211, 0.24);
   --ok: #1e7a46;
   --danger: #b42318;
   --danger-bg: #fdf1f0;
   --danger-fg: #ffffff;
+  --shadow-card: 0 1px 2px rgba(20, 30, 55, 0.05), 0 2px 6px rgba(20, 30, 55, 0.06);
+  --shadow-pop: 0 12px 34px rgba(20, 30, 55, 0.16);
+  --beam: radial-gradient(120% 70% at 50% -20%, rgba(47, 91, 211, 0.1), transparent 60%);
   --font: system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
   --radius: 6px;
@@ -19,20 +27,51 @@
   --space-4: 2rem;
 }
 
+/* Dark tokens. Applied when the OS is dark (unless the user forced light), and whenever the
+   user picks dark explicitly (data-theme="dark"), which overrides the OS. "System" = no
+   data-theme / data-theme="system", so the media query governs. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16181d;
-    --surface: #1f2229;
+  :root:not([data-theme="light"]) {
+    --bg: #0e1016;
+    --surface: #171a21;
+    --surface-2: #1e222b;
     --fg: #e6e6e6;
     --muted: #9aa1ad;
-    --border: #343843;
+    --border: #262b35;
+    --border-soft: #20242d;
     --accent: #6b8cff;
     --accent-fg: #0d1020;
+    --accent-wash: rgba(107, 140, 255, 0.15);
+    --accent-weak: rgba(107, 140, 255, 0.3);
     --ok: #4cc38a;
     --danger: #ff8a7f;
     --danger-bg: #2c1a1a;
     --danger-fg: #1a0d0c;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-pop: 0 14px 38px rgba(0, 0, 0, 0.55);
+    --beam: radial-gradient(120% 70% at 50% -20%, rgba(107, 140, 255, 0.16), transparent 60%);
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1016;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --fg: #e6e6e6;
+  --muted: #9aa1ad;
+  --border: #262b35;
+  --border-soft: #20242d;
+  --accent: #6b8cff;
+  --accent-fg: #0d1020;
+  --accent-wash: rgba(107, 140, 255, 0.15);
+  --accent-weak: rgba(107, 140, 255, 0.3);
+  --ok: #4cc38a;
+  --danger: #ff8a7f;
+  --danger-bg: #2c1a1a;
+  --danger-fg: #1a0d0c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 14px 38px rgba(0, 0, 0, 0.55);
+  --beam: radial-gradient(120% 70% at 50% -20%, rgba(107, 140, 255, 0.16), transparent 60%);
 }
 
 body {
@@ -41,6 +80,29 @@ body {
   color: var(--fg);
   font-family: var(--font);
   line-height: 1.45;
+}
+
+/* The beam: the one ambient lighthouse glow, at the top of the app frame. App-level,
+   never per-widget. Fixed and behind content so it sits in the tinted page's gaps. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: 220px;
+  z-index: -1;
+  background: var(--beam);
+  pointer-events: none;
+}
+
+/* A hairline at the very top, brightest at the edges and fading to the center. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: 1px;
+  z-index: -1;
+  background: linear-gradient(90deg, var(--accent-weak), transparent 32%, transparent 68%, var(--accent-weak));
+  pointer-events: none;
 }
 
 h1 {
@@ -104,7 +166,7 @@ textarea {
   font-size: 0.9rem;
   padding: var(--space-2);
   color: var(--fg);
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
@@ -242,6 +304,7 @@ ul.diagnostics {
 
 .card {
   padding: var(--space-3);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
@@ -285,12 +348,23 @@ th,
 td {
   text-align: left;
   padding: var(--space-1) var(--space-2);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 th {
   font-weight: 500;
   color: var(--muted);
+}
+
+/* The header rides along while rows scroll under it. */
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+}
+
+tbody tr:hover {
+  background: var(--surface-2);
 }
 
 .card-grid {
@@ -356,7 +430,7 @@ h3 {
   flex-wrap: wrap;
   gap: var(--space-1);
   row-gap: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .tab {
@@ -377,6 +451,7 @@ h3 {
 .tab.active {
   color: var(--fg);
   border-bottom-color: var(--accent);
+  background: var(--accent-wash);
   font-weight: 600;
 }
 
@@ -436,9 +511,10 @@ h3 {
   list-style: none;
   margin: 0;
   padding: var(--space-1);
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
 }
 
 /* Menu rows read like the tabs they overflow from: Ink text, the current one in bold. */
@@ -474,11 +550,26 @@ h3 {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+/* A top-level placement lifts toward the light on hover. Only top-level: a composite's
+   children are panes within it, not independently liftable cards (no nested-card emphasis). */
+.grid:not(.subgrid) > .widget:hover {
+  border-color: var(--accent-weak);
+  box-shadow: var(--shadow-pop);
+  transform: translateY(-2px);
+}
+
+/* Composite parts read as flat panes inside their parent, not stacked cards. */
+.subgrid > .widget {
+  border-color: var(--border-soft);
+  box-shadow: none;
 }
 
 .widget-head {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .widget-body {
@@ -611,7 +702,7 @@ pre.raw {
 }
 
 .settings section + section {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-soft);
   padding-top: var(--space-3);
 }
 
@@ -677,9 +768,10 @@ button.link.back {
   max-height: 100%;
   overflow: auto;
   padding: var(--space-3) var(--space-4);
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
 }
 
 .dialog h2 {
@@ -690,4 +782,62 @@ button.link.back {
 .dialog-actions {
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* Segmented control (theme switcher): native radios styled as joined segments; the selected
+   one wears the accent wash (the Halo Rule). The radios stay keyboard-reachable but unseen. */
+.segmented {
+  display: inline-flex;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 2px;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.segmented label {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: 4px;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented label.selected {
+  background: var(--accent-wash);
+  color: var(--fg);
+}
+
+.segmented label:hover:not(.selected) {
+  color: var(--fg);
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.segmented input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Settle colour, border, lift and shadow changes rather than snapping them. Guarded by
+   no-preference so a reduced-motion request (which also stills the skeleton) is honoured. */
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  .widget,
+  .tab,
+  tbody tr {
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  }
 }
