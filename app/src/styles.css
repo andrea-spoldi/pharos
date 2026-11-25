@@ -464,6 +464,17 @@ h3 {
   color: var(--accent);
 }
 
+/* The view/edit toggle: its glyph picks up the accent like the landing mark, and the pressed
+   (editing) state fills by one tone — Tone Not Shadow — so edit mode is legible at a glance. */
+.edit-toggle-icon {
+  margin-inline-end: var(--space-1);
+  color: var(--accent);
+}
+
+button.edit-toggle[aria-pressed="true"] {
+  background: var(--border);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

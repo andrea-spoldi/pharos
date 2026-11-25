@@ -197,6 +197,9 @@ export function DashboardToolbar(props: {
   dashboard?: DashboardView;
   /** True when this dashboard is the one the app opens on. */
   landing: boolean;
+  /** View-first: the edit controls appear only while editing; the Edit/Done toggle flips it. */
+  editing: boolean;
+  onToggleEdit: () => void;
   onChanged: () => void;
   onCreated: (created: DashboardView) => void;
   onDeleted: () => void;
@@ -228,6 +231,12 @@ export function DashboardToolbar(props: {
         )}
       </Show>
       <Show when={editable()}>
+        <button type="button" class="edit-toggle" aria-pressed={props.editing} onClick={props.onToggleEdit}>
+          <span class="edit-toggle-icon" aria-hidden="true">{props.editing ? "✓" : "✎"}</span>
+          {props.editing ? "Done" : "Edit"}
+        </button>
+      </Show>
+      <Show when={props.editing ? editable() : undefined}>
         {(d) => (
           <>
             <button type="button" onClick={() => setOpen("add")}>

@@ -36,6 +36,20 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
     onRename: (placementId, title) => setRenaming({ dashboardId, placementId, title }),
     onRemove: (placementId, name) => setRemoving({ dashboardId, placementId, name }),
   });
+  // View-first: a dashboard opens in view mode and an explicit Edit toggle turns editing on.
+  // Ephemeral, per-dashboard; nothing persisted. We settle edit mode only when the *dashboard
+  // itself* changes (open/switch), tracked by id — a re-sync hands back a new object for the same
+  // id, and must not knock the user out of edit mode mid-compose. An empty editable dashboard
+  // opens in edit mode, since its only content is the add-widget call to action.
+  const [editing, setEditing] = createSignal(false);
+  let settledFor: string | undefined;
+  createEffect(() => {
+    if (dashboards.error) return;
+    const c = current();
+    if (c?.id === settledFor) return;
+    settledFor = c?.id;
+    setEditing(!!(c?.editable && c.placements.length === 0));
+  });
   // The engine puts the landing dashboard first, and the app opens on the first one.
   const landingId = () => dashboards.latest?.[0]?.id;
   // Mutations re-read the list from the engine; a new dashboard is opened once it is listed,
@@ -64,7 +78,14 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
       </Match>
       <Match when={dashboards.latest?.length === 0}>
         <section class="stack">
-          <DashboardToolbar landing={false} onChanged={refetch} onCreated={created} onDeleted={refetch} />
+          <DashboardToolbar
+            landing={false}
+            editing={editing()}
+            onToggleEdit={() => setEditing((v) => !v)}
+            onChanged={refetch}
+            onCreated={created}
+            onDeleted={refetch}
+          />
           <div class="notice">
             <p>No dashboards yet. Click + New dashboard to create one.</p>
           </div>
@@ -77,6 +98,8 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
             <DashboardToolbar
               dashboard={d()}
               landing={d().id === landingId()}
+              editing={editing()}
+              onToggleEdit={() => setEditing((v) => !v)}
               onChanged={refetch}
               onCreated={created}
               onDeleted={refetch}
@@ -128,7 +151,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
                       slot={{ dashboardId: d().id, path: [p().index] }}
                       version={props.version}
                       inputLabel={props.inputLabel}
-                      edit={editFor(d().id, d().editable)}
+                      edit={editFor(d().id, d().editable && editing())}
                     />
                   )}
                 </Index>
