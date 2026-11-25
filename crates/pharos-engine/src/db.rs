@@ -367,6 +367,7 @@ pub fn insert_placement(
     Ok(conn.last_insert_rowid())
 }
 
+#[allow(dead_code)] // first caller lands in a later 8b task
 pub fn set_placement_title(conn: &Connection, id: i64, title: &str) -> rusqlite::Result<()> {
     conn.execute(
         "UPDATE placements SET title = ?2 WHERE id = ?1",
