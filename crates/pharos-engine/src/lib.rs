@@ -110,7 +110,7 @@ pub struct Engine {
 
 /// Deepest container nesting `placement_view` expands; a container at this depth is
 /// reported `NotAvailable` instead of being expanded further.
-const MAX_PLACEMENT_DEPTH: usize = 32;
+pub const MAX_PLACEMENT_DEPTH: usize = 32;
 
 impl Engine {
     /// Opens (and migrates) the state in `data_dir`, creating it if needed. Secrets go to
@@ -523,6 +523,12 @@ impl Engine {
             });
         }
         let row = self.placement_row(dashboard_id, row_id, placement_id)?;
+        if row.widget.is_some() {
+            return Err(EngineError::InvalidValue {
+                key: "placement".into(),
+                reason: "not a group".into(),
+            });
+        }
         db::set_placement_title(&self.conn, row.id, title)?;
         self.user_view_by_id(row_id)
     }
@@ -567,7 +573,16 @@ impl Engine {
     ) -> Result<(Option<i64>, u32, i64)> {
         let rows = db::placements_of(&self.conn, row_id)?;
         let parent = match parent_id {
-            Some(id) => Some(self.placement_row(dashboard_id, row_id, id)?.id),
+            Some(id) => {
+                let row = self.placement_row(dashboard_id, row_id, id)?;
+                if row.widget.is_some() {
+                    return Err(EngineError::InvalidValue {
+                        key: "parent".into(),
+                        reason: "not a group".into(),
+                    });
+                }
+                Some(row.id)
+            }
             None => None,
         };
         let siblings: Vec<_> = rows.iter().filter(|r| r.parent_id == parent).collect();

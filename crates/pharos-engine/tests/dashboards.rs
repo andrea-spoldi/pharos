@@ -471,6 +471,11 @@ fn remove_widget_removes_a_nested_group_and_members() {
     engine.add_widget("u:1", "welcome", Some(gid)).unwrap();
     let view = engine.remove_widget("u:1", gid).unwrap();
     assert!(view.placements.is_empty());
+    let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
+    let rows: i64 = db
+        .query_row("SELECT COUNT(*) FROM placements", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rows, 0, "cascade removed the member row too");
     // And a nested member can be removed on its own.
     let view = engine.create_group("u:1", "Again", None).unwrap();
     let gid = view.placements[0].id.unwrap();
@@ -490,4 +495,55 @@ fn add_widget_rejects_an_unknown_parent() {
         engine.add_widget("u:1", "welcome", Some(9999)),
         Err(pharos_engine::EngineError::UnknownPlacement { .. })
     ));
+}
+
+#[test]
+fn widget_placements_cannot_be_parents_or_renamed() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let view = engine.add_widget("u:1", "welcome", None).unwrap();
+    let wid = view.placements[0].id.unwrap();
+    assert!(matches!(
+        engine.add_widget("u:1", "welcome", Some(wid)),
+        Err(pharos_engine::EngineError::InvalidValue { .. })
+    ));
+    assert!(matches!(
+        engine.create_group("u:1", "G", Some(wid)),
+        Err(pharos_engine::EngineError::InvalidValue { .. })
+    ));
+    assert!(matches!(
+        engine.rename_placement("u:1", wid, "x"),
+        Err(pharos_engine::EngineError::InvalidValue { .. })
+    ));
+}
+
+#[test]
+fn a_group_nested_past_the_depth_limit_is_not_available() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let mut parent = None;
+    let mut view = None;
+    for _ in 0..=pharos_engine::MAX_PLACEMENT_DEPTH {
+        let v = engine.create_group("u:1", "G", parent).unwrap();
+        // The newest group is the only one without children; find its id by walking down.
+        let mut node = &v.placements[0];
+        while let Some(c) = node.children.first() {
+            node = c;
+        }
+        parent = node.id;
+        view = Some(v);
+    }
+    let mut node = &view.unwrap().placements[0];
+    while let Some(c) = node.children.first() {
+        node = c;
+    }
+    assert_eq!(
+        node.status,
+        PlacementStatus::NotAvailable {
+            feature: "groups nested this deeply".to_string()
+        }
+    );
+    assert!(node.children.is_empty());
 }
