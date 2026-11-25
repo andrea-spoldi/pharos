@@ -211,7 +211,7 @@ export function DashboardToolbar(props: {
       <button type="button" onClick={() => setOpen("new")}>
         + New dashboard
       </button>
-      <Show when={props.dashboard && !editable() ? props.dashboard : undefined}>
+      <Show when={props.dashboard && !editable() && !props.landing ? props.dashboard : undefined}>
         {(d) => (
           <button
             type="button"

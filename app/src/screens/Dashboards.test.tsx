@@ -373,15 +373,29 @@ describe("Dashboards compose", () => {
     await waitFor(() => expect(commands.createGroup).toHaveBeenCalledWith("u:1", "Ops", null));
   });
 
-  it("customizes a platform dashboard and opens the copy", async () => {
-    const copy = userDashboard(2, "Home copy");
+  it("customize_is_hidden_on_the_landing_dashboard", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"])]));
+    renderAt("/d/p:home");
+    await screen.findByRole("button", { name: /^Home\b/ });
+    expect(screen.queryByRole("button", { name: "Customize" })).toBeNull();
+  });
+
+  it("customize_shows_on_a_non_landing_platform_dashboard", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"])]));
+    renderAt("/d/p:ops");
+    expect(await screen.findByRole("button", { name: "Customize" })).toBeTruthy();
+  });
+
+  it("customizes a non-landing platform dashboard and opens the copy", async () => {
+    const copy = userDashboard(2, "Ops copy");
     vi.mocked(commands.customizeDashboard).mockResolvedValue(ok(copy));
-    const history = renderAt("/d/p:home");
-    await screen.findByRole("button", { name: "Home" });
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"])]));
+    const history = renderAt("/d/p:ops");
+    await screen.findByRole("button", { name: /^Ops\b/ });
     expect(screen.queryByRole("button", { name: "+ New group" })).toBeNull();
-    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), copy]));
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"]), copy]));
     fireEvent.click(screen.getByRole("button", { name: "Customize" }));
-    await waitFor(() => expect(commands.customizeDashboard).toHaveBeenCalledWith("p:home"));
+    await waitFor(() => expect(commands.customizeDashboard).toHaveBeenCalledWith("p:ops"));
     await waitFor(() => expect(history.get()).toBe("/d/u%3A2"));
   });
 
