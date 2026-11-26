@@ -10,7 +10,8 @@ const MAX_TABS = 5;
 /** The grid collapses to a single column at or below this width; drag/resize rests there. */
 const WIDE_BREAKPOINT = 900;
 /** A leaf never shrinks below 1×1; a group keeps room for its members. */
-const MIN_SIZE = { leaf: { w: 1, h: 1 }, container: { w: 3, h: 2 } } as const;
+const GRID_COLS = 12;
+const MIN_SIZE ={ leaf: { w: 1, h: 1 }, container: { w: 3, h: 2 } } as const;
 
 const label = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
 
@@ -95,7 +96,9 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
       let t: Box = { ...target, x: Math.max(0, target.x), y: Math.max(0, target.y) };
       if (g.mode === "resize") {
         const min = topLevel().find((p) => p.id === id)?.container ? MIN_SIZE.container : MIN_SIZE.leaf;
-        t = { ...t, w: Math.max(min.w, target.w), h: Math.max(min.h, target.h) };
+        // A resize only grows rightward and never past the grid edge (x + w <= GRID_COLS).
+        const x = Math.min(t.x, GRID_COLS - min.w);
+        t = { ...t, x, w: Math.max(min.w, Math.min(target.w, GRID_COLS - x)), h: Math.max(min.h, target.h) };
       }
       setGesture({ ...g, items: resolveLayout(g.base, id, t) });
     },
@@ -113,7 +116,11 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
         .map((i) => ({ placementId: i.id, x: i.x, y: i.y, w: i.w, h: i.h }));
       if (changed.length === 0) return;
       void (async () => {
-        await unwrap(commands.setLayout(d.id, changed));
+        try {
+          await unwrap(commands.setLayout(d.id, changed));
+        } catch {
+          // Rejected: fall through to resync with the persisted layout.
+        }
         await refetch();
       })();
     },

@@ -547,6 +547,25 @@ describe("Dashboards drag/resize", () => {
     expect(commands.setLayout).toHaveBeenCalledTimes(1);
   });
 
+  it("resize_is_clamped_to_the_grid_width", async () => {
+    renderAt("/d/u:1");
+    await screen.findByText("welcome", { selector: "header *" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const drag = dragControllerFor(topGrid())!;
+
+    drag.begin(10, "resize");
+    drag.onMove(10, { x: 8, y: 0, w: 8, h: 2 });
+    const box = drag.boxOf(10)!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.w).toBeLessThanOrEqual(12);
+    // The card grows rightward only, up to the grid edge; it does not slide left.
+    expect(box).toMatchObject({ x: 8, w: 4 });
+    drag.commit(10);
+    for (const call of vi.mocked(commands.setLayout).mock.calls) {
+      for (const p of call[1]) expect(p.x + p.w).toBeLessThanOrEqual(12);
+    }
+  });
+
   it("escape_cancels_without_persisting", async () => {
     renderAt("/d/u:1");
     await screen.findByText("welcome", { selector: "header *" });
