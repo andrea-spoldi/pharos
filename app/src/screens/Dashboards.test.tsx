@@ -436,7 +436,15 @@ describe("Dashboards compose", () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine")]));
     renderAt("/d/u:1");
     expect(await screen.findByRole("button", { name: "Add widget" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
+    // An empty personal dashboard is always in edit mode — nothing to view, so no toggle.
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+  });
+
+  it("the_edit_toggle_appears_once_the_dashboard_has_a_widget", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine", ["welcome"])]));
+    renderAt("/d/u:1");
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeTruthy();
   });
 
   it("switching_dashboards_resets_to_view_mode", async () => {

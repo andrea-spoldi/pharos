@@ -471,7 +471,7 @@ h3 {
   color: var(--accent);
 }
 
-button.edit-toggle[aria-pressed="true"] {
+button.edit-toggle.active {
   background: var(--border);
 }
 

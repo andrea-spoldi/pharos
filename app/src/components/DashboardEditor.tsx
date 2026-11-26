@@ -208,6 +208,11 @@ export function DashboardToolbar(props: {
   const close = () => setOpen(undefined);
   const action = useAction();
   const editable = () => (props.dashboard?.editable ? props.dashboard : undefined);
+  // An empty personal dashboard is always in edit mode — nothing to view — so it offers no toggle.
+  const showToggle = () => {
+    const d = editable();
+    return !!(d && d.placements.length > 0);
+  };
 
   return (
     <div class="row toolbar">
@@ -230,8 +235,8 @@ export function DashboardToolbar(props: {
           </button>
         )}
       </Show>
-      <Show when={editable()}>
-        <button type="button" class="edit-toggle" aria-pressed={props.editing} onClick={props.onToggleEdit}>
+      <Show when={showToggle()}>
+        <button type="button" class="edit-toggle" classList={{ active: props.editing }} onClick={props.onToggleEdit}>
           <span class="edit-toggle-icon" aria-hidden="true">{props.editing ? "✓" : "✎"}</span>
           {props.editing ? "Done" : "Edit"}
         </button>
