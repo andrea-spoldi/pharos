@@ -9,6 +9,19 @@ const CAPABILITY_LABELS: [keyof Capabilities, string][] = [
   ["paths", "Read"],
 ];
 
+/** The Call/Run/Read rows of a capability set, as `<dd>`s inside a `<dl>`. */
+export function CapabilityList(props: { caps: Capabilities }) {
+  return (
+    <For each={CAPABILITY_LABELS.filter(([key]) => props.caps[key]?.length)}>
+      {([key, verb]) => (
+        <dd>
+          {verb} <code>{props.caps[key]!.join(", ")}</code>
+        </dd>
+      )}
+    </For>
+  );
+}
+
 export function ChangeLine(props: { label: string; changes: Changes }) {
   const parts = () =>
     [
@@ -55,7 +68,9 @@ export function SyncReview(props: {
 }) {
   const errors = () => props.plan.diagnostics.filter((d) => d.severity === "error");
   const warnings = () => props.plan.diagnostics.filter((d) => d.severity === "warning");
-  const widgetCaps = () => Object.entries(props.plan.capabilities);
+  const hasAny = (c: Capabilities) => CAPABILITY_LABELS.some(([key]) => c[key]?.length);
+  const added = () => Object.entries(props.plan.capability_changes).filter(([, c]) => hasAny(c.added));
+  const removed = () => Object.entries(props.plan.capability_changes).filter(([, c]) => hasAny(c.removed));
 
   return (
     <section class="stack" aria-labelledby="review-title">
@@ -110,28 +125,39 @@ export function SyncReview(props: {
         </div>
       </Show>
 
-      <Show when={errors().length === 0 && props.plan.needs_consent}>
+      <Show when={errors().length === 0 && added().length > 0}>
         <div class="notice" data-testid="capabilities">
-          <strong>What these widgets can do on your machine</strong>
-          <p class="muted">They run locally with your credentials. You'll be asked again if this changes.</p>
-          <Show when={widgetCaps().length > 0} fallback={<p>No widget calls hosts, runs programs or reads files.</p>}>
-            <dl class="capabilities">
-              <For each={widgetCaps()}>
-                {([widget, caps]) => (
-                  <>
-                    <dt>{widget}</dt>
-                    <For each={CAPABILITY_LABELS.filter(([key]) => caps[key]?.length)}>
-                      {([key, verb]) => (
-                        <dd>
-                          {verb} <code>{caps[key]!.join(", ")}</code>
-                        </dd>
-                      )}
-                    </For>
-                  </>
-                )}
-              </For>
-            </dl>
-          </Show>
+          <strong>New permissions</strong>
+          <p class="muted">
+            They run locally with your credentials. A widget you don't approve stays blocked until you approve it
+            on its card.
+          </p>
+          <dl class="capabilities">
+            <For each={added()}>
+              {([widget, change]) => (
+                <>
+                  <dt>{widget}</dt>
+                  <CapabilityList caps={change.added} />
+                </>
+              )}
+            </For>
+          </dl>
+        </div>
+      </Show>
+
+      <Show when={errors().length === 0 && removed().length > 0}>
+        <div class="notice" data-testid="capabilities-removed">
+          <strong>No longer needed</strong>
+          <dl class="capabilities muted">
+            <For each={removed()}>
+              {([widget, change]) => (
+                <>
+                  <dt>{widget}</dt>
+                  <CapabilityList caps={change.removed} />
+                </>
+              )}
+            </For>
+          </dl>
         </div>
       </Show>
 
@@ -144,14 +170,21 @@ export function SyncReview(props: {
             </button>
           }
         >
-          <button
-            type="button"
-            class="primary"
-            disabled={props.busy}
-            onClick={() => props.onApply(props.plan.needs_consent)}
+          <Show
+            when={props.plan.needs_consent}
+            fallback={
+              <button type="button" class="primary" disabled={props.busy} onClick={() => props.onApply(false)}>
+                Apply
+              </button>
+            }
           >
-            {props.plan.needs_consent ? "Approve and apply" : "Apply"}
-          </button>
+            <button type="button" class="primary" disabled={props.busy} onClick={() => props.onApply(true)}>
+              Approve and apply
+            </button>
+            <button type="button" disabled={props.busy} onClick={() => props.onApply(false)}>
+              Apply, keep these blocked
+            </button>
+          </Show>
         </Show>
         <button type="button" disabled={props.busy} onClick={() => props.onDiscard()}>
           Discard

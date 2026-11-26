@@ -58,7 +58,10 @@ const firstPlan: SyncPlan = {
     "my-pipelines": { hosts: ["https://gitlab.com"] },
   },
   capability_hash: "sha256:y",
-  capability_changes: {},
+  capability_changes: {
+    "k8s-context": { added: { executables: ["kubectl"] }, removed: {} },
+    "my-pipelines": { added: { hosts: ["https://gitlab.com"] }, removed: {} },
+  },
   needs_consent: true,
 };
 
@@ -187,6 +190,7 @@ describe("Home", () => {
       platform_changed: false,
       widgets: none,
       dashboards: none,
+      capability_changes: {},
       needs_consent: false,
     };
     const update: SyncPlan = {
@@ -227,13 +231,55 @@ describe("Home", () => {
     });
 
     it("asks again when capabilities changed", async () => {
-      vi.mocked(commands.planSync).mockResolvedValue(ok({ ...update, needs_consent: true }));
+      vi.mocked(commands.planSync).mockResolvedValue(
+        ok({
+          ...update,
+          capability_changes: { "status-page": { added: { hosts: ["https://status.acme.dev"] }, removed: {} } },
+          needs_consent: true,
+        }),
+      );
       render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
 
       expect(await screen.findByText("Review changes")).toBeTruthy();
       expect(screen.getByText("Approve and apply")).toBeTruthy();
       expect(commands.applySync).not.toHaveBeenCalled();
       expect(screen.queryByText("Sync now")).toBeNull();
+    });
+
+    it("lists widgets waiting for approval after applying without approval", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(
+        ok({
+          ...update,
+          capability_changes: {
+            "status-page": { added: { hosts: ["https://status.acme.dev"] }, removed: {} },
+            legacy: { added: {}, removed: { executables: ["kubectl"] } },
+          },
+          needs_consent: true,
+        }),
+      );
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      fireEvent.click(await screen.findByText("Apply, keep these blocked"));
+
+      const changelog = await screen.findByTestId("changelog");
+      expect(commands.applySync).toHaveBeenCalledWith(false);
+      expect(changelog.textContent).toContain("Waiting for approval: status-page");
+      expect(changelog.textContent).toContain("Permissions removed: legacy");
+    });
+
+    it("does not list waiting widgets after approving", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(
+        ok({
+          ...update,
+          capability_changes: { "status-page": { added: { hosts: ["https://status.acme.dev"] }, removed: {} } },
+          needs_consent: true,
+        }),
+      );
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      fireEvent.click(await screen.findByText("Approve and apply"));
+
+      const changelog = await screen.findByTestId("changelog");
+      expect(commands.applySync).toHaveBeenCalledWith(true);
+      expect(changelog.textContent).not.toContain("Waiting for approval");
     });
 
     it("keeps the dashboard when the sync fails", async () => {
