@@ -1,5 +1,35 @@
 # Pharos
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/hero-light.svg">
+    <img alt="Pharos — a lighthouse for your platform. A local developer portal; git is the control plane." src="docs/assets/hero-light.svg" width="100%">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/andrea-spoldi/pharos/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/andrea-spoldi/pharos/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-2f5bd3">
+  <img alt="Built with Tauri 2" src="https://img.shields.io/badge/Tauri-2-2f5bd3">
+  <img alt="Status" src="https://img.shields.io/badge/status-alpha-5a6473">
+</p>
+
+<p align="center">
+  <b>Backstage-style developer experience, without running Backstage.</b><br>
+  Your platform team keeps one git repo of widgets, dashboards and catalog YAML.<br>
+  Pharos clones it, validates it, asks each developer to approve what widgets may do, and renders it — locally, with their own credentials.
+</p>
+
+<p align="center">
+  <a href="#2-setup">Get started</a> ·
+  <a href="#5-walkthrough">Walkthrough</a> ·
+  <a href="#6-how-trust-works">How trust works</a> ·
+  <a href="docs/restart-plan.md">Design</a>
+</p>
+
+---
+
 A desktop "internal developer portal" that runs on the developer's machine. A platform
 team keeps one git repo of widgets, dashboards and catalog YAML; the app clones it,
 validates it, asks the developer to approve what the widgets may do, and shows the result.
