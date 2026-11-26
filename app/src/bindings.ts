@@ -15,10 +15,12 @@ export const commands = {
 	planSync: () => typedError<SyncPlan, CommandError>(__TAURI_INVOKE("plan_sync")),
 	pendingSync: () => typedError<SyncPlan | null, CommandError>(__TAURI_INVOKE("pending_sync")),
 	/**
-	 *  `consent` approves the capabilities of the plan held by the engine, never a set
-	 *  supplied by the frontend (D-014).
+	 *  `approve` approves exactly the additions the held plan lists, never a set supplied by
+	 *  the frontend (D-014).
 	 */
-	applySync: (consent: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { consent })),
+	applySync: (approve: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { approve })),
+	/**  Approves what the stored snapshot declares for the named leaf widget. */
+	approveWidget: (name: string) => typedError<null, CommandError>(__TAURI_INVOKE("approve_widget", { name })),
 	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
 	/**  Platform dashboards of the last applied sync, with each placement's status. */
@@ -125,7 +127,9 @@ export type Diagnostic = {
 };
 
 /**  What the UI branches on; `message` is for display only. */
-export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "unknownWidget" | 
+export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | 
+/**  The widget has capabilities its approved set does not cover yet. */
+"needsApproval" | "stalePlan" | "unknownWidget" | 
 /**  A dashboard id that does not exist. */
 "unknownDashboard" | 
 /**  A platform dashboard cannot be edited, renamed or deleted. */

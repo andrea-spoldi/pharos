@@ -36,9 +36,8 @@ pub enum ErrorKind {
     InvalidBranch,
     NoPendingSync,
     LintErrors,
-    // No longer produced; Task 4 removes it together with its frontend uses.
-    #[allow(dead_code)]
-    ConsentRequired,
+    /// The widget has capabilities its approved set does not cover yet.
+    NeedsApproval,
     StalePlan,
     UnknownWidget,
     /// A dashboard id that does not exist.
@@ -95,9 +94,8 @@ impl From<EngineError> for CommandError {
             EngineError::UnknownDashboard(..) => ErrorKind::UnknownDashboard,
             EngineError::ReadOnlyDashboard(..) => ErrorKind::ReadOnly,
             EngineError::NotALeaf(..) => ErrorKind::NotALeaf,
-            EngineError::NoDataSource(_)
-            | EngineError::NotAvailable(_)
-            | EngineError::NeedsApproval(_) => ErrorKind::NotRunnable,
+            EngineError::NoDataSource(_) | EngineError::NotAvailable(_) => ErrorKind::NotRunnable,
+            EngineError::NeedsApproval(_) => ErrorKind::NeedsApproval,
             EngineError::NeedsSetup(_) | EngineError::MissingValue(_) => ErrorKind::NeedsSetup,
             EngineError::Http(e) if e.is_auth() => ErrorKind::PermissionDenied,
             EngineError::Http(HttpError::NotApproved(_)) => ErrorKind::PermissionDenied,
@@ -209,12 +207,19 @@ pub async fn pending_sync(state: State<'_, AppState>) -> CmdResult<Option<SyncPl
     with_engine(state, |e| Ok(e.pending_sync().cloned())).await
 }
 
-/// `consent` approves the capabilities of the plan held by the engine, never a set
-/// supplied by the frontend (D-014).
+/// `approve` approves exactly the additions the held plan lists, never a set supplied by
+/// the frontend (D-014).
 #[tauri::command]
 #[specta::specta]
-pub async fn apply_sync(state: State<'_, AppState>, consent: bool) -> CmdResult<()> {
-    with_engine(state, move |e| e.apply_sync(consent)).await
+pub async fn apply_sync(state: State<'_, AppState>, approve: bool) -> CmdResult<()> {
+    with_engine(state, move |e| e.apply_sync(approve)).await
+}
+
+/// Approves what the stored snapshot declares for the named leaf widget.
+#[tauri::command]
+#[specta::specta]
+pub async fn approve_widget(state: State<'_, AppState>, name: String) -> CmdResult<()> {
+    with_engine(state, move |e| e.approve_widget(&name)).await
 }
 
 #[tauri::command]
@@ -472,6 +477,10 @@ mod tests {
                 ErrorKind::Keyring,
             ),
             (EngineError::StalePlan, ErrorKind::StalePlan),
+            (
+                EngineError::NeedsApproval("w".into()),
+                ErrorKind::NeedsApproval,
+            ),
             (EngineError::LintErrors(2), ErrorKind::LintErrors),
             (
                 EngineError::UnknownWidget("w".into()),
