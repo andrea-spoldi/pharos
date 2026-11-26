@@ -36,6 +36,8 @@ pub enum ErrorKind {
     InvalidBranch,
     NoPendingSync,
     LintErrors,
+    // No longer produced; Task 4 removes it together with its frontend uses.
+    #[allow(dead_code)]
     ConsentRequired,
     StalePlan,
     UnknownWidget,
@@ -86,7 +88,6 @@ impl From<EngineError> for CommandError {
             EngineError::InvalidBranch(_) => ErrorKind::InvalidBranch,
             EngineError::NoPendingSync => ErrorKind::NoPendingSync,
             EngineError::LintErrors(_) => ErrorKind::LintErrors,
-            EngineError::ConsentRequired => ErrorKind::ConsentRequired,
             EngineError::StalePlan => ErrorKind::StalePlan,
             EngineError::UnknownWidget(_) | EngineError::UnknownPlacement { .. } => {
                 ErrorKind::UnknownWidget
@@ -468,7 +469,6 @@ mod tests {
                 },
                 ErrorKind::Keyring,
             ),
-            (EngineError::ConsentRequired, ErrorKind::ConsentRequired),
             (EngineError::StalePlan, ErrorKind::StalePlan),
             (EngineError::LintErrors(2), ErrorKind::LintErrors),
             (

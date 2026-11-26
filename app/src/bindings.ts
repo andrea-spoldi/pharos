@@ -76,6 +76,14 @@ export type Capabilities = {
 	paths?: string[],
 };
 
+/**  What one leaf widget gains and loses against what the user approved. */
+export type CapabilityChange = {
+	/**  New to this widget: not approved and not already seen. */
+	added: Capabilities,
+	/**  Approved earlier, no longer declared. */
+	removed: Capabilities,
+};
+
 /**  Capabilities of every widget in a repo, keyed by widget name. This is what users consent to. */
 export type CapabilitySet = { [key in string]: Capabilities };
 
@@ -332,7 +340,12 @@ export type SyncPlan = {
 	diagnostics: Diagnostic[],
 	capabilities: CapabilitySet,
 	capability_hash: string,
-	/**  The capability set differs from what the user last approved. */
+	/**
+	 *  Per leaf widget: what it newly declares (neither approved nor already seen) and
+	 *  what it no longer declares.
+	 */
+	capability_changes: { [key in string]: CapabilityChange },
+	/**  Some widget declares a capability that is neither approved nor already seen. */
 	needs_consent: boolean,
 };
 

@@ -58,6 +58,7 @@ const firstPlan: SyncPlan = {
     "my-pipelines": { hosts: ["https://gitlab.com"] },
   },
   capability_hash: "sha256:y",
+  capability_changes: {},
   needs_consent: true,
 };
 

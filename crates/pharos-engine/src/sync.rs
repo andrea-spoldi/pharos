@@ -30,7 +30,10 @@ pub struct SyncPlan {
     pub diagnostics: Vec<Diagnostic>,
     pub capabilities: CapabilitySet,
     pub capability_hash: String,
-    /// The capability set differs from what the user last approved.
+    /// Per leaf widget: what it newly declares (neither approved nor already seen) and
+    /// what it no longer declares.
+    pub capability_changes: BTreeMap<String, CapabilityChange>,
+    /// Some widget declares a capability that is neither approved nor already seen.
     pub needs_consent: bool,
 }
 
@@ -63,8 +66,6 @@ pub struct CapabilityChange {
 
 /// Per-leaf capability changes. Containers are never diffed; widgets absent from `new`
 /// are omitted (they show as removed widgets).
-// used from Task 2
-#[allow(dead_code)]
 pub(crate) fn capability_changes(
     approved: &CapabilitySet,
     seen: &CapabilitySet,
@@ -94,8 +95,6 @@ pub(crate) fn capability_changes(
 
 /// The approved set after a sync: each widget keeps only what `new` still declares, plus
 /// its listed additions when `approve`. Widgets absent from `new` drop out.
-// used from Task 2
-#[allow(dead_code)]
 pub(crate) fn merge_approval(
     approved: &CapabilitySet,
     new: &CapabilitySet,
@@ -107,7 +106,8 @@ pub(crate) fn merge_approval(
     for (name, now) in &new.widgets {
         let mut caps = approved.widgets.get(name).unwrap_or(&none).intersect(now);
         if approve && let Some(change) = changes.get(name) {
-            caps.extend(change.added.clone());
+            // Intersected with `new`: a stale change list never approves what is not declared.
+            caps.extend(change.added.intersect(now));
         }
         if !caps.is_empty() {
             out.widgets.insert(name.clone(), caps);
@@ -233,6 +233,23 @@ mod tests {
         assert_eq!(
             merge_approval(&approved, &new, &changes, true),
             set(&[("a", &["h1", "h3"], &[])])
+        );
+    }
+
+    #[test]
+    fn merge_never_approves_what_new_does_not_declare() {
+        let approved = CapabilitySet::default();
+        let stale = set(&[("a", &["h1", "h2"], &[])]);
+        let new = set(&[("a", &["h1"], &[])]);
+        let changes = capability_changes(
+            &approved,
+            &CapabilitySet::default(),
+            &stale,
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            merge_approval(&approved, &new, &changes, true),
+            set(&[("a", &["h1"], &[])])
         );
     }
 

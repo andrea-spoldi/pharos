@@ -16,8 +16,8 @@ mod settings;
 mod sync;
 
 use pharos_manifest::{
-    Dashboard, InputDef, Metadata, Namespace, Placement, Platform, TemplateError, TemplateRef,
-    ViewType, Widget, render_template, template_refs,
+    CapabilitySet, Dashboard, InputDef, Metadata, Namespace, Placement, Platform, TemplateError,
+    TemplateRef, ViewType, Widget, render_template, template_refs,
 };
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
@@ -58,8 +58,6 @@ pub enum EngineError {
     NoPendingSync,
     #[error("the platform repo has {0} lint error(s); it cannot be applied")]
     LintErrors(usize),
-    #[error("the platform repo's capabilities changed and need approval")]
-    ConsentRequired,
     #[error("the local clone changed after the sync was planned; plan it again")]
     StalePlan,
     #[error("no widget named `{0}`")]
@@ -194,14 +192,35 @@ impl Engine {
         }
 
         let old = db::snapshot(&self.conn, source.id)?;
+        let containers = repo
+            .iter()
+            .flat_map(|r| &r.widgets)
+            .filter(|w| !w.manifest.spec.widgets.is_empty())
+            .map(|w| w.manifest.metadata.name.clone())
+            .collect();
+        // `derive` omits widgets without capabilities; list every repo widget so one that
+        // dropped its last capability still reports the removal.
+        let mut declared = report.capabilities.clone();
+        for w in repo.iter().flat_map(|r| &r.widgets) {
+            declared
+                .widgets
+                .entry(w.manifest.metadata.name.clone())
+                .or_default();
+        }
+        let capability_changes = sync::capability_changes(
+            &db::approved_capabilities(&self.conn, source.id)?,
+            &db::seen_capabilities(&self.conn, source.id)?,
+            &declared,
+            &containers,
+        );
         let plan = SyncPlan {
             from_commit: source.synced_commit.clone(),
             to_commit,
             platform_changed: old.platform != platform,
             widgets: sync::diff(&old.widgets, &widgets),
             dashboards: sync::diff(&old.dashboards, &dashboards),
-            needs_consent: source.approved_capability_hash.as_deref()
-                != Some(report.capability_hash.as_str()),
+            needs_consent: capability_changes.values().any(|c| !c.added.is_empty()),
+            capability_changes,
             diagnostics: report.diagnostics,
             capabilities: report.capabilities,
             capability_hash: report.capability_hash,
@@ -219,9 +238,10 @@ impl Engine {
         self.pending.as_ref().map(|p| &p.plan)
     }
 
-    /// Stores the planned snapshot. `consent` approves the plan's capability set;
-    /// it is required when the plan says `needs_consent`.
-    pub fn apply_sync(&mut self, consent: bool) -> Result<()> {
+    /// Stores the planned snapshot. `approve` approves exactly the additions listed in the
+    /// plan's `capability_changes`; without it they stay unapproved (and are not asked
+    /// about again until they change). Removals always take effect.
+    pub fn apply_sync(&mut self, approve: bool) -> Result<()> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
         let pending = self.pending.as_ref().ok_or(EngineError::NoPendingSync)?;
         let plan = &pending.plan;
@@ -231,12 +251,21 @@ impl Engine {
         if git::head(&source.local_path)? != plan.to_commit {
             return Err(EngineError::StalePlan);
         }
-        if plan.needs_consent && !consent {
-            return Err(EngineError::ConsentRequired);
-        }
-        db::store_snapshot(&mut self.conn, source.id, pending, consent)?;
+        let approved = sync::merge_approval(
+            &db::approved_capabilities(&self.conn, source.id)?,
+            &plan.capabilities,
+            &plan.capability_changes,
+            approve,
+        );
+        db::store_snapshot(&mut self.conn, source.id, pending, &approved)?;
         self.pending = None;
         Ok(())
+    }
+
+    /// What the user has approved, per widget; empty before the first applied sync.
+    pub fn approved_capabilities(&self) -> Result<CapabilitySet> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        Ok(db::approved_capabilities(&self.conn, source.id)?)
     }
 
     /// Drops the plan and moves the clone back to the last applied commit, so files on

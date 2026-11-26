@@ -5,6 +5,7 @@ mod common;
 
 use common::{Fixture, git};
 use pharos_engine::{Engine, EngineError, GitError};
+use std::collections::BTreeSet;
 use std::fs;
 
 const STATUS_WIDGET: &str = "apiVersion: pharos.io/v1alpha1
@@ -42,11 +43,12 @@ fn first_sync_needs_consent_then_stores_snapshot() {
     assert!(plan.needs_consent);
     assert_eq!(plan.errors(), 0);
     assert_eq!(plan.capabilities.widgets.len(), 4);
+    // The container `on-call-overview` is never diffed.
+    assert_eq!(
+        plan.capability_changes.keys().collect::<Vec<_>>(),
+        ["k8s-context", "my-pipelines", "service-catalog"]
+    );
 
-    assert!(matches!(
-        engine.apply_sync(false),
-        Err(EngineError::ConsentRequired)
-    ));
     engine.apply_sync(true).unwrap();
     assert!(engine.pending_sync().is_none());
 
@@ -112,6 +114,14 @@ fn resync_reports_changelog_and_asks_consent_for_new_capabilities() {
             .hosts
             .contains("https://status.acme.dev")
     );
+    assert_eq!(
+        plan.capability_changes.keys().collect::<Vec<_>>(),
+        ["status-page"]
+    );
+    assert_eq!(
+        plan.capability_changes["status-page"].added.hosts,
+        BTreeSet::from(["https://status.acme.dev".to_string()])
+    );
 
     engine.apply_sync(true).unwrap();
     assert!(engine.plan_sync().unwrap().is_up_to_date());
@@ -133,6 +143,135 @@ fn unchanged_capabilities_apply_without_consent() {
     assert_eq!(plan.widgets.changed, ["k8s-context"]);
     assert!(!plan.needs_consent);
     engine.apply_sync(false).unwrap();
+}
+
+fn status_widget(name: &str, host: &str) -> String {
+    STATUS_WIDGET
+        .replace("status-page", name)
+        .replace("https://status.acme.dev", host)
+}
+
+fn hosts_of(engine: &Engine, widget: &str) -> BTreeSet<String> {
+    engine
+        .approved_capabilities()
+        .unwrap()
+        .widgets
+        .get(widget)
+        .map(|c| c.hosts.clone())
+        .unwrap_or_default()
+}
+
+#[test]
+fn declined_change_is_not_asked_again() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    f.write("widgets/status-page/widget.yaml", STATUS_WIDGET);
+    f.commit("add host");
+    assert!(engine.plan_sync().unwrap().needs_consent);
+    engine.apply_sync(false).unwrap();
+    assert!(hosts_of(&engine, "status-page").is_empty());
+
+    let k8s = fs::read_to_string(f.origin.join("widgets/k8s-context/widget.yaml")).unwrap();
+    f.write(
+        "widgets/k8s-context/widget.yaml",
+        &k8s.replace("refresh: 30s", "refresh: 1m"),
+    );
+    f.commit("unrelated");
+    let plan = engine.plan_sync().unwrap();
+    assert!(!plan.needs_consent);
+    assert!(plan.capability_changes.is_empty());
+}
+
+#[test]
+fn approve_and_apply_covers_only_what_was_shown() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    f.write(
+        "widgets/status-page/widget.yaml",
+        &status_widget("status-page", "https://h2.acme.dev"),
+    );
+    f.commit("h2");
+    engine.plan_sync().unwrap();
+    engine.apply_sync(false).unwrap();
+
+    f.write(
+        "widgets/status-two/widget.yaml",
+        &status_widget("status-two", "https://h3.acme.dev"),
+    );
+    f.commit("h3");
+    let plan = engine.plan_sync().unwrap();
+    assert_eq!(
+        plan.capability_changes.keys().collect::<Vec<_>>(),
+        ["status-two"]
+    );
+    engine.apply_sync(true).unwrap();
+
+    assert_eq!(
+        hosts_of(&engine, "status-two"),
+        BTreeSet::from(["https://h3.acme.dev".to_string()])
+    );
+    assert!(hosts_of(&engine, "status-page").is_empty());
+}
+
+#[test]
+fn removal_only_needs_no_consent() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    f.write("widgets/status-page/widget.yaml", STATUS_WIDGET);
+    f.commit("add");
+    engine.plan_sync().unwrap();
+    engine.apply_sync(true).unwrap();
+    assert_eq!(hosts_of(&engine, "status-page").len(), 1);
+
+    f.write(
+        "widgets/status-page/widget.yaml",
+        &STATUS_WIDGET
+            .replace(
+                "source: { type: http, url: https://status.acme.dev/api/summary }",
+                "view: { type: markdown, content: hi }",
+            )
+            .replace("  view: { type: kv }\n", ""),
+    );
+    f.commit("drop http");
+    let plan = engine.plan_sync().unwrap();
+    assert!(!plan.needs_consent);
+    assert_eq!(
+        plan.capability_changes["status-page"].removed.hosts,
+        BTreeSet::from(["https://status.acme.dev".to_string()])
+    );
+    engine.apply_sync(false).unwrap();
+    assert!(hosts_of(&engine, "status-page").is_empty());
+}
+
+#[test]
+fn removed_widget_loses_its_approval() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    f.write("widgets/status-page/widget.yaml", STATUS_WIDGET);
+    f.commit("add");
+    engine.plan_sync().unwrap();
+    engine.apply_sync(true).unwrap();
+
+    f.remove("widgets/status-page");
+    f.commit("remove");
+    engine.plan_sync().unwrap();
+    engine.apply_sync(false).unwrap();
+    assert!(
+        !engine
+            .approved_capabilities()
+            .unwrap()
+            .widgets
+            .contains_key("status-page")
+    );
+
+    f.write("widgets/status-page/widget.yaml", STATUS_WIDGET);
+    f.commit("re-add");
+    let plan = engine.plan_sync().unwrap();
+    assert!(plan.needs_consent);
+    assert_eq!(
+        plan.capability_changes["status-page"].added.hosts,
+        BTreeSet::from(["https://status.acme.dev".to_string()])
+    );
 }
 
 #[test]

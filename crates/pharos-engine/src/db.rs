@@ -11,6 +11,7 @@ const MIGRATION_LIST: &[M<'_>] = &[
     M::up(include_str!("migrations/002_settings.sql")),
     M::up(include_str!("migrations/003_dashboards.sql")),
     M::up(include_str!("migrations/004_user_groups.sql")),
+    M::up(include_str!("migrations/005_seen_capabilities.sql")),
 ];
 const MIGRATIONS: Migrations<'_> = Migrations::from_slice(MIGRATION_LIST);
 
@@ -124,8 +125,21 @@ pub fn widget(
 
 /// What the user consented to; empty until they have.
 pub fn approved_capabilities(conn: &Connection, source_id: i64) -> rusqlite::Result<CapabilitySet> {
+    capability_column(conn, source_id, "approved_capabilities")
+}
+
+/// What the last applied sync declared, approved or not; empty until a sync is applied.
+pub fn seen_capabilities(conn: &Connection, source_id: i64) -> rusqlite::Result<CapabilitySet> {
+    capability_column(conn, source_id, "seen_capabilities")
+}
+
+fn capability_column(
+    conn: &Connection,
+    source_id: i64,
+    column: &str,
+) -> rusqlite::Result<CapabilitySet> {
     let json: Option<String> = conn.query_row(
-        "SELECT approved_capabilities FROM sources WHERE id = ?1",
+        &format!("SELECT {column} FROM sources WHERE id = ?1"),
         [source_id],
         |r| r.get(0),
     )?;
@@ -134,11 +148,25 @@ pub fn approved_capabilities(conn: &Connection, source_id: i64) -> rusqlite::Res
         .unwrap_or_default())
 }
 
+/// Stores `set` as what the user approved, with its hash.
+pub fn set_approved(
+    conn: &Connection,
+    source_id: i64,
+    set: &CapabilitySet,
+) -> rusqlite::Result<()> {
+    let json = serde_json::to_string(set).expect("capabilities serialise");
+    conn.execute(
+        "UPDATE sources SET approved_capability_hash = ?2, approved_capabilities = ?3 WHERE id = ?1",
+        params![source_id, set.hash(), json],
+    )
+    .map(drop)
+}
+
 pub fn store_snapshot(
     conn: &mut Connection,
     source_id: i64,
     pending: &Pending,
-    consent: bool,
+    approved: &CapabilitySet,
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     let plan = &pending.plan;
@@ -146,14 +174,12 @@ pub fn store_snapshot(
         "UPDATE sources SET synced_commit = ?2, synced_at = ?3, platform = ?4 WHERE id = ?1",
         params![source_id, plan.to_commit, now(), pending.platform],
     )?;
-    if consent {
-        let capabilities =
-            serde_json::to_string(&plan.capabilities).expect("capabilities serialise");
-        tx.execute(
-            "UPDATE sources SET approved_capability_hash = ?2, approved_capabilities = ?3 WHERE id = ?1",
-            params![source_id, plan.capability_hash, capabilities],
-        )?;
-    }
+    let seen = serde_json::to_string(&plan.capabilities).expect("capabilities serialise");
+    tx.execute(
+        "UPDATE sources SET seen_capabilities = ?2 WHERE id = ?1",
+        params![source_id, seen],
+    )?;
+    set_approved(&tx, source_id, approved)?;
     for (table, rows) in [
         ("widgets", &pending.widgets),
         ("dashboard_templates", &pending.dashboards),
@@ -548,6 +574,35 @@ mod tests {
         set_placement_title(&conn, g, "Renamed").unwrap();
         let row = placements_of(&conn, dash).unwrap().remove(0);
         assert_eq!(row.title.as_deref(), Some("Renamed"));
+    }
+
+    #[test]
+    fn migration_005_backfills_seen_from_approved() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        MIGRATIONS.to_version(&mut conn, 4).unwrap();
+        let json = r#"{"w":{"hosts":["https://a"],"executables":[],"paths":[]}}"#;
+        conn.execute(
+            "INSERT INTO sources (id, url, branch, local_path, approved_capabilities, created_at)
+             VALUES (1, 'u', 'main', '/p', ?1, 0)",
+            [json],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sources (id, url, branch, local_path, created_at)
+             VALUES (2, 'v', 'main', '/q', 0)",
+            [],
+        )
+        .unwrap();
+
+        MIGRATIONS.to_latest(&mut conn).unwrap();
+
+        let approved = approved_capabilities(&conn, 1).unwrap();
+        assert!(!approved.widgets.is_empty());
+        assert_eq!(seen_capabilities(&conn, 1).unwrap(), approved);
+        assert_eq!(
+            seen_capabilities(&conn, 2).unwrap(),
+            CapabilitySet::default()
+        );
     }
 
     #[test]
