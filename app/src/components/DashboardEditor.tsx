@@ -26,7 +26,7 @@ const Failure = (props: { message?: string }) => (
 );
 
 /** Asks for a title; used for both a new dashboard and a rename. */
-function TitleDialog(props: {
+export function TitleDialog(props: {
   heading: string;
   confirm: string;
   initial: string;
@@ -121,7 +121,15 @@ function ConfirmDialog(props: {
   );
 }
 
-function AddWidgetDialog(props: { open: boolean; onClose: () => void; onPick: (widget: string) => Promise<void> }) {
+/** Picks a catalog widget and adds it to a dashboard, at the top level or inside a group. */
+export function AddWidgetDialog(props: {
+  open: boolean;
+  dashboardId: string;
+  /** The group to add into; omitted or null for the dashboard itself. */
+  parentId?: number | null;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
   // Read when opened, so a sync that changed the catalog is reflected.
   const [catalog] = createResource(
     () => props.open || undefined,
@@ -154,13 +162,14 @@ function AddWidgetDialog(props: { open: boolean; onClose: () => void; onPick: (w
                         disabled={action.busy()}
                         onClick={() =>
                           action.run(async () => {
-                            await props.onPick(w.name);
+                            await unwrap(commands.addWidget(props.dashboardId, w.name, props.parentId ?? null));
+                            props.onAdded();
                             props.onClose();
                           })
                         }
                       >
                         <strong>{w.title ?? w.name}</strong> <code>{w.name}</code>
-                        <Show when={w.container}> · group</Show>
+                        <Show when={w.container}> · holds other widgets</Show>
                       </button>
                     </li>
                   )}
@@ -177,7 +186,7 @@ function AddWidgetDialog(props: { open: boolean; onClose: () => void; onPick: (w
 
 const title = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
 
-type Open = "new" | "add" | "rename" | "delete" | undefined;
+type Open = "new" | "group" | "add" | "rename" | "delete" | undefined;
 
 /**
  * The compose toolbar. "+ New dashboard" is always there; the rest act on `dashboard` and are
@@ -188,6 +197,9 @@ export function DashboardToolbar(props: {
   dashboard?: DashboardView;
   /** True when this dashboard is the one the app opens on. */
   landing: boolean;
+  /** View-first: the edit controls appear only while editing; the Edit/Done toggle flips it. */
+  editing: boolean;
+  onToggleEdit: () => void;
   onChanged: () => void;
   onCreated: (created: DashboardView) => void;
   onDeleted: () => void;
@@ -196,17 +208,47 @@ export function DashboardToolbar(props: {
   const close = () => setOpen(undefined);
   const action = useAction();
   const editable = () => (props.dashboard?.editable ? props.dashboard : undefined);
+  // An empty personal dashboard is always in edit mode — nothing to view — so it offers no toggle.
+  const showToggle = () => {
+    const d = editable();
+    return !!(d && d.placements.length > 0);
+  };
 
   return (
     <div class="row toolbar">
       <button type="button" onClick={() => setOpen("new")}>
         + New dashboard
       </button>
-      <Show when={editable()}>
+      <Show when={props.dashboard && !editable() && !props.landing ? props.dashboard : undefined}>
+        {(d) => (
+          <button
+            type="button"
+            disabled={action.busy()}
+            title="Make an editable copy of this dashboard"
+            onClick={() =>
+              action.run(async () => {
+                props.onCreated(await unwrap(commands.customizeDashboard(d().id)));
+              })
+            }
+          >
+            Customize
+          </button>
+        )}
+      </Show>
+      <Show when={showToggle()}>
+        <button type="button" class="edit-toggle" classList={{ active: props.editing }} onClick={props.onToggleEdit}>
+          <span class="edit-toggle-icon" aria-hidden="true">{props.editing ? "✓" : "✎"}</span>
+          {props.editing ? "Done" : "Edit"}
+        </button>
+      </Show>
+      <Show when={props.editing ? editable() : undefined}>
         {(d) => (
           <>
             <button type="button" onClick={() => setOpen("add")}>
               Add widget
+            </button>
+            <button type="button" onClick={() => setOpen("group")}>
+              + New group
             </button>
             <button type="button" onClick={() => setOpen("rename")}>
               Rename
@@ -245,11 +287,15 @@ export function DashboardToolbar(props: {
       <Show when={editable()}>
         {(d) => (
           <>
-            <AddWidgetDialog
-              open={open() === "add"}
+            <AddWidgetDialog open={open() === "add"} dashboardId={d().id} onClose={close} onAdded={props.onChanged} />
+            <TitleDialog
+              heading="New group"
+              confirm="Create"
+              initial=""
+              open={open() === "group"}
               onClose={close}
-              onPick={async (widget) => {
-                await unwrap(commands.addWidget(d().id, widget));
+              onSubmit={async (t) => {
+                await unwrap(commands.createGroup(d().id, t, null));
                 props.onChanged();
               }}
             />

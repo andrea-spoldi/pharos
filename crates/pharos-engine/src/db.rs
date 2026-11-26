@@ -10,6 +10,7 @@ const MIGRATION_LIST: &[M<'_>] = &[
     M::up(include_str!("migrations/001_sources.sql")),
     M::up(include_str!("migrations/002_settings.sql")),
     M::up(include_str!("migrations/003_dashboards.sql")),
+    M::up(include_str!("migrations/004_user_groups.sql")),
 ];
 const MIGRATIONS: Migrations<'_> = Migrations::from_slice(MIGRATION_LIST);
 
@@ -279,7 +280,9 @@ pub struct DashboardRow {
 pub struct PlacementRow {
     pub id: i64,
     pub parent_id: Option<i64>,
-    pub widget: String,
+    /// `None` for a user group (a container row with a title).
+    pub widget: Option<String>,
+    pub title: Option<String>,
     pub x: u32,
     pub y: u32,
     pub w: u32,
@@ -336,7 +339,8 @@ pub fn insert_placement(
     conn: &Connection,
     dashboard_id: i64,
     parent_id: Option<i64>,
-    widget: &str,
+    widget: Option<&str>,
+    title: Option<&str>,
     x: u32,
     y: u32,
     w: u32,
@@ -345,12 +349,13 @@ pub fn insert_placement(
     inputs_json: &str,
 ) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO placements (dashboard_id, parent_id, widget, x, y, w, h, position, inputs)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO placements (dashboard_id, parent_id, widget, title, x, y, w, h, position, inputs)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             dashboard_id,
             parent_id,
             widget,
+            title,
             x,
             y,
             w,
@@ -362,6 +367,14 @@ pub fn insert_placement(
     Ok(conn.last_insert_rowid())
 }
 
+pub fn set_placement_title(conn: &Connection, id: i64, title: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE placements SET title = ?2 WHERE id = ?1",
+        params![id, title],
+    )
+    .map(drop)
+}
+
 /// Child placements go with it (`ON DELETE CASCADE`).
 pub fn delete_placement(conn: &Connection, id: i64) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM placements WHERE id = ?1", [id])
@@ -370,7 +383,7 @@ pub fn delete_placement(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 
 pub fn placements_of(conn: &Connection, dashboard_id: i64) -> rusqlite::Result<Vec<PlacementRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, parent_id, widget, x, y, w, h, position, inputs
+        "SELECT id, parent_id, widget, title, x, y, w, h, position, inputs
          FROM placements WHERE dashboard_id = ?1 ORDER BY position, id",
     )?;
     stmt.query_map([dashboard_id], |r| {
@@ -378,12 +391,13 @@ pub fn placements_of(conn: &Connection, dashboard_id: i64) -> rusqlite::Result<V
             id: r.get(0)?,
             parent_id: r.get(1)?,
             widget: r.get(2)?,
-            x: r.get(3)?,
-            y: r.get(4)?,
-            w: r.get(5)?,
-            h: r.get(6)?,
-            position: r.get(7)?,
-            inputs: r.get(8)?,
+            title: r.get(3)?,
+            x: r.get(4)?,
+            y: r.get(5)?,
+            w: r.get(6)?,
+            h: r.get(7)?,
+            position: r.get(8)?,
+            inputs: r.get(9)?,
         })
     })?
     .collect()
@@ -407,8 +421,22 @@ mod tests {
 
         let d = insert_dashboard(&conn, "mine", Some("Mine")).unwrap();
         // Inserted out of order to prove `position` drives the ordering.
-        let b = insert_placement(&conn, d, None, "b-widget", 6, 0, 6, 4, 1, "{\"k\":1}").unwrap();
-        let a = insert_placement(&conn, d, None, "a-widget", 0, 0, 6, 4, 0, "{}").unwrap();
+        let b = insert_placement(
+            &conn,
+            d,
+            None,
+            Some("b-widget"),
+            None,
+            6,
+            0,
+            6,
+            4,
+            1,
+            "{\"k\":1}",
+        )
+        .unwrap();
+        let a =
+            insert_placement(&conn, d, None, Some("a-widget"), None, 0, 0, 6, 4, 0, "{}").unwrap();
 
         let ds = user_dashboards(&conn).unwrap();
         assert_eq!(ds.len(), 1);
@@ -418,7 +446,7 @@ mod tests {
 
         let ps = placements_of(&conn, d).unwrap();
         assert_eq!(ps.iter().map(|p| p.id).collect::<Vec<_>>(), vec![a, b]);
-        assert_eq!(ps[1].widget, "b-widget");
+        assert_eq!(ps[1].widget.as_deref(), Some("b-widget"));
         assert_eq!((ps[1].x, ps[1].y, ps[1].w, ps[1].h), (6, 0, 6, 4));
         assert_eq!(ps[1].inputs, "{\"k\":1}");
         assert_eq!(ps[0].parent_id, None);
@@ -432,5 +460,113 @@ mod tests {
         delete_dashboard(&conn, d).unwrap();
         assert!(user_dashboards(&conn).unwrap().is_empty());
         assert!(placements_of(&conn, d).unwrap().is_empty());
+    }
+
+    fn mem() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        MIGRATIONS.to_latest(&mut conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn deleting_a_group_cascades_to_nested_members() {
+        let conn = mem();
+        let dash = insert_dashboard(&conn, "d", None).unwrap();
+        let group =
+            insert_placement(&conn, dash, None, None, Some("K8s"), 0, 0, 12, 4, 0, "{}").unwrap();
+        let inner = insert_placement(
+            &conn,
+            dash,
+            Some(group),
+            None,
+            Some("Inner"),
+            0,
+            0,
+            6,
+            2,
+            0,
+            "{}",
+        )
+        .unwrap();
+        let leaf = insert_placement(
+            &conn,
+            dash,
+            Some(inner),
+            Some("pods"),
+            None,
+            0,
+            0,
+            6,
+            2,
+            0,
+            "{}",
+        )
+        .unwrap();
+        delete_placement(&conn, group).unwrap();
+        let remaining: Vec<i64> = placements_of(&conn, dash)
+            .unwrap()
+            .iter()
+            .map(|r| r.id)
+            .collect();
+        assert!(
+            !remaining.contains(&group)
+                && !remaining.contains(&inner)
+                && !remaining.contains(&leaf)
+        );
+    }
+
+    #[test]
+    fn a_group_row_round_trips_with_no_widget_and_a_title() {
+        let conn = mem();
+        let dash = insert_dashboard(&conn, "d", None).unwrap();
+        let g =
+            insert_placement(&conn, dash, None, None, Some("K8s"), 0, 0, 12, 4, 0, "{}").unwrap();
+        let row = placements_of(&conn, dash)
+            .unwrap()
+            .into_iter()
+            .find(|r| r.id == g)
+            .unwrap();
+        assert_eq!(row.widget, None);
+        assert_eq!(row.title.as_deref(), Some("K8s"));
+        set_placement_title(&conn, g, "Renamed").unwrap();
+        let row = placements_of(&conn, dash).unwrap().remove(0);
+        assert_eq!(row.title.as_deref(), Some("Renamed"));
+    }
+
+    #[test]
+    fn migrating_004_over_populated_003_data_preserves_placements() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        // The pre-004 (slice 8a) schema.
+        MIGRATIONS.to_version(&mut conn, 3).unwrap();
+        conn.execute(
+            "INSERT INTO dashboards (id, name, title) VALUES (1, 'd', 'D')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO placements (id, dashboard_id, parent_id, widget, x, y, w, h, position, inputs)
+             VALUES (10, 1, NULL, 'alpha', 0, 0, 6, 2, 0, '{\"k\":\"v\"}'),
+                    (11, 1, NULL, 'beta', 6, 0, 6, 2, 1, '{}')",
+            [],
+        )
+        .unwrap();
+
+        MIGRATIONS.to_latest(&mut conn).unwrap();
+
+        let rows = placements_of(&conn, 1).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].id, 10);
+        assert_eq!(rows[0].widget.as_deref(), Some("alpha"));
+        assert_eq!(rows[0].title, None);
+        assert_eq!(rows[0].inputs, "{\"k\":\"v\"}");
+        assert_eq!((rows[0].x, rows[0].w, rows[0].h), (0, 6, 2));
+        assert_eq!(rows[1].widget.as_deref(), Some("beta"));
+        assert_eq!(rows[1].title, None);
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM placements", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 2);
     }
 }

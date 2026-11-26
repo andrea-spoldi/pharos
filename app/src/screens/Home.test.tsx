@@ -69,6 +69,8 @@ const home: DashboardView = {
   placements: [
     {
       widget: "k8s-context",
+      container: false,
+      title: null,
       x: 0,
       y: 0,
       w: 4,

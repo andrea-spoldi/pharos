@@ -36,6 +36,15 @@ function State(props: { tone?: "danger" | "setup"; title: string; children: JSX.
   );
 }
 
+/** What the user may do to a placement on their own dashboard; absent on a read-only one. */
+export type WidgetEdit = {
+  editable: boolean;
+  /** Open the add-widget picker, targeting this group. */
+  onAdd: (groupId: number) => void;
+  onRename: (placementId: number, title: string) => void;
+  onRemove: (placementId: number, name: string) => void;
+};
+
 /**
  * One dashboard placement: a card placed on the 12-column grid, showing exactly one state.
  * The engine decides the status (D-024); only runnable placements run, by their slot: the
@@ -47,8 +56,8 @@ export function WidgetFrame(props: {
   version: number;
   /** The platform's label for an input key ("Your team"), if it declares one. */
   inputLabel?: (key: string) => string | null | undefined;
-  /** Present only where the user may take this placement off its dashboard. */
-  onRemove?: () => void;
+  /** Compose affordances, threaded down so a group's members can be removed too. */
+  edit?: WidgetEdit;
 }) {
   const p = () => props.placement;
   const name = () => p().manifest?.metadata.title ?? p().widget;
@@ -57,6 +66,18 @@ export function WidgetFrame(props: {
     "grid-row": `${p().y + 1} / span ${p().h}`,
   });
   const status = () => p().status;
+  /** The heading: a user group's own title, else the widget's. */
+  const heading = () => p().title ?? name();
+  /** Only the user's own placements carry an id; platform and manifest-expanded ones do not. */
+  const editing = () => {
+    const e = props.edit;
+    const id = p().id;
+    return e?.editable && id !== null ? { e, id } : undefined;
+  };
+  const remove = () => {
+    const ed = editing();
+    return ed ? () => ed.e.onRemove(ed.id, heading()) : undefined;
+  };
   const navigate = useNavigate();
   /** Settings, focused on the first missing input, else the first missing secret. */
   const openSettings = (s: { inputs: string[]; secrets: string[] }) => {
@@ -65,22 +86,36 @@ export function WidgetFrame(props: {
   };
 
   return (
-    <article class="widget" style={style()}>
+    <article class="widget" classList={{ "widget-group": p().container }} style={style()}>
       <header class="widget-head">
-        <strong>{p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
-        <Show when={props.onRemove}>
-          {(remove) => (
-            <button type="button" class="link" aria-label={`Remove ${name()}`} onClick={() => remove()()}>
-              Remove
-            </button>
-          )}
-        </Show>
+        <strong>{p().title ?? p().manifest?.metadata.title ?? <code>{p().widget}</code>}</strong>
+        <span class="widget-actions">
+          <Show when={p().container && editing()}>
+            {(ed) => (
+              <button
+                type="button"
+                class="link"
+                aria-label={`Rename ${heading()}`}
+                onClick={() => ed().e.onRename(ed().id, heading())}
+              >
+                Rename
+              </button>
+            )}
+          </Show>
+          <Show when={remove()}>
+            {(rm) => (
+              <button type="button" class="link" aria-label={`Remove ${heading()}`} onClick={() => rm()()}>
+                Remove
+              </button>
+            )}
+          </Show>
+        </span>
       </header>
       <div class="widget-body">
         <Switch>
-          <Match when={p().children.length > 0}>
-            {/* A container: its parts, each run by this placement's path plus its index. */}
-            <section class="grid subgrid" aria-label={name()}>
+          <Match when={p().container}>
+            {/* A container, even an empty one: its parts, each run by this placement's path plus its index. */}
+            <section class="grid subgrid" aria-label={heading()}>
               <Index each={p().children}>
                 {(child, i) => (
                   <WidgetFrame
@@ -88,10 +123,23 @@ export function WidgetFrame(props: {
                     slot={{ dashboardId: props.slot.dashboardId, path: [...props.slot.path, i] }}
                     version={props.version}
                     inputLabel={props.inputLabel}
+                    edit={props.edit}
                   />
                 )}
               </Index>
             </section>
+            <Show when={editing()}>
+              {(ed) => (
+                <div class="group-add">
+                  <Show when={p().children.length === 0}>
+                    <span class="muted">Nothing in this group yet.</span>
+                  </Show>
+                  <button type="button" aria-label={`Add widget to ${heading()}`} onClick={() => ed().e.onAdd(ed().id)}>
+                    Add widget
+                  </button>
+                </div>
+              )}
+            </Show>
           </Match>
           <Match when={status().kind === "missing"}>
             <State tone="danger" title="Missing widget">

@@ -343,8 +343,49 @@ pub async fn add_widget(
     state: State<'_, AppState>,
     dashboard_id: String,
     widget: String,
+    parent_id: Option<u32>,
 ) -> CmdResult<DashboardView> {
-    with_engine(state, move |e| e.add_widget(&dashboard_id, &widget)).await
+    with_engine(state, move |e| {
+        e.add_widget(&dashboard_id, &widget, parent_id)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_group(
+    state: State<'_, AppState>,
+    dashboard_id: String,
+    title: String,
+    parent_id: Option<u32>,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| {
+        e.create_group(&dashboard_id, &title, parent_id)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_placement(
+    state: State<'_, AppState>,
+    dashboard_id: String,
+    placement_id: u32,
+    title: String,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| {
+        e.rename_placement(&dashboard_id, placement_id, &title)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn customize_dashboard(
+    state: State<'_, AppState>,
+    platform_id: String,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| e.customize_dashboard(&platform_id)).await
 }
 
 #[tauri::command]

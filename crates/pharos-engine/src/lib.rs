@@ -110,7 +110,7 @@ pub struct Engine {
 
 /// Deepest container nesting `placement_view` expands; a container at this depth is
 /// reported `NotAvailable` instead of being expanded further.
-const MAX_PLACEMENT_DEPTH: usize = 32;
+pub const MAX_PLACEMENT_DEPTH: usize = 32;
 
 impl Engine {
     /// Opens (and migrates) the state in `data_dir`, creating it if needed. Secrets go to
@@ -307,12 +307,12 @@ impl Engine {
         setup: &SetupState,
         row: db::DashboardRow,
     ) -> Result<DashboardView> {
-        let mut placements = Vec::new();
-        for r in top_level(db::placements_of(&self.conn, row.id)?) {
-            let mut view = self.placement_view(source, root, setup, &placement_of(&r), 0)?;
-            view.id = Some(r.id as u32);
-            placements.push(view);
-        }
+        let rows = db::placements_of(&self.conn, row.id)?;
+        let placements = rows
+            .iter()
+            .filter(|r| r.parent_id.is_none())
+            .map(|r| self.user_placement_view(source, root, setup, &rows, r, 0))
+            .collect::<Result<Vec<_>>>()?;
         Ok(DashboardView {
             id: format!("u:{}", row.id),
             origin: Origin::User,
@@ -324,6 +324,55 @@ impl Engine {
                 description: None,
             },
             placements,
+        })
+    }
+
+    /// One user placement: a widget row goes through the manifest path (its expanded
+    /// children are the composite's own parts, so they stay id-less); a group row (no
+    /// widget) is a titled container of the rows whose `parent_id` is its id.
+    fn user_placement_view(
+        &self,
+        source: &Source,
+        root: &Path,
+        setup: &SetupState,
+        rows: &[db::PlacementRow],
+        row: &db::PlacementRow,
+        depth: usize,
+    ) -> Result<PlacementView> {
+        if row.widget.is_some() {
+            let mut view = self.placement_view(source, root, setup, &placement_of(row), 0)?;
+            view.id = Some(row.id as u32);
+            return Ok(view);
+        }
+        let too_deep = depth >= MAX_PLACEMENT_DEPTH;
+        let children = if too_deep {
+            Vec::new()
+        } else {
+            rows.iter()
+                .filter(|c| c.parent_id == Some(row.id))
+                .map(|c| self.user_placement_view(source, root, setup, rows, c, depth + 1))
+                .collect::<Result<Vec<_>>>()?
+        };
+        let status = if too_deep {
+            PlacementStatus::NotAvailable {
+                feature: "groups nested this deeply".to_string(),
+            }
+        } else {
+            dashboard::container_status(true, &children)
+        };
+        Ok(PlacementView {
+            id: Some(row.id as u32),
+            widget: String::new(),
+            container: true,
+            title: row.title.clone(),
+            x: row.x,
+            y: row.y,
+            w: row.w,
+            h: row.h,
+            manifest: None,
+            status,
+            reads: None,
+            children,
         })
     }
 
@@ -376,6 +425,47 @@ impl Engine {
         self.user_view_by_id(id)
     }
 
+    /// Creates a user dashboard titled after the platform dashboard `platform_id` and
+    /// seeds it with copies of that dashboard's own placements (widget, geometry,
+    /// inputs). A container widget is copied as one row referencing it by name; it
+    /// re-expands from the manifest at render time, so no nesting is copied.
+    pub fn customize_dashboard(&mut self, platform_id: &str) -> Result<DashboardView> {
+        let DashboardId::Platform(name) = parse_id(platform_id)? else {
+            return Err(EngineError::UnknownDashboard(platform_id.into()));
+        };
+        let template = self
+            .dashboard_templates()?
+            .into_iter()
+            .find(|d| d.metadata.name == name)
+            .ok_or_else(|| EngineError::UnknownDashboard(platform_id.into()))?;
+        // A blank title counts as absent: Customize seeds, it never errors on a degenerate one.
+        let title = template
+            .metadata
+            .title
+            .as_deref()
+            .filter(|t| !t.trim().is_empty())
+            .unwrap_or(&name);
+        let created = self.create_dashboard(title)?;
+        let row_id = self.user_dashboard_id(&created.id)?;
+        for (position, p) in template.spec.widgets.iter().enumerate() {
+            let inputs = serde_json::to_string(&p.inputs).expect("string maps serialize");
+            db::insert_placement(
+                &self.conn,
+                row_id,
+                None,
+                Some(&p.widget),
+                None,
+                p.x,
+                p.y,
+                p.w,
+                p.h,
+                position as i64,
+                &inputs,
+            )?;
+        }
+        self.user_view_by_id(row_id)
+    }
+
     pub fn rename_dashboard(&mut self, id: &str, title: &str) -> Result<()> {
         let row_id = self.user_dashboard_id(id)?;
         let title = title.trim();
@@ -394,10 +484,14 @@ impl Engine {
         Ok(db::delete_dashboard(&self.conn, row_id)?)
     }
 
-    /// Appends `widget` below the existing placements, full grid-left, at a default size
-    /// for its view. Only top-level placements exist in 8a (a platform composite's
-    /// children come from its manifest, not from rows).
-    pub fn add_widget(&mut self, dashboard_id: &str, widget: &str) -> Result<DashboardView> {
+    /// Appends `widget` below its siblings (the placements sharing `parent_id`; `None` is
+    /// the top level), full grid-left, at a default size for its view.
+    pub fn add_widget(
+        &mut self,
+        dashboard_id: &str,
+        widget: &str,
+        parent_id: Option<u32>,
+    ) -> Result<DashboardView> {
         let row_id = self.user_dashboard_id(dashboard_id)?;
         let source = self.source()?.ok_or(EngineError::NoSource)?;
         let (_, json) = db::widget(&self.conn, source.id, widget)?
@@ -405,30 +499,137 @@ impl Engine {
         let manifest: Widget =
             serde_json::from_str(&json).expect("stored manifests are valid JSON");
         let (w, h) = default_size(&manifest);
-        let rows = top_level(db::placements_of(&self.conn, row_id)?);
-        let y = rows.iter().map(|r| r.y + r.h).max().unwrap_or(0);
-        let position = rows.iter().map(|r| r.position + 1).max().unwrap_or(0);
-        db::insert_placement(&self.conn, row_id, None, widget, 0, y, w, h, position, "{}")?;
+        let (parent, y, position) = self.slot_in(dashboard_id, row_id, parent_id)?;
+        db::insert_placement(
+            &self.conn,
+            row_id,
+            parent,
+            Some(widget),
+            None,
+            0,
+            y,
+            w,
+            h,
+            position,
+            "{}",
+        )?;
         self.user_view_by_id(row_id)
     }
 
-    /// Removes the top-level placement whose row id is `placement_id` (`PlacementView::id`).
+    /// Appends an empty titled group below its siblings (see `add_widget`).
+    pub fn create_group(
+        &mut self,
+        dashboard_id: &str,
+        title: &str,
+        parent_id: Option<u32>,
+    ) -> Result<DashboardView> {
+        let row_id = self.user_dashboard_id(dashboard_id)?;
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(EngineError::InvalidValue {
+                key: "title".into(),
+                reason: "empty".into(),
+            });
+        }
+        let (parent, y, position) = self.slot_in(dashboard_id, row_id, parent_id)?;
+        db::insert_placement(
+            &self.conn,
+            row_id,
+            parent,
+            None,
+            Some(title),
+            0,
+            y,
+            12,
+            4,
+            position,
+            "{}",
+        )?;
+        self.user_view_by_id(row_id)
+    }
+
+    /// Sets the title of the placement (a group's name) whose row id is `placement_id`.
+    pub fn rename_placement(
+        &mut self,
+        dashboard_id: &str,
+        placement_id: u32,
+        title: &str,
+    ) -> Result<DashboardView> {
+        let row_id = self.user_dashboard_id(dashboard_id)?;
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(EngineError::InvalidValue {
+                key: "title".into(),
+                reason: "empty".into(),
+            });
+        }
+        let row = self.placement_row(dashboard_id, row_id, placement_id)?;
+        if row.widget.is_some() {
+            return Err(EngineError::InvalidValue {
+                key: "placement".into(),
+                reason: "not a group".into(),
+            });
+        }
+        db::set_placement_title(&self.conn, row.id, title)?;
+        self.user_view_by_id(row_id)
+    }
+
+    /// Removes the placement (at any depth) whose row id is `placement_id`
+    /// (`PlacementView::id`); a group takes its members with it.
     pub fn remove_widget(
         &mut self,
         dashboard_id: &str,
         placement_id: u32,
     ) -> Result<DashboardView> {
         let row_id = self.user_dashboard_id(dashboard_id)?;
-        let rows = db::placements_of(&self.conn, row_id)?;
-        let row = top_level(rows)
+        let row = self.placement_row(dashboard_id, row_id, placement_id)?;
+        db::delete_placement(&self.conn, row.id)?;
+        self.user_view_by_id(row_id)
+    }
+
+    /// The row `placement_id` of this dashboard, at any depth.
+    fn placement_row(
+        &self,
+        dashboard_id: &str,
+        row_id: i64,
+        placement_id: u32,
+    ) -> Result<db::PlacementRow> {
+        db::placements_of(&self.conn, row_id)?
             .into_iter()
             .find(|r| r.id == i64::from(placement_id))
             .ok_or_else(|| EngineError::UnknownPlacement {
                 dashboard: dashboard_id.into(),
                 index: placement_id as usize,
-            })?;
-        db::delete_placement(&self.conn, row.id)?;
-        self.user_view_by_id(row_id)
+            })
+    }
+
+    /// Where a new placement under `parent_id` goes: the parent row id, then `y` and
+    /// `position` below the siblings that share that parent. A parent must be a row of
+    /// this dashboard.
+    fn slot_in(
+        &self,
+        dashboard_id: &str,
+        row_id: i64,
+        parent_id: Option<u32>,
+    ) -> Result<(Option<i64>, u32, i64)> {
+        let rows = db::placements_of(&self.conn, row_id)?;
+        let parent = match parent_id {
+            Some(id) => {
+                let row = self.placement_row(dashboard_id, row_id, id)?;
+                if row.widget.is_some() {
+                    return Err(EngineError::InvalidValue {
+                        key: "parent".into(),
+                        reason: "not a group".into(),
+                    });
+                }
+                Some(row.id)
+            }
+            None => None,
+        };
+        let siblings: Vec<_> = rows.iter().filter(|r| r.parent_id == parent).collect();
+        let y = siblings.iter().map(|r| r.y + r.h).max().unwrap_or(0);
+        let position = siblings.iter().map(|r| r.position + 1).max().unwrap_or(0);
+        Ok((parent, y, position))
     }
 
     /// Chooses the dashboard shown first; `None` clears it. A dashboard that later
@@ -470,14 +671,15 @@ impl Engine {
         let manifest = stored.as_ref().map(|(_, json)| {
             serde_json::from_str::<Widget>(json).expect("stored manifests are valid JSON")
         });
-        if depth >= MAX_PLACEMENT_DEPTH
-            && manifest
-                .as_ref()
-                .is_some_and(|w| !w.spec.widgets.is_empty())
-        {
+        let is_container = manifest
+            .as_ref()
+            .is_some_and(|w| !w.spec.widgets.is_empty());
+        if depth >= MAX_PLACEMENT_DEPTH && is_container {
             return Ok(PlacementView {
                 id: None,
                 widget: p.widget.clone(),
+                container: is_container,
+                title: None,
                 x: p.x,
                 y: p.y,
                 w: p.w,
@@ -499,9 +701,6 @@ impl Engine {
                 .collect::<Result<Vec<_>>>()?,
             None => Vec::new(),
         };
-        let is_container = manifest
-            .as_ref()
-            .is_some_and(|w| !w.spec.widgets.is_empty());
         let status = if is_container || manifest.is_none() {
             dashboard::container_status(manifest.is_some(), &children)
         } else {
@@ -516,6 +715,8 @@ impl Engine {
         Ok(PlacementView {
             id: None,
             widget: p.widget.clone(),
+            container: is_container,
+            title: None,
             x: p.x,
             y: p.y,
             w: p.w,
@@ -684,6 +885,10 @@ impl Engine {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
         let placement = self.resolve_path(&source, dashboard_id, path)?;
         let name = &placement.widget;
+        if name.is_empty() {
+            // A user group has no widget of its own to run.
+            return Err(EngineError::NotALeaf("group".into()));
+        }
         let (file, manifest) = db::widget(&self.conn, source.id, name)?
             .ok_or_else(|| EngineError::UnknownWidget(name.clone()))?;
         let widget: Widget =
@@ -792,14 +997,17 @@ impl Engine {
             dashboard: dashboard_id.into(),
             index,
         };
-        let top: Vec<Placement> = match parse_id(dashboard_id)? {
+        let (&first, rest) = path.split_first().ok_or_else(|| unknown(0))?;
+        let (mut current, rest) = match parse_id(dashboard_id)? {
             DashboardId::Platform(name) => {
-                self.dashboard_templates()?
+                let top = self
+                    .dashboard_templates()?
                     .into_iter()
                     .find(|d| d.metadata.name == name)
                     .ok_or_else(|| EngineError::UnknownDashboard(dashboard_id.into()))?
                     .spec
-                    .widgets
+                    .widgets;
+                (top.get(first).cloned().ok_or_else(|| unknown(first))?, rest)
             }
             DashboardId::User(row_id) => {
                 if !db::user_dashboards(&self.conn)?
@@ -808,14 +1016,28 @@ impl Engine {
                 {
                     return Err(EngineError::UnknownDashboard(dashboard_id.into()));
                 }
-                top_level(db::placements_of(&self.conn, row_id)?)
+                let rows = db::placements_of(&self.conn, row_id)?;
+                let mut row = rows
                     .iter()
-                    .map(placement_of)
-                    .collect()
+                    .filter(|r| r.parent_id.is_none())
+                    .nth(first)
+                    .ok_or_else(|| unknown(first))?;
+                let mut rest = rest;
+                // A user group's members are rows; descend through them until a widget.
+                while row.widget.is_none() {
+                    let Some((&index, tail)) = rest.split_first() else {
+                        break;
+                    };
+                    row = rows
+                        .iter()
+                        .filter(|c| c.parent_id == Some(row.id))
+                        .nth(index)
+                        .ok_or_else(|| unknown(index))?;
+                    rest = tail;
+                }
+                (placement_of(row), rest)
             }
         };
-        let (&first, rest) = path.split_first().ok_or_else(|| unknown(0))?;
-        let mut current = top.get(first).cloned().ok_or_else(|| unknown(first))?;
         for &index in rest {
             let (_, json) = db::widget(&self.conn, source.id, &current.widget)?
                 .ok_or_else(|| EngineError::UnknownWidget(current.widget.clone()))?;
@@ -1000,15 +1222,9 @@ fn parse_id(id: &str) -> Result<DashboardId> {
         .ok_or_else(|| EngineError::UnknownDashboard(id.into()))
 }
 
-/// Rows with no parent: in 8a all user placements (a platform composite's children come
-/// from its widget manifest, not from rows).
-fn top_level(rows: Vec<db::PlacementRow>) -> Vec<db::PlacementRow> {
-    rows.into_iter().filter(|r| r.parent_id.is_none()).collect()
-}
-
 fn placement_of(row: &db::PlacementRow) -> Placement {
     Placement {
-        widget: row.widget.clone(),
+        widget: row.widget.clone().unwrap_or_default(),
         x: row.x,
         y: row.y,
         w: row.w,

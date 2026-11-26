@@ -18,6 +18,9 @@ vi.mock("../bindings", () => ({
     addWidget: vi.fn(),
     removeWidget: vi.fn(),
     setLanding: vi.fn(),
+    createGroup: vi.fn(),
+    renamePlacement: vi.fn(),
+    customizeDashboard: vi.fn(),
   },
 }));
 
@@ -31,6 +34,8 @@ function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView
     metadata: { name, title: name[0].toUpperCase() + name.slice(1), version: null, description: null },
     placements: widgets.map((w, i) => ({
       widget: w,
+      container: false,
+      title: null,
       x: 0,
       y: i * 2,
       w: 4,
@@ -67,6 +72,8 @@ function runnableHome(): DashboardView {
     placements: [
       {
         widget: "service-catalog",
+        container: false,
+        title: null,
         x: 0,
         y: 0,
         w: 8,
@@ -275,7 +282,7 @@ describe("Dashboards compose", () => {
     expect(within(dialog).getByRole("button", { name: /pair/ })).toBeTruthy();
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), one]));
     fireEvent.click(within(dialog).getByRole("button", { name: /Welcome/ }));
-    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome"));
+    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome", null));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove welcome" }));
@@ -353,5 +360,109 @@ describe("Dashboards compose", () => {
     }
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
     expect(screen.queryByText("Add your first widget")).toBeNull();
+  });
+
+  it("shows + New group on an editable dashboard and creates a top-level group", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine")]));
+    vi.mocked(commands.createGroup).mockResolvedValue(ok(userDashboard(1, "Mine")));
+    renderAt("/d/u:1");
+    fireEvent.click(await screen.findByRole("button", { name: "+ New group" }));
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.input(dialog.getByLabelText("Title"), { target: { value: "Ops" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(commands.createGroup).toHaveBeenCalledWith("u:1", "Ops", null));
+  });
+
+  it("customize_is_hidden_on_the_landing_dashboard", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"])]));
+    renderAt("/d/p:home");
+    await screen.findByRole("button", { name: /^Home\b/ });
+    expect(screen.queryByRole("button", { name: "Customize" })).toBeNull();
+  });
+
+  it("customize_shows_on_a_non_landing_platform_dashboard", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"])]));
+    renderAt("/d/p:ops");
+    expect(await screen.findByRole("button", { name: "Customize" })).toBeTruthy();
+  });
+
+  it("customizes a non-landing platform dashboard and opens the copy", async () => {
+    const copy = userDashboard(2, "Ops copy");
+    vi.mocked(commands.customizeDashboard).mockResolvedValue(ok(copy));
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"])]));
+    const history = renderAt("/d/p:ops");
+    await screen.findByRole("button", { name: /^Ops\b/ });
+    expect(screen.queryByRole("button", { name: "+ New group" })).toBeNull();
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), dashboard("ops", ["k8s"]), copy]));
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    await waitFor(() => expect(commands.customizeDashboard).toHaveBeenCalledWith("p:ops"));
+    await waitFor(() => expect(history.get()).toBe("/d/u%3A2"));
+  });
+
+  it("adds a widget into a group via its own Add widget control", async () => {
+    const mine = userDashboard(1, "Mine");
+    mine.placements = [{ ...dashboard("x").placements[0], widget: "group", container: true, title: "Ops", id: 5 }];
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    vi.mocked(commands.addWidget).mockResolvedValue(ok(mine));
+    renderAt("/d/u:1");
+    // Non-empty dashboards open in view mode; enter edit to reach group controls.
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add widget to Ops" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByRole("button", { name: /Welcome/ }));
+    await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome", 5));
+  });
+
+  it("editable_dashboard_opens_in_view_mode", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine", ["welcome"])]));
+    renderAt("/d/u:1");
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add widget" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+  });
+
+  it("clicking_edit_reveals_the_controls", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine", ["welcome"])]));
+    renderAt("/d/u:1");
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", { name: "Add widget" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Remove/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
+  });
+
+  it("empty_editable_dashboard_opens_in_edit_mode", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine")]));
+    renderAt("/d/u:1");
+    expect(await screen.findByRole("button", { name: "Add widget" })).toBeTruthy();
+    // An empty personal dashboard is always in edit mode — nothing to view, so no toggle.
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+  });
+
+  it("the_edit_toggle_appears_once_the_dashboard_has_a_widget", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), userDashboard(1, "Mine", ["welcome"])]));
+    renderAt("/d/u:1");
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeTruthy();
+  });
+
+  it("switching_dashboards_resets_to_view_mode", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(
+      ok([dashboard("home"), userDashboard(1, "One", ["welcome"]), userDashboard(2, "Two", ["welcome"])]),
+    );
+    renderAt("/d/u:1");
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", { name: "Add widget" })).toBeTruthy();
+    fireEvent.click(tab("Two"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Add widget" })).toBeNull();
+  });
+
+  it("platform_dashboard_has_no_edit_toggle", async () => {
+    renderAt("/d/p:home");
+    await screen.findByRole("button", { name: /^Home\b/ });
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
   });
 });

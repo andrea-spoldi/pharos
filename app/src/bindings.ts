@@ -57,7 +57,10 @@ export const commands = {
 	createDashboard: (title: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("create_dashboard", { title })),
 	renameDashboard: (id: string, title: string) => typedError<null, CommandError>(__TAURI_INVOKE("rename_dashboard", { id, title })),
 	deleteDashboard: (id: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_dashboard", { id })),
-	addWidget: (dashboardId: string, widget: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("add_widget", { dashboardId, widget })),
+	addWidget: (dashboardId: string, widget: string, parentId: number | null) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("add_widget", { dashboardId, widget, parentId })),
+	createGroup: (dashboardId: string, title: string, parentId: number | null) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("create_group", { dashboardId, title, parentId })),
+	renamePlacement: (dashboardId: string, placementId: number, title: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("rename_placement", { dashboardId, placementId, title })),
+	customizeDashboard: (platformId: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("customize_dashboard", { platformId })),
 	removeWidget: (dashboardId: string, placementId: number) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("remove_widget", { dashboardId, placementId })),
 	setLanding: (dashboardId: string | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_landing", { dashboardId })),
 };
@@ -220,11 +223,16 @@ export type PlacementStatus =
 
 export type PlacementView = {
 	/**
-	 *  Row id of a user dashboard's top-level placement (what `remove_widget` takes);
-	 *  `None` for platform placements and expanded children.
+	 *  Row id of a user dashboard's placement at any depth, groups and their members
+	 *  included (what `remove_widget`/`rename_placement` take); `None` for platform
+	 *  placements and the children a composite widget expands into.
 	 */
 	id: number | null,
 	widget: string,
+	/**  True for a placement that holds children: a composite widget or a user group. */
+	container: boolean,
+	/**  A user group's title; `None` for widget placements (the frontend uses the manifest title). */
+	title: string | null,
 	x: number,
 	y: number,
 	w: number,

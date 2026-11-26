@@ -2,8 +2,8 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { createEffect, createResource, createSignal, For, Index, Match, onCleanup, Show, Switch } from "solid-js";
 import { commands, type DashboardView } from "../bindings";
 import { unwrap } from "../ipc";
-import { DashboardToolbar, RemoveWidgetDialog } from "../components/DashboardEditor";
-import { WidgetFrame } from "../components/WidgetFrame";
+import { AddWidgetDialog, DashboardToolbar, RemoveWidgetDialog, TitleDialog } from "../components/DashboardEditor";
+import { WidgetFrame, type WidgetEdit } from "../components/WidgetFrame";
 
 const MAX_TABS = 5;
 
@@ -27,6 +27,29 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
   const current = () => dashboards.latest?.find((d) => d.id === routeId());
   const open = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
   const [removing, setRemoving] = createSignal<{ dashboardId: string; placementId: number; name: string }>();
+  const [adding, setAdding] = createSignal<{ dashboardId: string; parentId: number }>();
+  const [renaming, setRenaming] = createSignal<{ dashboardId: string; placementId: number; title: string }>();
+  /** Compose callbacks for a user dashboard's placements; they reuse the dialogs below. */
+  const editFor = (dashboardId: string, editable: boolean): WidgetEdit => ({
+    editable,
+    onAdd: (parentId) => setAdding({ dashboardId, parentId }),
+    onRename: (placementId, title) => setRenaming({ dashboardId, placementId, title }),
+    onRemove: (placementId, name) => setRemoving({ dashboardId, placementId, name }),
+  });
+  // View-first: a dashboard opens in view mode and an explicit Edit toggle turns editing on.
+  // Ephemeral, per-dashboard; nothing persisted. We settle edit mode only when the *dashboard
+  // itself* changes (open/switch), tracked by id — a re-sync hands back a new object for the same
+  // id, and must not knock the user out of edit mode mid-compose. An empty editable dashboard
+  // opens in edit mode, since its only content is the add-widget call to action.
+  const [editing, setEditing] = createSignal(false);
+  let settledFor: string | undefined;
+  createEffect(() => {
+    if (dashboards.error) return;
+    const c = current();
+    if (c?.id === settledFor) return;
+    settledFor = c?.id;
+    setEditing(!!(c?.editable && c.placements.length === 0));
+  });
   // The engine puts the landing dashboard first, and the app opens on the first one.
   const landingId = () => dashboards.latest?.[0]?.id;
   // Mutations re-read the list from the engine; a new dashboard is opened once it is listed,
@@ -55,7 +78,14 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
       </Match>
       <Match when={dashboards.latest?.length === 0}>
         <section class="stack">
-          <DashboardToolbar landing={false} onChanged={refetch} onCreated={created} onDeleted={refetch} />
+          <DashboardToolbar
+            landing={false}
+            editing={editing()}
+            onToggleEdit={() => setEditing((v) => !v)}
+            onChanged={refetch}
+            onCreated={created}
+            onDeleted={refetch}
+          />
           <div class="notice">
             <p>No dashboards yet. Click + New dashboard to create one.</p>
           </div>
@@ -68,11 +98,33 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
             <DashboardToolbar
               dashboard={d()}
               landing={d().id === landingId()}
+              editing={editing()}
+              onToggleEdit={() => setEditing((v) => !v)}
               onChanged={refetch}
               onCreated={created}
               onDeleted={refetch}
             />
             <RemoveWidgetDialog target={removing()} onClose={() => setRemoving(undefined)} onRemoved={refetch} />
+            <AddWidgetDialog
+              open={adding() !== undefined}
+              dashboardId={adding()?.dashboardId ?? d().id}
+              parentId={adding()?.parentId}
+              onClose={() => setAdding(undefined)}
+              onAdded={refetch}
+            />
+            <TitleDialog
+              heading="Rename group"
+              confirm="Rename"
+              initial={renaming()?.title ?? ""}
+              open={renaming() !== undefined}
+              onClose={() => setRenaming(undefined)}
+              onSubmit={async (t) => {
+                const r = renaming();
+                if (!r) return;
+                await unwrap(commands.renamePlacement(r.dashboardId, r.placementId, t));
+                await refetch();
+              }}
+            />
             <Show
               when={d().placements.length}
               fallback={
@@ -99,16 +151,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
                       slot={{ dashboardId: d().id, path: [p().index] }}
                       version={props.version}
                       inputLabel={props.inputLabel}
-                      onRemove={
-                        d().editable && p().placement.id !== null
-                          ? () =>
-                              setRemoving({
-                                dashboardId: d().id,
-                                placementId: p().placement.id as number,
-                                name: p().placement.manifest?.metadata.title ?? p().placement.widget,
-                              })
-                          : undefined
-                      }
+                      edit={editFor(d().id, d().editable && editing())}
                     />
                   )}
                 </Index>

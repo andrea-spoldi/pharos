@@ -464,6 +464,17 @@ h3 {
   color: var(--accent);
 }
 
+/* The view/edit toggle: its glyph picks up the accent like the landing mark, and the pressed
+   (editing) state fills by one tone — Tone Not Shadow — so edit mode is legible at a glance. */
+.edit-toggle-icon {
+  margin-inline-end: var(--space-1);
+  color: var(--accent);
+}
+
+button.edit-toggle.active {
+  background: var(--border);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -487,6 +498,26 @@ h3 {
    link's top margin so it stays centered in the header. */
 .widget-head .link {
   margin-top: 0;
+}
+
+/* Rename and Remove sit together at the header's end, quiet next to the title. */
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* A user group reads as a frame around its members: a dashed edge, not a second card. */
+.widget.widget-group {
+  border-style: dashed;
+}
+
+/* The group's own Add widget sits under its members, left-aligned, with the empty hint beside it. */
+.group-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 /* A container's parts lay out on their own 12-column grid inside its body. */

@@ -122,7 +122,7 @@ fn run_denies_unapproved_capability_via_path() {
     let f = composite_fixture();
     let mut engine = f.synced_engine();
     engine.create_dashboard("Mine").unwrap();
-    engine.add_widget("u:1", "pair").unwrap();
+    engine.add_widget("u:1", "pair", None).unwrap();
     // Consent was given at sync; withdraw it, leaving nothing approved.
     let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
     db.execute("UPDATE sources SET approved_capabilities = '{}'", [])
@@ -147,7 +147,7 @@ fn run_by_path_reaches_an_approved_leaf_in_a_user_composite() {
     let f = composite_fixture();
     let mut engine = f.synced_engine();
     engine.create_dashboard("Mine").unwrap();
-    engine.add_widget("u:1", "pair").unwrap();
+    engine.add_widget("u:1", "pair", None).unwrap();
 
     let data = engine.run_placement("u:1", &[0, 1]).unwrap();
 
@@ -159,8 +159,8 @@ fn bad_paths_are_clean_errors() {
     let f = composite_fixture();
     let mut engine = f.synced_engine();
     engine.create_dashboard("Mine").unwrap();
-    engine.add_widget("u:1", "pair").unwrap();
-    engine.add_widget("u:1", "welcome").unwrap();
+    engine.add_widget("u:1", "pair", None).unwrap();
+    engine.add_widget("u:1", "welcome", None).unwrap();
 
     // Lands on a container.
     assert!(matches!(
@@ -197,5 +197,38 @@ fn bad_paths_are_clean_errors() {
     assert!(matches!(
         engine.run_placement("u:1", &[1]),
         Err(EngineError::NoDataSource(_))
+    ));
+}
+
+#[test]
+fn run_reaches_a_leaf_inside_a_user_group() {
+    let f = composite_fixture();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("Mine").unwrap();
+    let view = engine.create_group("u:1", "Infra", None).unwrap();
+    let gid = view.placements[0].id.unwrap();
+    engine
+        .add_widget("u:1", "service-catalog", Some(gid))
+        .unwrap();
+
+    let data = engine.run_placement("u:1", &[0, 0]).unwrap();
+
+    assert_eq!(data.rows.len(), 2);
+}
+
+#[test]
+fn run_on_a_group_node_is_a_clean_error() {
+    let f = composite_fixture();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("Mine").unwrap();
+    engine.create_group("u:1", "Infra", None).unwrap();
+
+    assert!(matches!(
+        engine.run_placement("u:1", &[0]),
+        Err(EngineError::NotALeaf(_))
+    ));
+    assert!(matches!(
+        engine.run_placement("u:1", &[0, 0]),
+        Err(EngineError::UnknownPlacement { .. })
     ));
 }

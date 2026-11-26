@@ -29,10 +29,15 @@ pub enum PlacementStatus {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PlacementView {
-    /// Row id of a user dashboard's top-level placement (what `remove_widget` takes);
-    /// `None` for platform placements and expanded children.
+    /// Row id of a user dashboard's placement at any depth, groups and their members
+    /// included (what `remove_widget`/`rename_placement` take); `None` for platform
+    /// placements and the children a composite widget expands into.
     pub id: Option<u32>,
     pub widget: String,
+    /// True for a placement that holds children: a composite widget or a user group.
+    pub container: bool,
+    /// A user group's title; `None` for widget placements (the frontend uses the manifest title).
+    pub title: Option<String>,
     pub x: u32,
     pub y: u32,
     pub w: u32,
@@ -339,6 +344,8 @@ mod tests {
         PlacementView {
             id: None,
             widget: "c".into(),
+            container: false,
+            title: None,
             x: 0,
             y: 0,
             w: 1,
