@@ -218,7 +218,7 @@ label.row {
 }
 
 /* Hover deepens the fill by one tone (Tone Not Shadow); tabs, menu rows and links have their own. */
-button:hover:not(:disabled, .primary, .danger, .link, .tab, .menu-item) {
+button:hover:not(:disabled, .primary, .danger, .link, .tab, .menu-item, .resize-grip) {
   background: var(--border);
 }
 
@@ -575,6 +575,7 @@ button.edit-toggle.active {
 }
 
 .widget {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -596,6 +597,72 @@ button.edit-toggle.active {
 .subgrid > .widget {
   border-color: var(--border-soft);
   box-shadow: none;
+}
+
+/* Edit mode, drag/resize. The header is the move surface, so it wears a grab cursor; the card
+   lifts and holds the accent while it is dragged, and its neighbours step back so the one card
+   in motion stays the loud thing on the grid — the gesture's single authored moment. */
+.widget-head--grab {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.widget.dragging .widget-head--grab {
+  cursor: grabbing;
+}
+
+.widget.dragging {
+  z-index: 2;
+  border-color: var(--accent-weak);
+  box-shadow: var(--shadow-pop);
+}
+
+.grid.reflowing > .widget:not(.dragging) {
+  opacity: 0.82;
+}
+
+/* The resize grip: a drawn corner at the card's bottom-right — two hairlines nested in the
+   card's radius, quiet until the card is hovered or dragged, firming to the accent on contact.
+   Drawn, never a glyph, and keyboard-reachable through the shared focus ring. */
+.resize-grip {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 0 0 var(--radius) 0;
+  background: linear-gradient(
+    135deg,
+    transparent 48%,
+    var(--border) 48% 60%,
+    transparent 60% 74%,
+    var(--border) 74% 86%,
+    transparent 86%
+  );
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+}
+
+.grid:not(.subgrid) > .widget:hover .resize-grip,
+.resize-grip:focus-visible,
+.widget.dragging .resize-grip {
+  opacity: 1;
+}
+
+.resize-grip:hover,
+.widget.dragging .resize-grip {
+  background: linear-gradient(
+    135deg,
+    transparent 48%,
+    var(--accent) 48% 60%,
+    transparent 60% 74%,
+    var(--accent) 74% 86%,
+    transparent 86%
+  );
 }
 
 .widget-head {
@@ -868,7 +935,9 @@ button.link.back {
   button,
   .widget,
   .tab,
+  .resize-grip,
   tbody tr {
-    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease,
+      opacity 150ms ease;
   }
 }

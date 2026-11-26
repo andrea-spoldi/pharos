@@ -1,6 +1,32 @@
 export type Box = { x: number; y: number; w: number; h: number };
 export type LayoutItem = Box & { id: number };
 
+export type DragMode = "move" | "resize";
+
+/**
+ * The move/resize coordinator a dashboard hands to its top-level frames. The pixel→cell
+ * math lives in the frame's pointer handlers; everything past a resolved target `Box` lives
+ * here, so a test can drive a whole gesture without synthesising pointer physics.
+ */
+export type DragController = {
+  /** Affordances are live: edit mode, an editable dashboard, wider than the single-column breakpoint. */
+  enabled: () => boolean;
+  /** A gesture is in flight. */
+  active: () => boolean;
+  /** The placement currently being dragged, if any. */
+  isMoving: (id: number) => boolean;
+  /** Start a gesture, snapshotting the current layout as its base. */
+  begin: (id: number, mode: DragMode) => void;
+  /** Preview a target box: clamp, reflow, hold the result as the transient layout. */
+  onMove: (id: number, target: Box) => void;
+  /** Finish: persist the placements whose geometry changed, or nothing if none did. */
+  commit: (id: number) => void;
+  /** Abort: drop the transient layout, persist nothing. */
+  cancel: () => void;
+  /** The transient box for a placement while a gesture is in flight, else undefined. */
+  boxOf: (id: number) => Box | undefined;
+};
+
 const COLS = 12;
 
 function collides(a: Box, b: Box): boolean {

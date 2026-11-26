@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-lib
 import { createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView } from "../bindings";
-import { Dashboards } from "./Dashboards";
+import { Dashboards, dragControllerFor } from "./Dashboards";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
@@ -20,6 +20,7 @@ vi.mock("../bindings", () => ({
     setLanding: vi.fn(),
     createGroup: vi.fn(),
     renamePlacement: vi.fn(),
+    setLayout: vi.fn(),
     customizeDashboard: vi.fn(),
   },
 }));
@@ -464,5 +465,117 @@ describe("Dashboards compose", () => {
     await screen.findByRole("button", { name: /^Home\b/ });
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+  });
+});
+
+/** A user dashboard with a top-level leaf, a top-level group, and a child inside the group. */
+function layoutDashboard(): DashboardView {
+  const leaf = { ...dashboard("x").placements[0], widget: "welcome", id: 10, x: 0, y: 0, w: 4, h: 2 };
+  const child = { ...dashboard("x").placements[0], widget: "k8s", id: 21, x: 0, y: 0, w: 4, h: 2 };
+  const group = {
+    ...dashboard("x").placements[0],
+    widget: "group",
+    container: true,
+    title: "Ops",
+    id: 20,
+    x: 4,
+    y: 0,
+    w: 4,
+    h: 2,
+    children: [child],
+  };
+  return { ...userDashboard(1, "Mine"), placements: [leaf, group] };
+}
+
+const topGrid = () => document.querySelector(".grid:not(.subgrid)") as HTMLElement;
+const article = (text: string) => screen.getByText(text, { selector: "header *" }).closest("article") as HTMLElement;
+
+describe("Dashboards drag/resize", () => {
+  beforeEach(() => {
+    window.innerWidth = 1200;
+    vi.mocked(commands.listDashboards).mockReset().mockResolvedValue(ok([layoutDashboard()]));
+    vi.mocked(commands.setLayout).mockReset().mockResolvedValue(ok(layoutDashboard()));
+  });
+
+  it("move_resize_grips_only_in_edit_mode_on_top_level", async () => {
+    renderAt("/d/u:1");
+    // View mode: no grips anywhere.
+    await screen.findByText("welcome", { selector: "header *" });
+    expect(document.querySelector("[data-move-handle]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Resize/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    // The top-level leaf shows both a move handle and a resize grip.
+    const leaf = article("welcome");
+    expect(leaf.querySelector("[data-move-handle]")).toBeTruthy();
+    expect(within(leaf).getByRole("button", { name: "Resize welcome" })).toBeTruthy();
+    // A group's child (inside the sub-grid) shows neither.
+    const child = article("k8s");
+    expect(child.querySelector("[data-move-handle]")).toBeNull();
+    expect(within(child).queryByRole("button", { name: /^Resize/ })).toBeNull();
+  });
+
+  it("grips_absent_on_a_platform_dashboard", async () => {
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home", ["welcome"])]));
+    renderAt("/d/p:home");
+    await screen.findByText("welcome", { selector: "header *" });
+    expect(document.querySelector("[data-move-handle]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Resize/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("a_completed_drag_commits_via_setLayout", async () => {
+    renderAt("/d/u:1");
+    await screen.findByText("welcome", { selector: "header *" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const drag = dragControllerFor(topGrid());
+    expect(drag).toBeTruthy();
+
+    // Move the leaf (id 10) into the empty right of the grid — no collision, one changed card.
+    drag!.begin(10, "move");
+    drag!.onMove(10, { x: 8, y: 0, w: 4, h: 2 });
+    drag!.commit(10);
+    await waitFor(() => expect(commands.setLayout).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(commands.setLayout).mock.calls[0]).toEqual([
+      "u:1",
+      [{ placementId: 10, x: 8, y: 0, w: 4, h: 2 }],
+    ]);
+
+    // A gesture that changes nothing does not persist.
+    drag!.begin(10, "move");
+    drag!.commit(10);
+    expect(commands.setLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("escape_cancels_without_persisting", async () => {
+    renderAt("/d/u:1");
+    await screen.findByText("welcome", { selector: "header *" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const drag = dragControllerFor(topGrid())!;
+
+    drag.begin(10, "move");
+    drag.onMove(10, { x: 8, y: 0, w: 4, h: 2 });
+    // The live preview moves the card.
+    expect(article("welcome").style.getPropertyValue("grid-column")).toBe("9 / span 4");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(commands.setLayout).not.toHaveBeenCalled();
+    // Geometry reverts to the stored placement.
+    expect(article("welcome").style.getPropertyValue("grid-column")).toBe("1 / span 4");
+  });
+
+  it("handlers_inert_below_the_single_column_breakpoint", async () => {
+    window.innerWidth = 800;
+    renderAt("/d/u:1");
+    await screen.findByText("welcome", { selector: "header *" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const drag = dragControllerFor(topGrid())!;
+
+    drag.begin(10, "move");
+    drag.onMove(10, { x: 8, y: 0, w: 4, h: 2 });
+    drag.commit(10);
+    expect(commands.setLayout).not.toHaveBeenCalled();
+    // The gesture never took hold, so geometry is unchanged.
+    expect(article("welcome").style.getPropertyValue("grid-column")).toBe("1 / span 4");
   });
 });
