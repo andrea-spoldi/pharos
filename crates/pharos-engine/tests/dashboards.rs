@@ -3,7 +3,7 @@
 mod common;
 
 use common::Fixture;
-use pharos_engine::{Engine, Origin, PlacementStatus};
+use pharos_engine::{Engine, EngineError, Origin, PlacementGeometry, PlacementStatus};
 
 #[test]
 fn home_placements_have_status_and_reads() {
@@ -685,4 +685,135 @@ fn customize_a_blank_titled_platform_dashboard_falls_back_to_the_slug() {
     assert_eq!(blank.metadata.title.as_deref(), Some("blank"));
     let empty = engine.customize_dashboard("p:empty-title").unwrap();
     assert_eq!(empty.metadata.title.as_deref(), Some("empty-title"));
+}
+
+fn geo(placement_id: u32, x: u32, y: u32, w: u32, h: u32) -> PlacementGeometry {
+    PlacementGeometry {
+        placement_id,
+        x,
+        y,
+        w,
+        h,
+    }
+}
+
+#[test]
+fn set_layout_persists_geometry() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.add_widget("u:1", "welcome", None).unwrap();
+    let view = engine.add_widget("u:1", "service-catalog", None).unwrap();
+    let id = view.placements[1].id.unwrap();
+
+    let view = engine.set_layout("u:1", &[geo(id, 4, 0, 4, 2)]).unwrap();
+
+    let p = view.placements.iter().find(|p| p.id == Some(id)).unwrap();
+    assert_eq!((p.x, p.y, p.w, p.h), (4, 0, 4, 2));
+}
+
+#[test]
+fn set_layout_leaves_position_so_runs_still_route() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.add_widget("u:1", "welcome", None).unwrap();
+    let view = engine.add_widget("u:1", "service-catalog", None).unwrap();
+    let first = view.placements[0].id.unwrap();
+    let second = view.placements[1].id.unwrap();
+    // Index 0 is the static welcome (nothing to run), index 1 the runnable catalog.
+    assert!(matches!(
+        engine.run_placement("u:1", &[0]),
+        Err(EngineError::NoDataSource(_))
+    ));
+    assert!(engine.run_placement("u:1", &[1]).is_ok());
+
+    // Swap them visually: the second now sits above the first.
+    engine
+        .set_layout("u:1", &[geo(first, 0, 10, 4, 4), geo(second, 0, 0, 4, 4)])
+        .unwrap();
+
+    assert!(matches!(
+        engine.run_placement("u:1", &[0]),
+        Err(EngineError::NoDataSource(_))
+    ));
+    assert!(engine.run_placement("u:1", &[1]).is_ok());
+}
+
+#[test]
+fn set_layout_rejects_a_platform_dashboard() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    assert!(matches!(
+        engine.set_layout("p:home", &[geo(1, 0, 0, 4, 4)]),
+        Err(EngineError::ReadOnlyDashboard(_))
+    ));
+}
+
+#[test]
+fn set_layout_rejects_a_foreign_or_nested_placement() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    engine.create_dashboard("B").unwrap();
+    let other = engine
+        .add_widget("u:2", "welcome", None)
+        .unwrap()
+        .placements[0]
+        .id
+        .unwrap();
+    let view = engine.create_group("u:1", "Ops", None).unwrap();
+    let gid = view.placements[0].id.unwrap();
+    let view = engine.add_widget("u:1", "welcome", Some(gid)).unwrap();
+    let child = view.placements[0].children[0].id.unwrap();
+
+    assert!(matches!(
+        engine.set_layout("u:1", &[geo(other, 0, 0, 4, 4)]),
+        Err(EngineError::UnknownPlacement { .. })
+    ));
+    assert!(matches!(
+        engine.set_layout("u:1", &[geo(child, 0, 0, 4, 4)]),
+        Err(EngineError::UnknownPlacement { .. })
+    ));
+}
+
+#[test]
+fn set_layout_rejects_out_of_range_geometry() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    engine.create_dashboard("A").unwrap();
+    let view = engine.add_widget("u:1", "welcome", None).unwrap();
+    let wid = view.placements[0].id.unwrap();
+    let view = engine.create_group("u:1", "Ops", None).unwrap();
+    let gid = view
+        .placements
+        .iter()
+        .find(|p| p.container)
+        .unwrap()
+        .id
+        .unwrap();
+
+    assert!(matches!(
+        engine.set_layout("u:1", &[geo(wid, 9, 0, 4, 2)]),
+        Err(EngineError::InvalidValue { .. })
+    ));
+    assert!(matches!(
+        engine.set_layout("u:1", &[geo(wid, 0, 0, 0, 2)]),
+        Err(EngineError::InvalidValue { .. })
+    ));
+    assert!(matches!(
+        engine.set_layout("u:1", &[geo(gid, 0, 0, 2, 2)]),
+        Err(EngineError::InvalidValue { .. })
+    ));
+    // All-or-nothing: a bad item after a good one writes nothing.
+    assert!(
+        engine
+            .set_layout("u:1", &[geo(wid, 1, 1, 4, 4), geo(gid, 0, 0, 2, 2)])
+            .is_err()
+    );
+    let view = engine.set_layout("u:1", &[geo(gid, 0, 0, 3, 2)]).unwrap();
+    let w = view.placements.iter().find(|p| p.id == Some(wid)).unwrap();
+    assert_ne!((w.x, w.y), (1, 1));
+    let g = view.placements.iter().find(|p| p.id == Some(gid)).unwrap();
+    assert_eq!((g.w, g.h), (3, 2));
 }

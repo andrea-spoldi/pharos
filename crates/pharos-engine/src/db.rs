@@ -375,6 +375,22 @@ pub fn set_placement_title(conn: &Connection, id: i64, title: &str) -> rusqlite:
     .map(drop)
 }
 
+/// Geometry only: `position` and `parent_id` stay as they are.
+pub fn set_placement_geometry(
+    conn: &Connection,
+    id: i64,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE placements SET x = ?2, y = ?3, w = ?4, h = ?5 WHERE id = ?1",
+        params![id, x, y, w, h],
+    )
+    .map(drop)
+}
+
 /// Child placements go with it (`ON DELETE CASCADE`).
 pub fn delete_placement(conn: &Connection, id: i64) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM placements WHERE id = ?1", [id])
