@@ -1,11 +1,12 @@
 import { useNavigate } from "@solidjs/router";
-import { createResource, Index, type JSX, Match, Show, Switch } from "solid-js";
+import { createResource, createSignal, Index, type JSX, Match, Show, Switch } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { commands, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
+import { commands, type Capabilities, type Manifest, type PlacementView, type WidgetSpec } from "../bindings";
 import { type Box, type DragController, type DragMode } from "./grid-layout";
-import { unwrap, type IpcError } from "../ipc";
+import { toIpcError, unwrap, type IpcError } from "../ipc";
 import { CardView, ListView, RawView, TableView } from "../views";
 import { MarkdownView } from "../views/markdown";
+import { CapabilityList } from "./SyncReview";
 
 const views = { table: TableView, list: ListView, card: CardView, raw: RawView } as const;
 
@@ -61,6 +62,8 @@ export function WidgetFrame(props: {
   edit?: WidgetEdit;
   /** The dashboard's move/resize coordinator; present only on top-level frames. */
   drag?: DragController;
+  /** A blocked widget was approved; the dashboards reload to run it. */
+  onApproved: () => void;
 }) {
   const p = () => props.placement;
   const name = () => p().manifest?.metadata.title ?? p().widget;
@@ -191,6 +194,7 @@ export function WidgetFrame(props: {
                     version={props.version}
                     inputLabel={props.inputLabel}
                     edit={props.edit}
+                    onApproved={props.onApproved}
                   />
                 )}
               </Index>
@@ -212,6 +216,9 @@ export function WidgetFrame(props: {
             <State tone="danger" title="Missing widget">
               This dashboard places <code>{p().widget}</code>, which the platform repo doesn't define.
             </State>
+          </Match>
+          <Match when={status().kind === "needsApproval" && (status() as { added: Capabilities })}>
+            {(s) => <NeedsApproval widget={p().widget} added={s().added} onApproved={props.onApproved} />}
           </Match>
           <Match when={status().kind === "needsSetup" && (status() as { inputs: string[]; secrets: string[] })}>
             {(s) => (
@@ -274,6 +281,47 @@ export function WidgetFrame(props: {
         />
       </Show>
     </article>
+  );
+}
+
+/** A leaf the platform repo changed to ask for more: it stays stopped until the user approves. */
+function NeedsApproval(props: { widget: string; added: Capabilities; onApproved: () => void }) {
+  const [error, setError] = createSignal<string>();
+  const [busy, setBusy] = createSignal(false);
+  const approve = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await unwrap(commands.approveWidget(props.widget));
+      props.onApproved();
+    } catch (e) {
+      setError(toIpcError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="state setup">
+      <strong>Needs approval</strong>
+      <div>
+        <p>This widget now wants to:</p>
+        <dl class="approval-caps">
+          <CapabilityList caps={props.added} />
+        </dl>
+        <Show when={error()}>
+          {(msg) => (
+            <p class="error" role="alert">
+              {msg()}
+            </p>
+          )}
+        </Show>
+        <div class="row">
+          <button type="button" disabled={busy()} onClick={approve}>
+            Approve
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

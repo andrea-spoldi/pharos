@@ -239,6 +239,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
                       inputLabel={props.inputLabel}
                       edit={editFor(d().id, d().editable && editing())}
                       drag={dragController}
+                      onApproved={refetch}
                     />
                   )}
                 </Index>

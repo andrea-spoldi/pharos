@@ -955,3 +955,13 @@ button.link.back {
       opacity 150ms ease;
   }
 }
+
+/* The needs-approval card: what the widget now asks for, left-aligned under the centred heading. */
+.approval-caps {
+  margin: var(--space-2) 0;
+  text-align: left;
+}
+
+.approval-caps dd {
+  margin: 0;
+}
