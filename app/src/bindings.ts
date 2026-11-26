@@ -60,6 +60,7 @@ export const commands = {
 	addWidget: (dashboardId: string, widget: string, parentId: number | null) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("add_widget", { dashboardId, widget, parentId })),
 	createGroup: (dashboardId: string, title: string, parentId: number | null) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("create_group", { dashboardId, title, parentId })),
 	renamePlacement: (dashboardId: string, placementId: number, title: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("rename_placement", { dashboardId, placementId, title })),
+	setLayout: (dashboardId: string, placements: PlacementGeometry[]) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("set_layout", { dashboardId, placements })),
 	customizeDashboard: (platformId: string) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("customize_dashboard", { platformId })),
 	removeWidget: (dashboardId: string, placementId: number) => typedError<DashboardView, CommandError>(__TAURI_INVOKE("remove_widget", { dashboardId, placementId })),
 	setLanding: (dashboardId: string | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_landing", { dashboardId })),
@@ -208,6 +209,16 @@ export type Placement = {
 	w: number,
 	h: number,
 	inputs?: { [key in string]: string },
+};
+
+/**  A top-level placement's new grid geometry, as sent by the dashboard editor. */
+export type PlacementGeometry = {
+	/**  `PlacementView::id` of a top-level placement. */
+	placementId: number,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
 };
 
 /**  What a placement can show, decided here so the frontend never decides what runs. */

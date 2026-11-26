@@ -2,7 +2,7 @@
 
 use crate::settings::SetupState;
 use pharos_manifest::{Metadata, Namespace, Placement, Source, ViewType, Widget, template_refs};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 /// What a placement can show, decided here so the frontend never decides what runs.
@@ -48,6 +48,19 @@ pub struct PlacementView {
     pub reads: Option<String>,
     /// For container widgets: the child placements, expanded recursively. Empty for leaves.
     pub children: Vec<PlacementView>,
+}
+
+/// A top-level placement's new grid geometry, as sent by the dashboard editor.
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct PlacementGeometry {
+    /// `PlacementView::id` of a top-level placement.
+    pub placement_id: u32,
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
 }
 
 /// Where a dashboard comes from.

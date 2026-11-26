@@ -26,7 +26,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use command::{CommandError, DEFAULT_SEARCH_PATH};
-pub use dashboard::{DashboardView, Origin, PlacementStatus, PlacementView};
+pub use dashboard::{DashboardView, Origin, PlacementGeometry, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
 pub use http::{HttpError, MAX_BYTES, MAX_ROWS, TIMEOUT};
@@ -571,6 +571,47 @@ impl Engine {
             });
         }
         db::set_placement_title(&self.conn, row.id, title)?;
+        self.user_view_by_id(row_id)
+    }
+
+    /// Persists new grid geometry for top-level placements of a user dashboard. Touches
+    /// only `x, y, w, h`: runs resolve a top-level placement by its `position` index, so
+    /// `position` must not follow the visual order. All-or-nothing: every item is
+    /// validated before any write.
+    pub fn set_layout(
+        &mut self,
+        dashboard_id: &str,
+        items: &[PlacementGeometry],
+    ) -> Result<DashboardView> {
+        let row_id = self.user_dashboard_id(dashboard_id)?;
+        let mut checked = Vec::with_capacity(items.len());
+        for item in items {
+            let row = self.placement_row(dashboard_id, row_id, item.placement_id)?;
+            if row.parent_id.is_some() {
+                return Err(EngineError::UnknownPlacement {
+                    dashboard: dashboard_id.into(),
+                    index: item.placement_id as usize,
+                });
+            }
+            let (min_w, min_h) = if row.widget.is_none() { (3, 2) } else { (1, 1) };
+            let reason = if item.w < min_w || item.h < min_h {
+                Some(format!("size below {min_w}x{min_h}"))
+            } else if item.x.saturating_add(item.w) > 12 {
+                Some("exceeds the 12-column grid".to_string())
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                return Err(EngineError::InvalidValue {
+                    key: "geometry".into(),
+                    reason,
+                });
+            }
+            checked.push((row.id, item));
+        }
+        for (id, g) in checked {
+            db::set_placement_geometry(&self.conn, id, g.x, g.y, g.w, g.h)?;
+        }
         self.user_view_by_id(row_id)
     }
 
