@@ -194,15 +194,18 @@ fn approve_and_apply_covers_only_what_was_shown() {
     engine.plan_sync().unwrap();
     engine.apply_sync(false).unwrap();
 
-    f.write(
-        "widgets/status-page/widget.yaml",
-        &status_widget("status-page", "https://h3.acme.dev"),
+    // The same widget now declares h2 (kept, already seen) and h3 (added).
+    let both = status_widget("status-page", "https://h2.acme.dev").replace(
+        "  view:",
+        "  permissions: { hosts: [\"https://h3.acme.dev\"] }\n  view:",
     );
+    f.write("widgets/status-page/widget.yaml", &both);
     f.commit("h3");
     let plan = engine.plan_sync().unwrap();
+    let change = &plan.capability_changes["status-page"];
     assert_eq!(
-        plan.capability_changes.keys().collect::<Vec<_>>(),
-        ["status-page"]
+        change.added.hosts,
+        BTreeSet::from(["https://h3.acme.dev".to_string()])
     );
     engine.apply_sync(true).unwrap();
 
@@ -211,6 +214,37 @@ fn approve_and_apply_covers_only_what_was_shown() {
         hosts_of(&engine, "status-page"),
         BTreeSet::from(["https://h3.acme.dev".to_string()])
     );
+}
+
+#[test]
+fn approving_one_widgets_addition_leaves_a_declined_widget_unapproved() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    f.write(
+        "widgets/status-page/widget.yaml",
+        &status_widget("status-page", "https://h2.acme.dev"),
+    );
+    f.commit("h2");
+    engine.plan_sync().unwrap();
+    engine.apply_sync(false).unwrap();
+
+    f.write(
+        "widgets/status-two/widget.yaml",
+        &status_widget("status-two", "https://h3.acme.dev"),
+    );
+    f.commit("h3");
+    let plan = engine.plan_sync().unwrap();
+    assert_eq!(
+        plan.capability_changes.keys().collect::<Vec<_>>(),
+        ["status-two"]
+    );
+    engine.apply_sync(true).unwrap();
+
+    assert_eq!(
+        hosts_of(&engine, "status-two"),
+        BTreeSet::from(["https://h3.acme.dev".to_string()])
+    );
+    assert!(hosts_of(&engine, "status-page").is_empty());
 }
 
 #[test]

@@ -250,25 +250,33 @@ fn unapproved_engine(f: &Fixture) -> Engine {
 fn first_sync_applied_without_approval_blocks_capable_widgets() {
     let f = Fixture::new();
     let mut engine = unapproved_engine(&f);
-    let seen = engine.approved_capabilities().unwrap();
-    assert!(seen.widgets.is_empty(), "nothing is approved yet");
+    assert!(
+        engine.approved_capabilities().unwrap().widgets.is_empty(),
+        "nothing is approved yet"
+    );
+    // What the sync recorded as declared: the engine has no public accessor for it.
+    let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
+    let seen_json: String = db
+        .query_row("SELECT seen_capabilities FROM sources", [], |r| r.get(0))
+        .unwrap();
+    let seen: serde_json::Value = serde_json::from_str(&seen_json).unwrap();
 
     let home = engine.dashboards().unwrap().remove(0);
     for p in &home.placements {
-        match p.widget.as_str() {
-            "welcome" => assert_eq!(p.status, PlacementStatus::Static),
-            "my-pipelines" => assert!(
-                matches!(p.status, PlacementStatus::NeedsApproval { .. }),
-                "{:?}",
-                p.status
-            ),
-            _ => assert!(
-                matches!(&p.status, PlacementStatus::NeedsApproval { added } if !added.is_empty()),
-                "{}: {:?}",
-                p.widget,
-                p.status
-            ),
+        if p.widget == "welcome" {
+            assert_eq!(p.status, PlacementStatus::Static);
+            continue;
         }
+        let PlacementStatus::NeedsApproval { added } = &p.status else {
+            panic!("{}: {:?}", p.widget, p.status);
+        };
+        assert!(!added.is_empty(), "{}", p.widget);
+        assert_eq!(
+            serde_json::to_value(added).unwrap(),
+            seen[&p.widget],
+            "{}",
+            p.widget
+        );
     }
     let PlacementStatus::NeedsApproval { added } = &home.placements[0].status else {
         panic!("service-catalog should be blocked");
