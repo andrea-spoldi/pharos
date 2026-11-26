@@ -4,7 +4,8 @@
 
 use pharos_engine::{
     CommandError as RunCommandError, DashboardView, Engine, EngineError, FileError, GitError,
-    HttpError, SettingsView, Source, StoredKind, SyncPlan, WidgetData, WidgetSummary,
+    HttpError, PlacementGeometry, SettingsView, Source, StoredKind, SyncPlan, WidgetData,
+    WidgetSummary,
 };
 use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
@@ -377,6 +378,16 @@ pub async fn rename_placement(
         e.rename_placement(&dashboard_id, placement_id, &title)
     })
     .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_layout(
+    state: State<'_, AppState>,
+    dashboard_id: String,
+    placements: Vec<PlacementGeometry>,
+) -> CmdResult<DashboardView> {
+    with_engine(state, move |e| e.set_layout(&dashboard_id, &placements)).await
 }
 
 #[tauri::command]
