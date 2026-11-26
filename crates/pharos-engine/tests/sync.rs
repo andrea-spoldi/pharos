@@ -195,22 +195,22 @@ fn approve_and_apply_covers_only_what_was_shown() {
     engine.apply_sync(false).unwrap();
 
     f.write(
-        "widgets/status-two/widget.yaml",
-        &status_widget("status-two", "https://h3.acme.dev"),
+        "widgets/status-page/widget.yaml",
+        &status_widget("status-page", "https://h3.acme.dev"),
     );
     f.commit("h3");
     let plan = engine.plan_sync().unwrap();
     assert_eq!(
         plan.capability_changes.keys().collect::<Vec<_>>(),
-        ["status-two"]
+        ["status-page"]
     );
     engine.apply_sync(true).unwrap();
 
+    // Approval covers what the plan showed (h3), never the earlier unapproved h2.
     assert_eq!(
-        hosts_of(&engine, "status-two"),
+        hosts_of(&engine, "status-page"),
         BTreeSet::from(["https://h3.acme.dev".to_string()])
     );
-    assert!(hosts_of(&engine, "status-page").is_empty());
 }
 
 #[test]

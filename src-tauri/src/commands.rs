@@ -95,7 +95,9 @@ impl From<EngineError> for CommandError {
             EngineError::UnknownDashboard(..) => ErrorKind::UnknownDashboard,
             EngineError::ReadOnlyDashboard(..) => ErrorKind::ReadOnly,
             EngineError::NotALeaf(..) => ErrorKind::NotALeaf,
-            EngineError::NoDataSource(_) | EngineError::NotAvailable(_) => ErrorKind::NotRunnable,
+            EngineError::NoDataSource(_)
+            | EngineError::NotAvailable(_)
+            | EngineError::NeedsApproval(_) => ErrorKind::NotRunnable,
             EngineError::NeedsSetup(_) | EngineError::MissingValue(_) => ErrorKind::NeedsSetup,
             EngineError::Http(e) if e.is_auth() => ErrorKind::PermissionDenied,
             EngineError::Http(HttpError::NotApproved(_)) => ErrorKind::PermissionDenied,

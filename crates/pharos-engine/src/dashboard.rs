@@ -1,7 +1,10 @@
 //! Platform dashboards as the UI renders them: each placement with its widget and status.
 
 use crate::settings::SetupState;
-use pharos_manifest::{Metadata, Namespace, Placement, Source, ViewType, Widget, template_refs};
+use pharos_manifest::{
+    Capabilities, CapabilitySet, Metadata, Namespace, Placement, Source, ViewType, Widget,
+    template_refs,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -12,6 +15,10 @@ use std::collections::BTreeSet;
 pub enum PlacementStatus {
     /// The dashboard names a widget that is not in the snapshot.
     Missing,
+    /// Declares capabilities the user has not approved; `added` is all of them.
+    NeedsApproval {
+        added: Capabilities,
+    },
     /// `user.*` inputs and secrets the placement or its source refers to.
     NeedsSetup {
         inputs: Vec<String>,
@@ -83,16 +90,26 @@ pub struct DashboardView {
     pub placements: Vec<PlacementView>,
 }
 
-/// Precedence: missing, needs setup, not available, static, runnable. `needsSetup` lists
+/// Precedence: missing, needs approval, needs setup, not available, static, runnable. `needsSetup` lists
 /// only what `setup` doesn't provide yet.
 pub(crate) fn placement_status(
     widget: Option<&Widget>,
     placement: &Placement,
     setup: &SetupState,
+    pending: &CapabilitySet,
 ) -> PlacementStatus {
     let Some(widget) = widget else {
         return PlacementStatus::Missing;
     };
+    if let Some(added) = pending
+        .widgets
+        .get(&widget.metadata.name)
+        .filter(|c| !c.is_empty())
+    {
+        return PlacementStatus::NeedsApproval {
+            added: added.clone(),
+        };
+    }
     let (mut inputs, mut secrets) = setup_refs(widget, placement);
     inputs.retain(|k| !setup.inputs.contains(k));
     secrets.retain(|k| !setup.secrets.contains(k));
@@ -124,7 +141,7 @@ pub(crate) fn placement_status(
 ///
 /// `Runnable` if any descendant leaf is runnable (a child container is itself `Runnable`
 /// exactly then); otherwise the child status that wins by `placement_status` precedence
-/// (missing, needs setup, not available, static). `Missing` when the widget is absent
+/// (missing, needs approval, needs setup, not available, static). `Missing` when the widget is absent
 /// from the snapshot; a container with no children is `Static`.
 pub(crate) fn container_status(widget_exists: bool, children: &[PlacementView]) -> PlacementStatus {
     if !widget_exists {
@@ -147,10 +164,11 @@ pub(crate) fn container_status(widget_exists: bool, children: &[PlacementView]) 
 fn rank(status: &PlacementStatus) -> u8 {
     match status {
         PlacementStatus::Missing => 0,
-        PlacementStatus::NeedsSetup { .. } => 1,
-        PlacementStatus::NotAvailable { .. } => 2,
-        PlacementStatus::Static => 3,
-        PlacementStatus::Runnable => 4,
+        PlacementStatus::NeedsApproval { .. } => 1,
+        PlacementStatus::NeedsSetup { .. } => 2,
+        PlacementStatus::NotAvailable { .. } => 3,
+        PlacementStatus::Static => 4,
+        PlacementStatus::Runnable => 5,
     }
 }
 
@@ -230,9 +248,36 @@ mod tests {
     #[test]
     fn missing_widget_is_missing() {
         assert_eq!(
-            placement_status(None, &placement(&[]), &SetupState::default()),
+            placement_status(
+                None,
+                &placement(&[]),
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::Missing
         );
+    }
+
+    #[test]
+    fn needs_approval_outranks_needs_setup() {
+        let w = widget(concat!(
+            "  source: { type: http, url: \"https://g.example/{{ user.team }}\" }\n",
+            "  view: { type: table }\n",
+        ));
+        let mut pending = CapabilitySet::default();
+        pending.widgets.insert(
+            "w".into(),
+            Capabilities {
+                hosts: ["https://g.example".to_string()].into(),
+                ..Default::default()
+            },
+        );
+        let status = placement_status(Some(&w), &placement(&[]), &SetupState::default(), &pending);
+        assert!(
+            matches!(&status, PlacementStatus::NeedsApproval { added } if added.hosts.contains("https://g.example")),
+            "{status:?}"
+        );
+        assert_eq!(rank(&status), 1);
     }
 
     #[test]
@@ -246,7 +291,12 @@ mod tests {
         ));
         let p = placement(&[("project", "acme%2F{{ user.team }}")]);
         assert_eq!(
-            placement_status(Some(&w), &p, &SetupState::default()),
+            placement_status(
+                Some(&w),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::NeedsSetup {
                 inputs: vec!["team".into()],
                 secrets: vec!["GITLAB_TOKEN".into()],
@@ -262,7 +312,12 @@ mod tests {
             ("b", "{{ user.team }}"),
         ]);
         assert_eq!(
-            placement_status(Some(&w), &p, &SetupState::default()),
+            placement_status(
+                Some(&w),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::NeedsSetup {
                 inputs: vec!["team".into(), "zed".into()],
                 secrets: vec![],
@@ -279,11 +334,21 @@ mod tests {
         );
         let p = placement(&[]);
         assert_eq!(
-            placement_status(Some(&cmd), &p, &SetupState::default()),
+            placement_status(
+                Some(&cmd),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::Runnable
         );
         assert_eq!(
-            placement_status(Some(&http), &p, &SetupState::default()),
+            placement_status(
+                Some(&http),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::Runnable
         );
     }
@@ -294,11 +359,21 @@ mod tests {
         let md = widget("  source: { type: file, path: data/ }\n  view: { type: markdown }\n");
         let p = placement(&[]);
         assert_eq!(
-            placement_status(Some(&kv), &p, &SetupState::default()),
+            placement_status(
+                Some(&kv),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             not_available("the kv view")
         );
         assert_eq!(
-            placement_status(Some(&md), &p, &SetupState::default()),
+            placement_status(
+                Some(&md),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             not_available("markdown from a data source")
         );
     }
@@ -309,15 +384,30 @@ mod tests {
         let table = widget("  view: { type: table }\n");
         let p = placement(&[]);
         assert_eq!(
-            placement_status(Some(&md), &p, &SetupState::default()),
+            placement_status(
+                Some(&md),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::Static
         );
         assert_eq!(
-            placement_status(Some(&table), &p, &SetupState::default()),
+            placement_status(
+                Some(&table),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             not_available("the table view")
         );
         assert_eq!(
-            placement_status(Some(&widget(FILE_TABLE)), &p, &SetupState::default()),
+            placement_status(
+                Some(&widget(FILE_TABLE)),
+                &p,
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
             PlacementStatus::Runnable
         );
     }
@@ -337,7 +427,7 @@ mod tests {
             secrets: ["GITLAB_TOKEN".to_string()].into(),
         };
         assert_eq!(
-            placement_status(Some(&w), &p, &all),
+            placement_status(Some(&w), &p, &all, &CapabilitySet::default()),
             PlacementStatus::Runnable
         );
         let team_only = SetupState {
@@ -345,7 +435,7 @@ mod tests {
             ..SetupState::default()
         };
         assert_eq!(
-            placement_status(Some(&w), &p, &team_only),
+            placement_status(Some(&w), &p, &team_only, &CapabilitySet::default()),
             PlacementStatus::NeedsSetup {
                 inputs: vec![],
                 secrets: vec!["GITLAB_TOKEN".into()],

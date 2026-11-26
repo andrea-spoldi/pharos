@@ -93,6 +93,20 @@ pub(crate) fn capability_changes(
     out
 }
 
+/// Per widget, what was seen but is not approved: what blocks it until approved. Widgets
+/// with nothing pending are omitted.
+pub(crate) fn pending_approvals(seen: &CapabilitySet, approved: &CapabilitySet) -> CapabilitySet {
+    let none = Capabilities::default();
+    let mut out = CapabilitySet::default();
+    for (name, caps) in &seen.widgets {
+        let added = caps.minus(approved.widgets.get(name).unwrap_or(&none));
+        if !added.is_empty() {
+            out.widgets.insert(name.clone(), added);
+        }
+    }
+    out
+}
+
 /// The approved set after a sync: each widget keeps only what `new` still declares, plus
 /// its listed additions when `approve`. Widgets absent from `new` drop out.
 pub(crate) fn merge_approval(

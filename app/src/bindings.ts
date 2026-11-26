@@ -233,6 +233,8 @@ export type PlacementGeometry = {
 export type PlacementStatus = 
 /**  The dashboard names a widget that is not in the snapshot. */
 { kind: "missing" } | 
+/**  Declares capabilities the user has not approved; `added` is all of them. */
+{ kind: "needsApproval"; added: Capabilities } | 
 /**  `user.*` inputs and secrets the placement or its source refers to. */
 { kind: "needsSetup"; inputs: string[]; secrets: string[] } | 
 /**  A part this version cannot run or render yet, e.g. `the kv view`. */
