@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "@solidjs/router";
 import { createEffect, createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
+import { PharosMark } from "../components/PharosMark";
 import { ChangeLine, shortCommit, SyncReview } from "../components/SyncReview";
 import { Dashboards } from "./Dashboards";
 import { Settings } from "./Settings";
@@ -116,7 +117,10 @@ export function Home(props: {
     <main class="screen wide">
       <header class="row spread topbar">
         <div>
-          <h1>{title()}</h1>
+          <h1 class="brand">
+            <PharosMark class="brand-mark" />
+            {title()}
+          </h1>
           <p class="muted" data-testid="source">
             <code>{props.source.url}</code> · <code>{props.source.branch}</code>
             <Show when={props.source.synced_commit}>

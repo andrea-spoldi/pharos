@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pharos">
+  <style>
+    path, circle { fill: #2f5bd3; }
+    @media (prefers-color-scheme: dark) { path, circle { fill: #6b8cff; } }
+  </style>
+  <path d="M31 38 L14 11 L27 11 Z"/>
+  <path d="M33 38 L50 11 L37 11 Z"/>
+  <circle cx="32" cy="40" r="5"/>
+</svg>
