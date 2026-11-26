@@ -90,8 +90,8 @@ pub struct DashboardView {
     pub placements: Vec<PlacementView>,
 }
 
-/// Precedence: missing, needs approval, needs setup, not available, static, runnable. `needsSetup` lists
-/// only what `setup` doesn't provide yet.
+/// Precedence: missing, needs approval, needs setup, not available, static, runnable.
+/// `needsSetup` lists only what `setup` doesn't provide yet.
 pub(crate) fn placement_status(
     widget: Option<&Widget>,
     placement: &Placement,
@@ -141,8 +141,8 @@ pub(crate) fn placement_status(
 ///
 /// `Runnable` if any descendant leaf is runnable (a child container is itself `Runnable`
 /// exactly then); otherwise the child status that wins by `placement_status` precedence
-/// (missing, needs approval, needs setup, not available, static). `Missing` when the widget is absent
-/// from the snapshot; a container with no children is `Static`.
+/// (missing, needs approval, needs setup, not available, static). `Missing` when the widget is
+/// absent from the snapshot; a container with no children is `Static`.
 pub(crate) fn container_status(widget_exists: bool, children: &[PlacementView]) -> PlacementStatus {
     if !widget_exists {
         return PlacementStatus::Missing;

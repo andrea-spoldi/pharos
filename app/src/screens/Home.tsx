@@ -3,7 +3,7 @@ import { createEffect, createResource, createSignal, Match, onMount, Show, Switc
 import { commands, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { PharosMark } from "../components/PharosMark";
-import { ChangeLine, shortCommit, SyncReview } from "../components/SyncReview";
+import { ChangeLine, hasAnyCapability, shortCommit, SyncReview } from "../components/SyncReview";
 import { Dashboards } from "./Dashboards";
 import { Settings } from "./Settings";
 
@@ -12,7 +12,7 @@ const errorCount = (plan: SyncPlan) => plan.diagnostics.filter((d) => d.severity
 /** Widgets whose capability change has anything in `side`. */
 const withCaps = (plan: SyncPlan, side: "added" | "removed") =>
   Object.entries(plan.capability_changes)
-    .filter(([, change]) => Object.values(change[side]).some((list) => list?.length))
+    .filter(([, change]) => hasAnyCapability(change[side]))
     .map(([name]) => name);
 
 /** Mirrors `SyncPlan::is_up_to_date` in the engine. */

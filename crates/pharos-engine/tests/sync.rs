@@ -4,7 +4,7 @@
 mod common;
 
 use common::{Fixture, git};
-use pharos_engine::{Engine, EngineError, GitError};
+use pharos_engine::{Engine, EngineError, GitError, PlacementStatus};
 use std::collections::BTreeSet;
 use std::fs;
 
@@ -165,11 +165,20 @@ fn hosts_of(engine: &Engine, widget: &str) -> BTreeSet<String> {
 fn declined_change_is_not_asked_again() {
     let f = Fixture::new();
     let mut engine = f.synced_engine();
-    f.write("widgets/status-page/widget.yaml", STATUS_WIDGET);
+    // service-catalog is placed first on the platform home dashboard.
+    let widget = "widgets/service-catalog/widget.yaml";
+    let body = fs::read_to_string(f.origin.join(widget)).unwrap();
+    f.write(
+        widget,
+        &body.replace(
+            "  refresh: 5m",
+            "  permissions: { hosts: [\"https://status.acme.dev\"] }\n  refresh: 5m",
+        ),
+    );
     f.commit("add host");
     assert!(engine.plan_sync().unwrap().needs_consent);
     engine.apply_sync(false).unwrap();
-    assert!(hosts_of(&engine, "status-page").is_empty());
+    assert!(hosts_of(&engine, "service-catalog").is_empty());
 
     let k8s = fs::read_to_string(f.origin.join("widgets/k8s-context/widget.yaml")).unwrap();
     f.write(
@@ -180,6 +189,23 @@ fn declined_change_is_not_asked_again() {
     let plan = engine.plan_sync().unwrap();
     assert!(!plan.needs_consent);
     assert!(plan.capability_changes.is_empty());
+
+    // Not asked again, but still blocked: declined is not approved.
+    engine.apply_sync(false).unwrap();
+    let home = engine.dashboards().unwrap().remove(0);
+    assert_eq!(home.placements[0].widget, "service-catalog");
+    assert!(
+        matches!(
+            home.placements[0].status,
+            PlacementStatus::NeedsApproval { .. }
+        ),
+        "{:?}",
+        home.placements[0].status
+    );
+    assert!(matches!(
+        engine.run_placement("p:home", &[0]),
+        Err(EngineError::NeedsApproval(name)) if name == "service-catalog"
+    ));
 }
 
 #[test]

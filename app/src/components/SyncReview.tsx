@@ -9,6 +9,9 @@ const CAPABILITY_LABELS: [keyof Capabilities, string][] = [
   ["paths", "Read"],
 ];
 
+/** True when `c` declares anything. */
+export const hasAnyCapability = (c: Capabilities) => CAPABILITY_LABELS.some(([key]) => c[key]?.length);
+
 /** The Call/Run/Read rows of a capability set, as `<dd>`s inside a `<dl>`. */
 export function CapabilityList(props: { caps: Capabilities }) {
   return (
@@ -68,9 +71,8 @@ export function SyncReview(props: {
 }) {
   const errors = () => props.plan.diagnostics.filter((d) => d.severity === "error");
   const warnings = () => props.plan.diagnostics.filter((d) => d.severity === "warning");
-  const hasAny = (c: Capabilities) => CAPABILITY_LABELS.some(([key]) => c[key]?.length);
-  const added = () => Object.entries(props.plan.capability_changes).filter(([, c]) => hasAny(c.added));
-  const removed = () => Object.entries(props.plan.capability_changes).filter(([, c]) => hasAny(c.removed));
+  const added = () => Object.entries(props.plan.capability_changes).filter(([, c]) => hasAnyCapability(c.added));
+  const removed = () => Object.entries(props.plan.capability_changes).filter(([, c]) => hasAnyCapability(c.removed));
 
   return (
     <section class="stack" aria-labelledby="review-title">

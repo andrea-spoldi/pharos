@@ -94,11 +94,18 @@ pub(crate) fn capability_changes(
 }
 
 /// Per widget, what was seen but is not approved: what blocks it until approved. Widgets
-/// with nothing pending are omitted.
-pub(crate) fn pending_approvals(seen: &CapabilitySet, approved: &CapabilitySet) -> CapabilitySet {
+/// with nothing pending are omitted, and so are `containers`, which are never approved.
+pub(crate) fn pending_approvals(
+    seen: &CapabilitySet,
+    approved: &CapabilitySet,
+    containers: &BTreeSet<String>,
+) -> CapabilitySet {
     let none = Capabilities::default();
     let mut out = CapabilitySet::default();
     for (name, caps) in &seen.widgets {
+        if containers.contains(name) {
+            continue;
+        }
         let added = caps.minus(approved.widgets.get(name).unwrap_or(&none));
         if !added.is_empty() {
             out.widgets.insert(name.clone(), added);

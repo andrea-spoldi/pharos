@@ -435,9 +435,16 @@ impl Engine {
 
     /// Per widget, what the last applied sync declared but the user has not approved.
     fn pending_capabilities(&self, source: &Source) -> Result<CapabilitySet> {
+        let containers = self
+            .widgets()?
+            .into_iter()
+            .filter(|w| !w.spec.widgets.is_empty())
+            .map(|w| w.metadata.name)
+            .collect();
         Ok(sync::pending_approvals(
             &db::seen_capabilities(&self.conn, source.id)?,
             &db::approved_capabilities(&self.conn, source.id)?,
+            &containers,
         ))
     }
 
