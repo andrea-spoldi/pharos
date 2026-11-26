@@ -36,7 +36,7 @@ pub use settings::{
     InputView, PlatformRef, SecretView, SettingsView, SetupState, StoredKind, StoredRef,
 };
 use sync::Pending;
-pub use sync::{Changes, SyncPlan};
+pub use sync::{CapabilityChange, Changes, SyncPlan};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
