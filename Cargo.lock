@@ -2792,6 +2792,7 @@ dependencies = [
  "globset",
  "keyring",
  "libc",
+ "percent-encoding",
  "pharos-manifest",
  "rusqlite",
  "rusqlite_migration",

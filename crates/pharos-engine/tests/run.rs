@@ -7,6 +7,29 @@ use common::Fixture;
 use pharos_engine::{Engine, EngineError, FileError, HttpError, PlacementStatus};
 use serde_json::json;
 
+/// Sets (or, with `None`, removes) the `support` entry of the origin's pharos.yaml.
+fn set_support(f: &Fixture, support: Option<&str>) {
+    let path = f.origin.join("pharos.yaml");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut out = String::new();
+    for line in text.lines() {
+        if line.trim_start().starts_with("support:") {
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+        if line == "spec:" {
+            if let Some(s) = support {
+                out.push_str(&format!("  support: {s}\n"));
+            }
+        }
+    }
+    if out != text {
+        f.write("pharos.yaml", &out);
+        f.commit("support");
+    }
+}
+
 #[test]
 fn service_catalog_reads_catalog_files_with_their_source() {
     let f = Fixture::new();
@@ -352,4 +375,57 @@ fn approve_widget_rejects_containers_and_unknown_names() {
         Err(EngineError::UnknownWidget(n)) if n == "nope"
     ));
     assert!(engine.approved_capabilities().unwrap().widgets.is_empty());
+}
+
+#[test]
+fn report_widget_uses_pending_capabilities_and_support() {
+    let f = Fixture::new();
+    set_support(
+        &f,
+        Some("{ type: github, repo: https://github.com/acme/platform }"),
+    );
+    let engine = unapproved_engine(&f);
+
+    let report = engine.report_widget("service-catalog").unwrap();
+    assert!(
+        report.body.contains("Read catalog/services"),
+        "{}",
+        report.body
+    );
+    assert!(
+        report
+            .link
+            .unwrap()
+            .starts_with("https://github.com/acme/platform/issues/new?title=")
+    );
+}
+
+#[test]
+fn report_widget_without_support_has_no_link() {
+    let f = Fixture::new();
+    set_support(&f, None);
+    let engine = unapproved_engine(&f);
+
+    let report = engine.report_widget("service-catalog").unwrap();
+    assert!(report.link.is_none());
+}
+
+#[test]
+fn report_widget_refuses_unblocked_containers_and_unknown() {
+    let f = Fixture::new();
+    let mut engine = unapproved_engine(&f);
+
+    assert!(matches!(
+        engine.report_widget("on-call-overview"),
+        Err(EngineError::NotALeaf(n)) if n == "on-call-overview"
+    ));
+    assert!(matches!(
+        engine.report_widget("nope"),
+        Err(EngineError::UnknownWidget(n)) if n == "nope"
+    ));
+    engine.approve_widget("service-catalog").unwrap();
+    assert!(matches!(
+        engine.report_widget("service-catalog"),
+        Err(EngineError::NothingToReport(n)) if n == "service-catalog"
+    ));
 }
