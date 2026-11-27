@@ -26,6 +26,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::pending_sync,
             commands::apply_sync,
             commands::approve_widget,
+            commands::report_widget,
             commands::discard_sync,
             commands::list_widgets,
             commands::list_dashboards,
@@ -66,6 +67,7 @@ pub fn run() {
     export_bindings(&builder, BINDINGS_PATH);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -84,6 +86,11 @@ mod tests {
     #[test]
     fn ping_returns_pong() {
         assert_eq!(ping(), "pong");
+    }
+
+    #[test]
+    fn frontend_capabilities_cannot_open_urls() {
+        assert!(!include_str!("../capabilities/default.json").contains("opener"));
     }
 
     /// Regenerates bindings; CI fails if the committed file drifts (`git diff --exit-code`).

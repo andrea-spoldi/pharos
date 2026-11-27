@@ -21,6 +21,11 @@ export const commands = {
 	applySync: (approve: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { approve })),
 	/**  Approves what the stored snapshot declares for the named leaf widget. */
 	approveWidget: (name: string) => typedError<null, CommandError>(__TAURI_INVOKE("approve_widget", { name })),
+	/**
+	 *  Builds the report for the named widget's pending capabilities and opens the support link
+	 *  from Rust; the frontend never sees or supplies a URL. Changes no state.
+	 */
+	reportWidget: (name: string) => typedError<ReportOutcome, CommandError>(__TAURI_INVOKE("report_widget", { name })),
 	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
 	/**  Platform dashboards of the last applied sync, with each placement's status. */
@@ -138,6 +143,8 @@ export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | 
 "notALeaf" | 
 /**  Static widget, or a source type not supported yet. */
 "notRunnable" | 
+/**  The widget has no pending capabilities, so there is nothing to report. */
+"nothingToReport" | 
 /**  An input or secret the widget needs is not set. */
 "needsSetup" | 
 /**  Outside the repo or not approved, or the server refused the credentials. */
@@ -298,6 +305,12 @@ export type RepoSource = {
 	synced_commit: string | null,
 	synced_at: number | null,
 	approved_capability_hash: string | null,
+};
+
+/**  What reporting a widget did: whether the browser was opened, and the text to copy otherwise. */
+export type ReportOutcome = {
+	opened: boolean,
+	text: string,
 };
 
 export type SecretDef = {
