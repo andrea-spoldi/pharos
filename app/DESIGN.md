@@ -274,9 +274,9 @@ obviously exact.
 
 ### Hierarchy
 - **Headline** (700, 1.5rem, 1.45): the screen title, `h1`, on Onboarding.
-- **Page Title** (650, 1.35rem, -0.015em): the dashboard's `h1` in the slim page header, set
-  below Headline on purpose so the data leads. Settings and the never-synced screen have no
-  `h1` yet (the sidebar brand is a paragraph); that is a known gap, not a rule.
+- **Page Title** (650, 1.35rem, -0.015em): the `h1` of the slim page header — the dashboard's
+  title, "Settings", "Dashboards" on an empty list, and the platform title before the first
+  sync — set below Headline on purpose so the data leads.
 - **Title** (700, 1.15rem): section titles (`h2`) and dialog titles (1.1rem).
 - **Title Small** (700, 1rem): `h3`, card and markdown headings.
 - **Body** (400, 1rem, 1.45): default text. Screens cap their width at 44rem.
