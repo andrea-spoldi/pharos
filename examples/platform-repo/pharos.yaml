@@ -4,6 +4,7 @@ metadata:
   name: acme-platform
   title: ACME Developer Portal
 spec:
+  support: { type: github, repo: https://github.com/acme/platform }
   inputs:
     team:
       type: enum

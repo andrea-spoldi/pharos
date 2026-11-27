@@ -288,6 +288,31 @@ export function WidgetFrame(props: {
 function NeedsApproval(props: { widget: string; added: Capabilities; onApproved: () => void }) {
   const [error, setError] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
+  const [note, setNote] = createSignal<string>();
+  const [manualText, setManualText] = createSignal<string>();
+  const report = async () => {
+    setBusy(true);
+    setError(undefined);
+    setNote(undefined);
+    setManualText(undefined);
+    try {
+      const r = await unwrap(commands.reportWidget(props.widget));
+      if (r.opened) {
+        setNote("Opened in your browser — send it from there.");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(r.text);
+        setNote("Copied — paste it to your platform team.");
+      } catch {
+        setManualText(r.text);
+      }
+    } catch (e) {
+      setError(toIpcError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const approve = async () => {
     setBusy(true);
     setError(undefined);
@@ -319,7 +344,23 @@ function NeedsApproval(props: { widget: string; added: Capabilities; onApproved:
           <button type="button" disabled={busy()} onClick={approve}>
             Approve
           </button>
+          <button type="button" disabled={busy()} onClick={report}>
+            Report to platform team
+          </button>
         </div>
+        <Show when={note()}>
+          {(msg) => (
+            <p role="status">{msg()}</p>
+          )}
+        </Show>
+        <Show when={manualText()}>
+          {(text) => (
+            <div role="status">
+              <p>Copy this and send it to your platform team:</p>
+              <textarea readOnly rows={8} value={text()} />
+            </div>
+          )}
+        </Show>
       </div>
     </div>
   );
