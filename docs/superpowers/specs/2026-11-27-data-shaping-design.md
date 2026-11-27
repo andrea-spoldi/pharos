@@ -79,6 +79,19 @@ watch the interaction between `flatten`, internally tagged enums and
 - No wildcards, filters or expressions. Filtering belongs to slice 14
   (`filter`, team scoping). Note it in the docs so nobody adds it here.
 
+**Implementation notes (approved S-017).**
+- `rows: Option<String>` is a field on each `Source` variant (serde `flatten` is unreliable with the
+  internally tagged, `deny_unknown_fields` enum), exposed via `Source::rows()`.
+- The Rust selector mirrors `app/src/views/fields.ts` exactly (split on `.`, arrays indexed by
+  `Number(key)`); one shared case table, `testdata/dot-paths.json`, is read by both `cargo test` and
+  vitest. Lint rejects empty segments and whitespace, so `fields.ts` quirks (`""` → index 0) can't arise.
+- Errors name the path: `` `rows: items` matched nothing in the output `` and
+  `` `rows: items` needs JSON output, but the command printed text `` (http: "…but the response was not JSON").
+- **Row cap for file sources too:** after selection every source type is capped at 500 rows with
+  `truncated` set. Previously file sources capped the number of files (500) but not the rows inside
+  them; the file cap stays. The frontend note becomes "Only the first 500 rows are shown."
+- Logged as D-041.
+
 **Lint.** Valid dot path syntax. `rows` is rejected on a widget without a source
 (can't happen if it lives on the source, but keep the error if you put it elsewhere).
 
