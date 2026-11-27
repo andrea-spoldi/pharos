@@ -283,6 +283,8 @@ export type PlatformSpec = {
 	widgets?: string,
 	/**  Dashboard discovery root, relative to the repo root. */
 	dashboards?: string,
+	/**  Where users report a widget's new permissions to the platform team. */
+	support?: Support | null,
 };
 
 /**  The configured platform repo. */
@@ -332,6 +334,9 @@ export type StoredRef = {
 	kind: StoredKind,
 	key: string,
 };
+
+/**  Contact channel for the platform team; reporting opens it, it never sends anything itself. */
+export type Support = { type: "github"; repo: string } | { type: "gitlab"; repo: string } | { type: "email"; address: string };
 
 /**
  *  What a sync would do. Held by the engine between `plan_sync` and `apply_sync`,

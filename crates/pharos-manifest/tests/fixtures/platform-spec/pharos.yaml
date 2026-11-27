@@ -2,6 +2,7 @@ apiVersion: pharos.io/v1alpha1
 kind: Platform
 metadata: { name: test }
 spec:
+  support: { type: email, address: not-an-address }
   widgets: ../outside/
   inputs:
     region: { type: enum }
