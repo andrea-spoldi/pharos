@@ -2,6 +2,7 @@ import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
+import { NarrowBar } from "../components/NarrowBar";
 import { Sidebar } from "../components/Sidebar";
 import { ChangeLine, hasAnyCapability, shortCommit, SyncReview } from "../components/SyncReview";
 import { sidebarMode } from "../sidebar";
@@ -139,7 +140,23 @@ export function Home(props: {
 
   return (
     <div class="app-shell" classList={{ rail: sidebarMode() === "rail" }}>
-      <Show when={!narrow()}>
+      <Show
+        when={!narrow()}
+        fallback={
+          <NarrowBar
+            dashboards={dashboardList()}
+            current={params.id === undefined ? undefined : safeDecode(params.id)}
+            landing={landingId()}
+            onOpen={openDashboard}
+            title={title()}
+            status={status()}
+            onSync={!neverSynced() && !plan() ? sync : undefined}
+            syncing={!!busy()}
+            onSettings={() => navigate("/settings")}
+            settingsCurrent={onSettings()}
+          />
+        }
+      >
         <Sidebar
           dashboards={dashboardList()}
           current={params.id === undefined ? undefined : safeDecode(params.id)}

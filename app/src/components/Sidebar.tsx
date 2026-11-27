@@ -1,4 +1,4 @@
-import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import type { DashboardView, RepoSource } from "../bindings";
 import { NewDashboardButton } from "./DashboardEditor";
 import { sidebarMode, toggleSidebar } from "../sidebar";
@@ -66,6 +66,11 @@ export function Sidebar(props: {
     const r = el.getBoundingClientRect();
     setTip({ text: text.trim(), top: r.top + r.height / 2, left: r.right + 8 });
   };
+
+  // A mode change (the shortcut) while hovering must not leave a stale tooltip behind.
+  createEffect(() => {
+    if (!rail()) setTip(undefined);
+  });
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {

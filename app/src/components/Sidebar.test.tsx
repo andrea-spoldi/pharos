@@ -196,6 +196,15 @@ describe("Sidebar", () => {
       expect(screen.getByRole("tooltip").textContent).toBe("Sync now");
     });
 
+    it("tooltip_clears_when_leaving_rail", () => {
+      setSidebarMode("rail");
+      mount();
+      fireEvent.focusIn(screen.getByRole("button", { name: "Ops" }));
+      expect(screen.getByRole("tooltip")).toBeTruthy();
+      setSidebarMode("open");
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
     it("no_tooltip_when_open", () => {
       mount();
       fireEvent.focusIn(screen.getByRole("button", { name: "Ops" }));

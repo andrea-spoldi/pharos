@@ -1,9 +1,10 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { fireEvent, render as renderUi, screen, waitFor, within } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
 import { setSidebarMode } from "../sidebar";
+import { setViewport } from "../test-utils";
 import { Home } from "./Home";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
@@ -438,5 +439,33 @@ describe("Home", () => {
       await screen.findByTestId("up-to-date");
       expect(screen.getByTestId("brand").textContent).toBe("Pharos");
     });
+
+    describe("narrow window", () => {
+      afterEach(() => setViewport(1024));
+
+      it("narrow_window_renders_no_sidebar", async () => {
+        vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+        setViewport(800);
+        render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+        await screen.findByTestId("up-to-date");
+        expect(screen.queryByRole("complementary")).toBeNull();
+        expect(screen.queryByRole("navigation", { name: "Platform dashboards" })).toBeNull();
+        expect(document.querySelector(".narrow-bar")).not.toBeNull();
+        expect(screen.getByRole("button", { name: /Home/ })).toBeTruthy();
+      });
+
+      it("exactly_one_sync_status_region", async () => {
+        vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+        render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+        await screen.findByTestId("up-to-date");
+        expect(screen.getAllByRole("status")).toHaveLength(1);
+        expect(sidebar().getByRole("status")).toBeTruthy();
+        setViewport(800);
+        await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+        expect(screen.getAllByRole("status")).toHaveLength(1);
+        expect(within(document.querySelector(".narrow-bar") as HTMLElement).getByRole("status")).toBeTruthy();
+      });
+    });
   });
+
 });
