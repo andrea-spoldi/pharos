@@ -59,6 +59,9 @@ export function Settings(props: {
 
   return (
     <section class="stack settings">
+      <header class="page-head">
+        <h1>Settings</h1>
+      </header>
       <section class="stack" aria-labelledby="settings-appearance">
         <h2 id="settings-appearance">Appearance</h2>
         <ThemeControl />
