@@ -76,3 +76,92 @@ fn example_repo_is_clean() {
     );
     insta::assert_json_snapshot!(report.capabilities);
 }
+
+fn support_diags(support: &str) -> Vec<(&'static str, Option<String>)> {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("pharos.yaml"),
+        format!(
+            "apiVersion: pharos.io/v1alpha1\nkind: Platform\nmetadata: {{ name: t }}\nspec:\n  support: {support}\n"
+        ),
+    )
+    .unwrap();
+    lint(dir.path())
+        .diagnostics
+        .into_iter()
+        .map(|d| (d.code, d.path))
+        .collect()
+}
+
+#[test]
+fn support_parses_each_type() {
+    use pharos_manifest::{Platform, Support};
+    let parse = |s: &str| {
+        serde_yaml_ng::from_str::<Platform>(&format!(
+            "apiVersion: pharos.io/v1alpha1\nkind: Platform\nmetadata: {{ name: t }}\nspec:\n  support: {s}\n"
+        ))
+    };
+    let support = |s: &str| parse(s).unwrap().spec.support.unwrap();
+    assert_eq!(
+        support("{ type: github, repo: 'https://github.com/a/b' }"),
+        Support::Github {
+            repo: "https://github.com/a/b".into()
+        }
+    );
+    assert_eq!(
+        support("{ type: gitlab, repo: 'https://gitlab.com/a/b' }"),
+        Support::Gitlab {
+            repo: "https://gitlab.com/a/b".into()
+        }
+    );
+    assert_eq!(
+        support("{ type: email, address: a@b.dev }"),
+        Support::Email {
+            address: "a@b.dev".into()
+        }
+    );
+    assert!(parse("{ type: jira, repo: x }").is_err());
+    assert!(parse("{ type: email, address: a@b.dev, extra: 1 }").is_err());
+}
+
+#[test]
+fn support_repo_must_be_plain_https() {
+    for bad in [
+        "http://github.com/a/b",
+        "https://h/x?y",
+        "https://h/x#y",
+        "https://{{ user.x }}/r",
+        "https://user:pw@h/r",
+        "https://user@h/r",
+        "https://h/a b",
+    ] {
+        let got = support_diags(&format!("{{ type: github, repo: '{bad}' }}"));
+        assert_eq!(
+            got,
+            vec![("invalid-support-repo", Some("spec.support.repo".into()))],
+            "{bad}"
+        );
+    }
+    for ok in [
+        "https://github.com/acme/platform",
+        "https://github.com/acme/platform/",
+    ] {
+        assert!(support_diags(&format!("{{ type: gitlab, repo: '{ok}' }}")).is_empty());
+    }
+}
+
+#[test]
+fn support_address_must_be_plain() {
+    for bad in ["team", "a@b@c", "a@b?cc=x", "a @b", "a@b#x", "a@b%0Ax"] {
+        let got = support_diags(&format!("{{ type: email, address: '{bad}' }}"));
+        assert_eq!(
+            got,
+            vec![(
+                "invalid-support-address",
+                Some("spec.support.address".into())
+            )],
+            "{bad}"
+        );
+    }
+    assert!(support_diags("{ type: email, address: platform-team@acme.dev }").is_empty());
+}

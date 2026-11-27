@@ -10,6 +10,7 @@ mod db;
 mod git;
 mod http;
 mod process;
+mod report;
 mod run;
 mod secrets;
 mod settings;
@@ -30,6 +31,7 @@ pub use dashboard::{DashboardView, Origin, PlacementGeometry, PlacementStatus, P
 pub use db::Source;
 pub use git::GitError;
 pub use http::{HttpError, MAX_BYTES, MAX_ROWS, TIMEOUT};
+pub use report::Report;
 pub use run::{FileError, MAX_FILES, WidgetData};
 pub use secrets::{KEYRING_SERVICE, KeyringStore, SecretStore};
 pub use settings::{
@@ -74,6 +76,8 @@ pub enum EngineError {
     ReadOnlyDashboard(String),
     #[error("`{0}` is a container; only widgets with a data source can run")]
     NotALeaf(String),
+    #[error("widget `{0}` has no new permissions to report")]
+    NothingToReport(String),
     #[error("widget `{0}` needs approval")]
     NeedsApproval(String),
     #[error("widget `{0}` needs setup in Settings")]
@@ -466,6 +470,31 @@ impl Engine {
             None => approved.widgets.remove(name),
         };
         Ok(db::set_approved(&self.conn, source.id, &approved)?)
+    }
+
+    /// A pre-filled report of leaf widget `name`'s pending permissions (seen minus approved,
+    /// as the card shows). Reads only stored state; changes nothing.
+    pub fn report_widget(&self, name: &str) -> Result<Report> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let (_, json) = db::widget(&self.conn, source.id, name)?
+            .ok_or_else(|| EngineError::UnknownWidget(name.into()))?;
+        let widget: Widget = serde_json::from_str(&json).expect("stored manifests are valid JSON");
+        if !widget.spec.widgets.is_empty() {
+            return Err(EngineError::NotALeaf(name.into()));
+        }
+        let pending = self.pending_capabilities(&source)?;
+        let caps = pending
+            .widgets
+            .get(name)
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| EngineError::NothingToReport(name.into()))?;
+        let commit = source.synced_commit.as_deref().unwrap_or_default();
+        let (title, body) = report::compose(name, commit, caps);
+        let link = self
+            .platform()?
+            .and_then(|p| p.spec.support)
+            .map(|s| report::link(&s, &title, &body));
+        Ok(Report { title, body, link })
     }
 
     /// Widgets a user can place, by name.

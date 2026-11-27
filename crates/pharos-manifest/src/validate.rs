@@ -92,6 +92,49 @@ fn validate_platform(repo: &Repo, platform: &Platform, sink: &mut Sink) {
         }
         seen.push(name);
     }
+    match &platform.spec.support {
+        Some(Support::Github { repo } | Support::Gitlab { repo }) if !plain_https_url(repo) => {
+            sink.error(
+                "invalid-support-repo",
+                "spec.support.repo",
+                format!("`{repo}` must be a literal https URL (no query, fragment or template)"),
+            );
+        }
+        Some(Support::Email { address }) if !plain_address(address) => {
+            sink.error(
+                "invalid-support-address",
+                "spec.support.address",
+                format!("`{address}` must be a plain email address"),
+            );
+        }
+        _ => {}
+    }
+}
+
+fn plain_https_url(s: &str) -> bool {
+    !s.contains("{{")
+        && url::Url::parse(s).is_ok_and(|u| {
+            // Re-encoding (raw spaces, etc.) means the input is not a plain URL.
+            u.as_str().trim_end_matches('/') == s.trim_end_matches('/')
+                && u.username().is_empty()
+                && u.password().is_none()
+                && u.scheme() == "https"
+                && u.host_str().is_some()
+                && u.query().is_none()
+                && u.fragment().is_none()
+        })
+}
+
+fn plain_address(s: &str) -> bool {
+    let mut parts = s.split('@');
+    let (Some(local), Some(domain), None) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    !local.is_empty()
+        && !domain.is_empty()
+        && !s.contains("{{")
+        && !s.contains(['?', '&', '#', '%'])
+        && !s.chars().any(char::is_whitespace)
 }
 
 fn check_input_def(repo: &Repo, sink: &mut Sink, path: &str, key: &str, def: &InputDef) {

@@ -16,6 +16,7 @@ tauri-build = { version = "2.5", features = [] }
 pharos-engine = { workspace = true, features = ["specta"] }
 pharos-manifest = { workspace = true, features = ["specta"] }
 tauri = { version = "2.12", features = [] }
+tauri-plugin-opener = "2"
 serde.workspace = true
 specta.workspace = true
 specta-typescript = "0.0.13"

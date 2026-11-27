@@ -10,6 +10,7 @@ license.workspace = true
 pharos-manifest.workspace = true
 globset = "0.4"
 libc = "0.2"
+percent-encoding = "2"
 rusqlite = { version = "0.40", features = ["bundled"] }
 rusqlite_migration = "2.6"
 serde.workspace = true

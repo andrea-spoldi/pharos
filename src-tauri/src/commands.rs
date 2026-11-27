@@ -4,13 +4,14 @@
 
 use pharos_engine::{
     CommandError as RunCommandError, DashboardView, Engine, EngineError, FileError, GitError,
-    HttpError, PlacementGeometry, SettingsView, Source, StoredKind, SyncPlan, WidgetData,
+    HttpError, PlacementGeometry, Report, SettingsView, Source, StoredKind, SyncPlan, WidgetData,
     WidgetSummary,
 };
 use pharos_manifest::{Platform, Widget};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use tauri_plugin_opener::OpenerExt;
 
 pub struct AppState {
     engine: Arc<Mutex<Engine>>,
@@ -48,6 +49,8 @@ pub enum ErrorKind {
     NotALeaf,
     /// Static widget, or a source type not supported yet.
     NotRunnable,
+    /// The widget has no pending capabilities, so there is nothing to report.
+    NothingToReport,
     /// An input or secret the widget needs is not set.
     NeedsSetup,
     /// Outside the repo or not approved, or the server refused the credentials.
@@ -95,6 +98,7 @@ impl From<EngineError> for CommandError {
             EngineError::ReadOnlyDashboard(..) => ErrorKind::ReadOnly,
             EngineError::NotALeaf(..) => ErrorKind::NotALeaf,
             EngineError::NoDataSource(_) | EngineError::NotAvailable(_) => ErrorKind::NotRunnable,
+            EngineError::NothingToReport(_) => ErrorKind::NothingToReport,
             EngineError::NeedsApproval(_) => ErrorKind::NeedsApproval,
             EngineError::NeedsSetup(_) | EngineError::MissingValue(_) => ErrorKind::NeedsSetup,
             EngineError::Http(e) if e.is_auth() => ErrorKind::PermissionDenied,
@@ -220,6 +224,42 @@ pub async fn apply_sync(state: State<'_, AppState>, approve: bool) -> CmdResult<
 #[specta::specta]
 pub async fn approve_widget(state: State<'_, AppState>, name: String) -> CmdResult<()> {
     with_engine(state, move |e| e.approve_widget(&name)).await
+}
+
+/// What reporting a widget did: whether the browser was opened, and the text to copy otherwise.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportOutcome {
+    pub opened: bool,
+    pub text: String,
+}
+
+fn outcome(report: Report, open: impl FnOnce(&str) -> bool) -> ReportOutcome {
+    ReportOutcome {
+        text: format!("{}\n\n{}", report.title, report.body),
+        opened: report.link.as_deref().is_some_and(open),
+    }
+}
+
+/// Builds the report for the named widget's pending capabilities and opens the support link
+/// from Rust; the frontend never sees or supplies a URL. Changes no state.
+#[tauri::command]
+#[specta::specta]
+pub async fn report_widget(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> CmdResult<ReportOutcome> {
+    let report = with_engine(state, move |e| e.report_widget(&name)).await?;
+    Ok(outcome(report, |url| {
+        match app.opener().open_url(url, None::<&str>) {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("report_widget: could not open the report link: {e}");
+                false
+            }
+        }
+    }))
 }
 
 #[tauri::command]
@@ -456,6 +496,39 @@ mod tests {
         assert_eq!(expand_home("~/src/repo", None), "~/src/repo");
     }
 
+    fn report(link: Option<&str>) -> Report {
+        Report {
+            title: "T".into(),
+            body: "B".into(),
+            link: link.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn outcome_opens_the_link_when_there_is_one() {
+        let mut seen = None;
+        let out = outcome(report(Some("https://x.test/new")), |url| {
+            seen = Some(url.to_string());
+            true
+        });
+        assert!(out.opened);
+        assert_eq!(seen.as_deref(), Some("https://x.test/new"));
+    }
+
+    #[test]
+    fn outcome_falls_back_when_opening_fails() {
+        let out = outcome(report(Some("https://x.test/new")), |_| false);
+        assert!(!out.opened);
+        assert!(out.text.starts_with("T"));
+    }
+
+    #[test]
+    fn outcome_without_link_never_opens() {
+        let out = outcome(report(None), |_| panic!("must not open"));
+        assert!(!out.opened);
+        assert_eq!(out.text, "T\n\nB");
+    }
+
     #[test]
     fn engine_errors_map_to_kinds() {
         let cases = [
@@ -480,6 +553,10 @@ mod tests {
             (
                 EngineError::NeedsApproval("w".into()),
                 ErrorKind::NeedsApproval,
+            ),
+            (
+                EngineError::NothingToReport("w".into()),
+                ErrorKind::NothingToReport,
             ),
             (EngineError::LintErrors(2), ErrorKind::LintErrors),
             (

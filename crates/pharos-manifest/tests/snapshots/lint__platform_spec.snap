@@ -11,4 +11,5 @@ error: pharos.yaml: spec.inputs.team.field: `from` needs `field` [missing-field]
 error: pharos.yaml: spec.inputs.team.from: `../../teams/`: path escapes the repository root [path-escape]
 error: pharos.yaml: spec.secrets[0].name: `token` must be UPPER_SNAKE_CASE [invalid-secret-name]
 error: pharos.yaml: spec.secrets[2].name: secret `TOKEN` is declared twice [duplicate-secret]
--- 8 errors, 1 warnings
+error: pharos.yaml: spec.support.address: `not-an-address` must be a plain email address [invalid-support-address]
+-- 9 errors, 1 warnings

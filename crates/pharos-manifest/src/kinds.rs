@@ -48,6 +48,19 @@ pub struct PlatformSpec {
     /// Dashboard discovery root, relative to the repo root.
     #[serde(default = "default_dashboards_dir")]
     pub dashboards: String,
+    /// Where users report a widget's new permissions to the platform team.
+    #[serde(default)]
+    pub support: Option<Support>,
+}
+
+/// Contact channel for the platform team; reporting opens it, it never sends anything itself.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase", deny_unknown_fields)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Support {
+    Github { repo: String },
+    Gitlab { repo: String },
+    Email { address: String },
 }
 
 fn default_widgets_dir() -> String {

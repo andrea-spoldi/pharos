@@ -1,11 +1,11 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { fireEvent, render as renderUi, screen, waitFor } from "@solidjs/testing-library";
 import { createSignal, type JSX } from "solid-js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type WidgetData, type PlacementView, type WidgetSpec } from "../bindings";
 import { WidgetFrame } from "./WidgetFrame";
 
-vi.mock("../bindings", () => ({ commands: { runPlacement: vi.fn(), approveWidget: vi.fn() } }));
+vi.mock("../bindings", () => ({ commands: { runPlacement: vi.fn(), approveWidget: vi.fn(), reportWidget: vi.fn() } }));
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
@@ -365,6 +365,64 @@ describe("WidgetFrame", () => {
       const alert = await screen.findByRole("alert");
       expect(alert.textContent).toContain("boom");
       expect(onApproved).not.toHaveBeenCalled();
+    });
+
+    describe("report to platform team", () => {
+      const report = () => fireEvent.click(screen.getByRole("button", { name: "Report to platform team" }));
+      const renderBlocked = () =>
+        render(() => <WidgetFrame slot={slot} placement={blocked()} version={0} onApproved={() => {}} />);
+      const writeText = vi.fn();
+      beforeEach(() => {
+        vi.mocked(commands.reportWidget).mockReset();
+        writeText.mockReset();
+        vi.stubGlobal("navigator", Object.create(navigator, { clipboard: { value: { writeText }, configurable: true } }));
+      });
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it("Report opens in the browser", async () => {
+        vi.mocked(commands.reportWidget).mockResolvedValue(ok({ opened: true, text: "t" }));
+        renderBlocked();
+        report();
+        const status = await screen.findByRole("status");
+        expect(status.textContent).toContain("Opened in your browser — send it from there.");
+        expect(commands.reportWidget).toHaveBeenCalledWith("service-catalog");
+        expect(commands.approveWidget).not.toHaveBeenCalled();
+        expect(screen.getByText("Needs approval")).toBeTruthy();
+      });
+
+      it("Report copies when there is no link", async () => {
+        vi.mocked(commands.reportWidget).mockResolvedValue(ok({ opened: false, text: "the report" }));
+        writeText.mockResolvedValue(undefined);
+        renderBlocked();
+        report();
+        const status = await screen.findByRole("status");
+        expect(status.textContent).toContain("Copied — paste it to your platform team.");
+        expect(writeText).toHaveBeenCalledWith("the report");
+      });
+
+      it("Report shows the text when copying fails", async () => {
+        vi.mocked(commands.reportWidget).mockResolvedValue(ok({ opened: false, text: "the report" }));
+        writeText.mockRejectedValue(new Error("denied"));
+        renderBlocked();
+        report();
+        expect(await screen.findByText("Copy this and send it to your platform team:")).toBeTruthy();
+        const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+        expect(box.value).toBe("the report");
+        expect(box.readOnly).toBe(true);
+      });
+
+      it("Report error shows inline", async () => {
+        vi.mocked(commands.reportWidget).mockResolvedValue({
+          status: "error",
+          error: { kind: "nothingToReport", message: "nothing to report" },
+        });
+        renderBlocked();
+        report();
+        const alert = await screen.findByRole("alert");
+        expect(alert.textContent).toContain("nothing to report");
+      });
     });
 
     it("a container with needsApproval renders its children and has no Approve of its own", () => {
