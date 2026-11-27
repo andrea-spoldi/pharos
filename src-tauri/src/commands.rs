@@ -109,7 +109,10 @@ impl From<EngineError> for CommandError {
                 ErrorKind::PermissionDenied
             }
             EngineError::File(
-                FileError::Glob(_) | FileError::Read { .. } | FileError::Parse { .. },
+                FileError::Glob(_)
+                | FileError::Read { .. }
+                | FileError::Parse { .. }
+                | FileError::Rows(_),
             ) => ErrorKind::DataError,
             EngineError::Command(
                 RunCommandError::NotApproved(_) | RunCommandError::InvalidExecutable(_),
@@ -118,9 +121,11 @@ impl From<EngineError> for CommandError {
             EngineError::Command(
                 RunCommandError::Failed { .. } | RunCommandError::TimedOut { .. },
             ) => ErrorKind::CommandFailed,
-            EngineError::Command(RunCommandError::TooLarge(_) | RunCommandError::Io { .. }) => {
-                ErrorKind::DataError
-            }
+            EngineError::Command(
+                RunCommandError::TooLarge(_)
+                | RunCommandError::Io { .. }
+                | RunCommandError::Rows(_),
+            ) => ErrorKind::DataError,
             EngineError::Db(_)
             | EngineError::Migration(_)
             | EngineError::Io(_)

@@ -195,6 +195,19 @@ fn check_input_def(repo: &Repo, sink: &mut Sink, path: &str, key: &str, def: &In
     }
 }
 
+/// Why `path` cannot be a dot path (`a.b.0`), or `None` when it can.
+pub fn dot_path_problem(path: &str) -> Option<&'static str> {
+    if path.is_empty() {
+        Some("empty")
+    } else if path.chars().any(char::is_whitespace) {
+        Some("contains whitespace")
+    } else if path.split('.').any(str::is_empty) {
+        Some("empty segment")
+    } else {
+        None
+    }
+}
+
 fn validate_widget(
     repo: &Repo,
     platform: Option<&Platform>,
@@ -222,8 +235,18 @@ fn validate_widget(
         }
     }
 
+    if let Some(rows) = spec.source.as_ref().and_then(Source::rows)
+        && let Some(reason) = dot_path_problem(rows)
+    {
+        sink.error(
+            "invalid-rows-path",
+            "spec.source.rows",
+            format!("rows: `{rows}` is not a valid dot path ({reason})"),
+        );
+    }
+
     match &spec.source {
-        Some(Source::File { path, glob }) => {
+        Some(Source::File { path, glob, .. }) => {
             if path.contains("{{") {
                 sink.error(
                     "template-not-allowed",
@@ -253,6 +276,7 @@ fn validate_widget(
             executable,
             args,
             timeout,
+            ..
         }) => {
             if let Some(problem) = executable_problem(executable) {
                 sink.error("invalid-executable", "spec.source.executable", problem);

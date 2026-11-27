@@ -1,0 +1,8 @@
+---
+source: crates/pharos-manifest/tests/lint.rs
+expression: "render(concat! (\"tests/fixtures/\", \"rows\"))"
+---
+error: widgets/empty-segment/widget.yaml: spec.source.rows: rows: `items..x` is not a valid dot path (empty segment) [invalid-rows-path]
+error: widgets/empty/widget.yaml: spec.source.rows: rows: `` is not a valid dot path (empty) [invalid-rows-path]
+error: widgets/leading-space/widget.yaml: spec.source.rows: rows: ` items` is not a valid dot path (contains whitespace) [invalid-rows-path]
+-- 3 errors, 0 warnings

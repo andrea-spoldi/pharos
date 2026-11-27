@@ -145,6 +145,25 @@ fn unchanged_capabilities_apply_without_consent() {
     engine.apply_sync(false).unwrap();
 }
 
+#[test]
+fn rows_change_needs_no_consent() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+
+    let k8s = fs::read_to_string(f.origin.join("widgets/k8s-context/widget.yaml")).unwrap();
+    f.write(
+        "widgets/k8s-context/widget.yaml",
+        &k8s.replace("timeout: 5s", "timeout: 5s\n    rows: items"),
+    );
+    f.commit("select rows");
+
+    let plan = engine.plan_sync().unwrap();
+    assert_eq!(plan.widgets.changed, ["k8s-context"]);
+    assert!(plan.capability_changes.is_empty());
+    assert!(!plan.needs_consent);
+    engine.apply_sync(false).unwrap();
+}
+
 fn status_widget(name: &str, host: &str) -> String {
     STATUS_WIDGET
         .replace("status-page", name)

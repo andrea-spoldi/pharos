@@ -57,6 +57,11 @@ fn json_ok(body: &str) -> String {
 /// The example repo plus a `local` dashboard whose only widget calls `origin`, the way
 /// My Pipelines calls GitLab. Team and token are set unless `setup` is false.
 fn engine_for(origin: &str, setup: bool) -> Engine {
+    engine_with(origin, setup, "")
+}
+
+/// As `engine_for`, with extra lines in the widget's `source` (indented by four spaces).
+fn engine_with(origin: &str, setup: bool, source_extra: &str) -> Engine {
     let f = Fixture::new();
     f.write(
         "widgets/local-api/widget.yaml",
@@ -72,7 +77,7 @@ spec:
     url: "{origin}/api/{{{{ inputs.project }}}}/pipelines?team={{{{ user.team }}}}"
     headers:
       PRIVATE-TOKEN: "{{{{ secrets.GITLAB_TOKEN }}}}"
-  view:
+{source_extra}  view:
     type: table
     columns: [ {{ field: id }} ]
 "#
@@ -173,6 +178,45 @@ fn does_not_follow_redirects() {
         "{err:?}"
     );
     assert_eq!(server.requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn http_rows_selects_data() {
+    let server = serve(vec![json_ok(
+        r#"{"data": [{"id": 1}, {"id": 2}], "meta": 2}"#,
+    )]);
+    let engine = engine_with(&server.origin, true, "    rows: data\n");
+
+    let data = engine.run_placement("p:local", &[0]).unwrap();
+
+    assert_eq!(data.rows, [json!({"id": 1}), json!({"id": 2})]);
+}
+
+#[test]
+fn http_rows_not_found() {
+    let server = serve(vec![json_ok(r#"{"data": []}"#)]);
+    let engine = engine_with(&server.origin, true, "    rows: items\n");
+
+    let err = engine.run_placement("p:local", &[0]).unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "`rows: items` matched nothing in the output"
+    );
+    assert!(matches!(err, EngineError::Http(HttpError::Rows(_))));
+}
+
+#[test]
+fn http_rows_with_a_non_json_body_errors() {
+    let server = serve(vec![response("200 OK", "", "<html>login</html>")]);
+    let engine = engine_with(&server.origin, true, "    rows: data\n");
+
+    let err = engine.run_placement("p:local", &[0]).unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "`rows: data` needs JSON output, but the response was not JSON"
+    );
 }
 
 #[test]

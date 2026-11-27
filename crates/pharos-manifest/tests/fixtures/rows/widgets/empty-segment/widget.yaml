@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: empty-segment }
+spec:
+  source: { type: command, executable: kubectl, rows: 'items..x' }
+  view: { type: raw }

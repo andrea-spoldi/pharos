@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: ok }
+spec:
+  source: { type: command, executable: kubectl, rows: items.0.x }
+  view: { type: raw }

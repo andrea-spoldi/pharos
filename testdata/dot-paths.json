@@ -1,0 +1,218 @@
+[
+  {
+    "value": {
+      "items": [
+        1,
+        2
+      ]
+    },
+    "path": "items",
+    "found": true,
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "value": {
+      "a": {
+        "b": {
+          "c": 5
+        }
+      }
+    },
+    "path": "a.b",
+    "found": true,
+    "expected": {
+      "c": 5
+    }
+  },
+  {
+    "value": {
+      "a": {
+        "b": {
+          "c": 5
+        }
+      }
+    },
+    "path": "a.b.c",
+    "found": true,
+    "expected": 5
+  },
+  {
+    "value": {
+      "contexts": [
+        {
+          "name": "x"
+        },
+        {
+          "name": "y"
+        }
+      ]
+    },
+    "path": "contexts.0",
+    "found": true,
+    "expected": {
+      "name": "x"
+    }
+  },
+  {
+    "value": {
+      "contexts": [
+        {
+          "name": "x"
+        },
+        {
+          "name": "y"
+        }
+      ]
+    },
+    "path": "contexts.1.name",
+    "found": true,
+    "expected": "y"
+  },
+  {
+    "value": [
+      1,
+      2
+    ],
+    "path": "items.x",
+    "found": false
+  },
+  {
+    "value": {
+      "items": [
+        1,
+        2
+      ]
+    },
+    "path": "items.x",
+    "found": false
+  },
+  {
+    "value": {
+      "a": {
+        "0": "zero"
+      }
+    },
+    "path": "a.0",
+    "found": true,
+    "expected": "zero"
+  },
+  {
+    "value": {
+      "a": 1
+    },
+    "path": "missing",
+    "found": false
+  },
+  {
+    "value": {
+      "a": {
+        "b": null
+      }
+    },
+    "path": "a.b.c",
+    "found": false
+  },
+  {
+    "value": {
+      "a": null
+    },
+    "path": "a.b",
+    "found": false
+  },
+  {
+    "value": {
+      "list": [
+        1,
+        2,
+        3
+      ]
+    },
+    "path": "list.5",
+    "found": false
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.-1",
+    "found": false
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.01",
+    "found": true,
+    "expected": 2
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.1.5",
+    "found": false
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.0x+1",
+    "found": false
+  },
+  {
+    "value": {
+      "a": {
+        "b": 1
+      }
+    },
+    "path": "a.0",
+    "found": false
+  },
+  {
+    "value": {
+      "a": {
+        "b": null
+      }
+    },
+    "path": "a.b",
+    "found": true,
+    "expected": null
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.1e0",
+    "found": true,
+    "expected": 2
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.0x1",
+    "found": true,
+    "expected": 2
+  }
+]

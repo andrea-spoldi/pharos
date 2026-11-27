@@ -1,7 +1,7 @@
 import type { Column, JsonValue } from "../bindings";
 
-/** Mirrors `pharos_engine::MAX_FILES`. */
-export const MAX_FILES = 500;
+/** Mirrors `pharos_engine::MAX_ROWS`. */
+export const MAX_ROWS = 500;
 
 export type Row = { [key in string]: JsonValue };
 export type LabelledColumn = { field: string; label: string };
