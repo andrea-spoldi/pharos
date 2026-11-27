@@ -55,6 +55,21 @@ describe("Dialog", () => {
     expect(document.activeElement).toBe(ok);
   });
 
+  it("renders its root as a child of document.body, even when opened inside a stacking context", () => {
+    render(() => (
+      <aside class="sidebar" style={{ position: "sticky" }}>
+        <Dialog title="Pick" open={true} onClose={() => {}} actions={<button type="button">OK</button>}>
+          <p>Body</p>
+        </Dialog>
+      </aside>
+    ));
+    const backdrop = screen.getByRole("dialog").parentElement as HTMLElement;
+    expect(backdrop.className).toBe("dialog-backdrop");
+    // Solid's Portal wraps its content in one div appended to body.
+    expect(backdrop.parentElement?.parentElement).toBe(document.body);
+    expect(document.querySelector("aside")?.contains(backdrop)).toBe(false);
+  });
+
   it("returns focus to whatever opened it when it closes", () => {
     const [open, setOpen] = createSignal(false);
     render(() => (

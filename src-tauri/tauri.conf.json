@@ -10,7 +10,7 @@
     "frontendDist": "../app/dist"
   },
   "app": {
-    "windows": [{ "title": "Pharos", "width": 1200, "height": 800 }],
+    "windows": [{ "title": "Pharos", "width": 1360, "height": 860 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost",
       "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost ws://localhost:1420"

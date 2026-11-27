@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-25T00:00:00+00:00",
+  "generatedAt": "2026-11-27T15:56:39.162Z",
   "title": "Design System: Pharos",
   "extensions": {
     "colorMeta": {
@@ -186,14 +186,38 @@
       }
     },
     "typographyMeta": {
-      "headline": { "displayName": "Headline", "purpose": "Screen h1 on Onboarding and Settings." },
-      "title": { "displayName": "Title", "purpose": "Section h2, dialog titles, and the dashboard top bar h1." },
-      "title-small": { "displayName": "Title Small", "purpose": "h3: card and markdown headings." },
-      "body": { "displayName": "Body", "purpose": "Default text; screens cap width at 44rem." },
-      "body-small": { "displayName": "Body Small", "purpose": "Tables and field lists inside widgets." },
-      "label": { "displayName": "Label", "purpose": "Form labels, table headers, capability verbs, segmented options." },
-      "mono": { "displayName": "Mono", "purpose": "Code, pre, paths, hosts, executables, SHAs." },
-      "mono-input": { "displayName": "Mono Input", "purpose": "All text inputs." }
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Screen h1 on Onboarding and Settings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section h2, dialog titles, and the dashboard top bar h1."
+      },
+      "title-small": {
+        "displayName": "Title Small",
+        "purpose": "h3: card and markdown headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text; screens cap width at 44rem."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Tables and field lists inside widgets."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form labels, table headers, capability verbs, segmented options."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Code, pre, paths, hosts, executables, SHAs."
+      },
+      "mono-input": {
+        "displayName": "Mono Input",
+        "purpose": "All text inputs."
+      }
     },
     "shadows": [
       {
@@ -218,23 +242,37 @@
       {
         "name": "state-transition",
         "value": "background-color/border-color/box-shadow/transform 150ms ease",
-        "purpose": "State changes on buttons, widgets, tabs and table rows. Inside prefers-reduced-motion: no-preference."
+        "purpose": "State changes on buttons, widgets, sidebar items and table rows. Inside prefers-reduced-motion: no-preference."
       },
       {
         "name": "skeleton-pulse",
         "value": "pulse 1.2s ease-in-out infinite (opacity to 0.4 at 50%)",
         "purpose": "Loading skeleton bars. Stilled under prefers-reduced-motion: reduce; the bars still read as loading."
+      },
+      {
+        "name": "sidebar-collapse",
+        "value": "grid-template-columns 150ms ease",
+        "purpose": "The app shell's column width when the sidebar toggles between open and rail. Inside prefers-reduced-motion: no-preference; instant otherwise."
       }
     ],
     "breakpoints": [
       {
+        "name": "sidebar-default-open",
+        "value": "1280px",
+        "purpose": "At this width and wider the sidebar starts open (240px); below it starts as the 56px rail. A saved choice (pharos.sidebar) wins."
+      },
+      {
         "name": "dashboard-collapse",
         "value": "900px",
-        "purpose": "Below this width the 12-column grid becomes one column, wide-screen side padding drops to 1rem, and top-level widgets cap at 24rem."
+        "purpose": "At this width and below the sidebar gives way to the narrow top bar, the 12-column grid becomes one column, the main area's side padding drops to 1rem, and top-level widgets cap at 24rem."
       }
     ],
     "scrims": [
-      { "name": "dialog-backdrop", "value": "rgb(0 0 0 / 40%)", "purpose": "Behind in-app dialogs." }
+      {
+        "name": "dialog-backdrop",
+        "value": "rgb(0 0 0 / 40%)",
+        "purpose": "Behind in-app dialogs."
+      }
     ],
     "focus": {
       "value": "2px solid var(--accent); outline-offset 1px",
@@ -279,12 +317,12 @@
       "css": ".ds-label{display:flex;flex-direction:column;gap:0.25rem;font-weight:500;font-family:system-ui,-apple-system,sans-serif;color:var(--fg,#1a1a1a)}.ds-input{font:inherit;font-weight:400;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:0.9rem;padding:0.5rem;color:var(--fg,#1a1a1a);background:var(--surface,#fff);border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px)}.ds-input:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
     },
     {
-      "name": "Dashboard Tabs",
+      "name": "Sidebar Navigation",
       "kind": "nav",
-      "refersTo": "tab-active",
-      "description": "Dashboard switcher: a 2px Signal Blue underline plus an accent wash on the current tab. Wraps to a second row in a narrow window.",
-      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">Home</button><button class=\"ds-tab\">Services</button><button class=\"ds-tab\">Pipelines</button></nav>",
-      "css": ".ds-tabs{display:flex;flex-wrap:wrap;gap:0.25rem;row-gap:0;border-bottom:1px solid var(--border-soft,#e8ebf1);font-family:system-ui,-apple-system,sans-serif}.ds-tab{font:inherit;background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:0.5rem 1rem;color:var(--muted,#5f6672);cursor:pointer;transition:background-color 150ms ease,color 150ms ease}.ds-tab:hover{color:var(--fg,#1a1a1a)}.ds-tab[aria-current=page]{color:var(--fg,#1a1a1a);border-bottom-color:var(--accent,#2f5bd3);background:var(--accent-wash,rgba(47,91,211,.09));font-weight:600}.ds-tab:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}"
+      "refersTo": "nav-item-current",
+      "description": "Dashboard navigation in a quiet white column: grouped items with monogram tiles; the current item takes the accent wash and a 3px Signal Blue bar on its inner edge. Collapses to a 56px rail.",
+      "html": "<aside class=\"ds-sidebar\"><p class=\"ds-nav-heading\">Platform</p><button class=\"ds-nav-item\" aria-current=\"page\"><span class=\"ds-nav-mono\">H</span>Home</button><button class=\"ds-nav-item\"><span class=\"ds-nav-mono\">T</span>Teams</button><p class=\"ds-nav-heading\">Mine</p><button class=\"ds-nav-item\"><span class=\"ds-nav-mono\">M</span>My work</button></aside>",
+      "css": ".ds-sidebar{box-sizing:border-box;width:240px;display:flex;flex-direction:column;gap:2px;padding:1rem 0.5rem;background:var(--surface,#fff);border-right:1px solid var(--border,#dce1ea);font-family:system-ui,-apple-system,sans-serif}.ds-nav-heading{margin:0.5rem 0 0.25rem;padding:0 0.5rem;font-size:0.72rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted,#5f6672)}.ds-nav-item{position:relative;display:flex;align-items:center;gap:0.5rem;width:100%;padding:6px 0.5rem;font:inherit;text-align:left;color:var(--muted,#5f6672);background:none;border:none;border-radius:var(--radius,6px);cursor:pointer;transition:background-color 150ms ease,color 150ms ease}.ds-nav-item:hover{color:var(--fg,#1a1a1a);background:var(--surface-2,#f3f6fa)}.ds-nav-item[aria-current=page]{color:var(--fg,#1a1a1a);font-weight:600;background:var(--accent-wash,rgba(47,91,211,.09))}.ds-nav-item[aria-current=page]::before{content:'';position:absolute;left:-8px;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:var(--accent,#2f5bd3)}.ds-nav-item:focus-visible{outline:2px solid var(--accent,#2f5bd3);outline-offset:1px}.ds-nav-mono{flex:none;display:grid;place-items:center;width:22px;height:22px;font-size:0.75rem;font-weight:600;color:var(--fg,#1a1a1a);background:var(--surface-2,#f3f6fa);border:1px solid var(--border,#dce1ea);border-radius:var(--radius,6px)}"
     },
     {
       "name": "Theme Segmented Control",
@@ -320,15 +358,8 @@
   ],
   "narrative": {
     "northStar": "The Harbour Light",
-    "overview": "Pharos is named after a lighthouse, and its interface works like one. The page is a cool tinted neutral, like water at dusk; the widgets are crisp white and lift off it toward a single soft beam at the top of the frame. One blue is the lamp, kept for the places where the developer's attention belongs: the current tab, the one primary action on a screen, and the prompt that says a widget needs setup. Everything else is quiet — system type, pale tonal surfaces, thin fog-colored borders. The platform team's own content and data fill the frame; Pharos itself stays in the background.\n\nThis is an Operate-mode tool, used daily and at a glance, so density stays moderate and the layout is predictable. The aim for components is soft and approachable — developers should feel the app is helping them, not auditing them, even on screens that ask for trust (capability consent, lint errors). That shows up as 6px corners, white widgets separated from the page by a single soft shadow, a low-alpha accent wash that marks the current place, and gentle 150ms transitions.\n\nDepth here is earned by inversion plus one shadow, not by boxes stacked on boxes. The page recedes, the widgets advance, and a single ambient beam gives the frame its one moment of atmosphere. The reduced-motion policy that earlier versions left open is now settled. Appearance follows the OS by default and can be pinned to light or dark from Settings.",
-    "keyCharacteristics": [
-      "One accent (Signal Blue), now with a low-alpha wash (`accent-wash`) for the current place.",
-      "Inverted surfaces: a tinted page, white widgets that lift.",
-      "Light and dark follow `prefers-color-scheme`, overridable with `data-theme` on `<html>`.",
-      "System UI type. Mono for anything a machine reads: inputs, paths, hosts, code.",
-      "One shadow family, for overlays and widget hover only. One ambient beam, app-level.",
-      "A single radius (6px) on every enclosed shape; 4px on segments nested inside one."
-    ],
+    "overview": "Pharos is named after a lighthouse, and its interface works like one. The page is a cool tinted neutral, like water at dusk; the widgets are crisp white and lift off it toward a single soft beam at the top of the frame. One blue is the lamp, kept for the places where the developer's attention belongs: the current dashboard in the sidebar, the one primary action, and the prompt that says a widget needs setup. Everything else is quiet — system type, pale tonal surfaces, thin fog-colored borders. The platform team's own content and data fill the frame; Pharos itself stays in the background.\n This is an Operate-mode tool, used daily and at a glance, so density stays moderate and the layout is predictable. The aim for components is **soft and approachable** — developers should feel the app is helping them, not auditing them, even on screens that ask for trust (capability consent, lint errors). That shows up as 6px corners, white widgets separated from the page by a single soft shadow, a low-alpha accent wash that marks the current place, and gentle 150ms transitions.\n Depth here is earned by **inversion plus one shadow**, not by boxes stacked on boxes. The page recedes, the widgets advance, and a single ambient beam gives the frame its one moment of atmosphere. The reduced-motion policy that earlier versions left open is now settled (see Elevation & Depth and Layout). Appearance follows the OS by default and can be pinned to light or dark from Settings.",
+    "keyCharacteristics": ["One accent (Signal Blue), now with a low-alpha wash (`accent-wash`) for the current place.", "Inverted surfaces: a tinted page, white widgets that lift.", "Light and dark follow `prefers-color-scheme`, overridable with `data-theme` on `<html>`.", "System UI type. Mono for anything a machine reads: inputs, paths, hosts, code.", "One shadow family, for overlays and widget hover only. One ambient beam, app-level.", "A single radius (6px) on every enclosed shape; 4px on segments nested inside one.", "Navigation lives in a quiet white sidebar beside the page; the page itself is all data."],
     "rules": [
       {
         "name": "The One Lamp Rule",
@@ -337,7 +368,7 @@
       },
       {
         "name": "The Halo Rule",
-        "body": "The accent may appear as a low-alpha wash (`accent-wash`) or weak border (`accent-weak`) in addition to its solid fill — but only where the One Lamp Rule already allows it: the current place (active tab, selected segment), a hovered widget, focus. Never as decoration, and never a second hue.",
+        "body": "The accent may appear as a low-alpha wash (`accent-wash`) or weak border (`accent-weak`) in addition to its solid fill — but only where the One Lamp Rule already allows it: the current place (the current sidebar item with its 3px Signal Blue bar, the selected segment), a hovered widget, focus. Never as decoration, and never a second hue.",
         "section": "colors"
       },
       {
@@ -361,20 +392,7 @@
         "section": "elevation"
       }
     ],
-    "dos": [
-      "Do use the tokens (`--accent`, `--accent-wash`, `--surface`, `--border`, `--border-soft`, `--shadow-card`, `--space-*`, `--radius`) rather than literal values, and define every new color for both themes.",
-      "Do keep a single primary (Signal Blue) button per view. Make everything else a default or link button.",
-      "Do keep the page tinted and the widgets Open White, so widgets lift off the page.",
-      "Do set paths, hosts, commands, SHAs and inputs in mono (`--mono`).",
-      "Do reuse the shared widget states (empty, loading, error, needs setup) rather than designing new ones for each widget."
-    ],
-    "donts": [
-      "Don't add a shadow outside the two allowed places (overlays, widget hover). Resting surfaces separate by tone and a Fog border.",
-      "Don't repeat the beam, or add a second ambient glow. It belongs once, at the top of the frame.",
-      "Don't introduce a second accent hue, or use Signal Blue — solid or washed — for decoration rather than to mark place, action or setup.",
-      "Don't load remote fonts, icon fonts or CDN assets. The strict CSP allows only the app's own scripts and styles.",
-      "Don't use browser `prompt()` or `alert()`. Use the in-app Dialog.",
-      "Don't let the platform's branding replace the Pharos frame. Platform titles appear as content."
-    ]
+    "dos": ["Do use the tokens (`--accent`, `--accent-wash`, `--surface`, `--border`, `--border-soft`, `--shadow-card`, `--space-*`, `--radius`) rather than literal values, and define every new color for both themes.", "Do keep a single primary (Signal Blue) button per view. Make everything else a default or link button.", "Do keep the page tinted and the widgets Open White, so widgets lift off the page.", "Do set paths, hosts, commands, SHAs and inputs in mono (`--mono`).", "Do reuse the shared widget states (empty, loading, error, needs setup) rather than designing new ones for each widget."],
+    "donts": ["Don't add a shadow outside the two allowed places (overlays, widget hover). Resting surfaces separate by tone and a Fog border.", "Don't repeat the beam, or add a second ambient glow. It belongs once, at the top of the frame.", "Don't introduce a second accent hue, or use Signal Blue — solid or washed — for decoration rather than to mark place, action or setup.", "Don't load remote fonts, icon fonts or CDN assets. The strict CSP allows only the app's own scripts and styles.", "Don't use browser `prompt()` or `alert()`. Use the in-app Dialog.", "Don't let the platform's branding replace the Pharos frame. Platform titles appear as content."]
   }
 }

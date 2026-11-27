@@ -186,12 +186,35 @@ export function AddWidgetDialog(props: {
 
 const title = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
 
-type Open = "new" | "group" | "add" | "rename" | "delete" | undefined;
+/** "+ New dashboard" and its create dialog; `onCreated` gets the new dashboard to refresh and open. */
+export function NewDashboardButton(props: { class?: string; onCreated: (created: DashboardView) => void }) {
+  const [open, setOpen] = createSignal(false);
+  return (
+    <>
+      <button type="button" class={props.class} onClick={() => setOpen(true)}>
+        <span class="nav-mono">+</span> <span class="nav-label">New dashboard</span>
+      </button>
+      <TitleDialog
+        heading="New dashboard"
+        confirm="Create"
+        initial=""
+        open={open()}
+        onClose={() => setOpen(false)}
+        onSubmit={async (t) => {
+          const created = await unwrap(commands.createDashboard(t));
+          props.onCreated(created);
+        }}
+      />
+    </>
+  );
+}
+
+type Open = "group" | "add" | "rename" | "delete" | undefined;
 
 /**
- * The compose toolbar. "+ New dashboard" is always there; the rest act on `dashboard` and are
- * shown only when it is the user's own (`editable`). Each mutation calls `onChanged` so the
- * screen refetches from the engine rather than patching its own copy.
+ * The compose toolbar for `dashboard`. Customize shows on a non-landing platform dashboard;
+ * the rest are shown only when it is the user's own (`editable`). Each mutation calls
+ * `onChanged` so the screen refetches from the engine rather than patching its own copy.
  */
 export function DashboardToolbar(props: {
   dashboard?: DashboardView;
@@ -216,9 +239,6 @@ export function DashboardToolbar(props: {
 
   return (
     <div class="row toolbar">
-      <button type="button" onClick={() => setOpen("new")}>
-        + New dashboard
-      </button>
       <Show when={props.dashboard && !editable() && !props.landing ? props.dashboard : undefined}>
         {(d) => (
           <button
@@ -273,17 +293,6 @@ export function DashboardToolbar(props: {
       </Show>
       <Failure message={action.error()} />
 
-      <TitleDialog
-        heading="New dashboard"
-        confirm="Create"
-        initial=""
-        open={open() === "new"}
-        onClose={close}
-        onSubmit={async (t) => {
-          const created = await unwrap(commands.createDashboard(t));
-          props.onCreated(created);
-        }}
-      />
       <Show when={editable()}>
         {(d) => (
           <>

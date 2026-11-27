@@ -217,8 +217,8 @@ label.row {
   font-weight: 400;
 }
 
-/* Hover deepens the fill by one tone (Tone Not Shadow); tabs, menu rows and links have their own. */
-button:hover:not(:disabled, .primary, .danger, .link, .tab, .menu-item, .resize-grip) {
+/* Hover deepens the fill by one tone (Tone Not Shadow); menu rows and links have their own. */
+button:hover:not(:disabled, .primary, .danger, .link, .menu-item, .nav-item, .resize-grip) {
   background: var(--border);
 }
 
@@ -395,33 +395,239 @@ h3 {
   word-break: break-word;
 }
 
-/* Dashboards: tabs, grid, widget frame */
-.screen.wide {
-  max-width: none;
-  padding: var(--space-3) var(--space-4);
+/* App shell: the sidebar beside the main area. */
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
 }
 
-/* When the title and actions don't fit side by side, the actions drop below the title
-   instead of squeezing their labels onto two lines. */
-.topbar {
+.app-shell.rail {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-shell {
+    transition: grid-template-columns 150ms ease;
+  }
+}
+
+/* Below the sidebar breakpoint (viewport.ts) no sidebar renders; the main area takes the row. */
+@media (max-width: 900px) {
+  .app-shell,
+  .app-shell.rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sidebar {
+  /* Required: there is no global border-box, and the padding would overflow 100vh. */
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.nav-heading {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The current item marks place: the Halo wash plus a 3px accent bar on its inner edge. */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  text-align: left;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+}
+
+.nav-item:hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+.nav-item[aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+  background: var(--accent-wash);
+}
+
+.nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+/* The monogram tile: the title's first letter, in a 22px square. */
+.nav-mono {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sidebar-toggle {
+  align-self: flex-end;
+  padding: 0 var(--space-2);
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+/* Rail: icons only. Labels are .sr-only in the markup; the New dashboard label is not ours to class. */
+.sidebar.rail .sidebar-top {
+  align-items: center;
+  padding: 0;
+}
+
+.sidebar.rail .sidebar-toggle {
+  align-self: center;
+}
+
+.sidebar.rail .nav-item {
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.sidebar.rail .nav-item .nav-label:not(.sr-only) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.sidebar.rail .landing-mark {
+  display: none;
+}
+
+.sidebar.rail .sidebar-foot p {
+  padding: 0;
+}
+
+/* One tooltip for the rail, fixed so the sidebar's own scrolling cannot clip it. */
+.rail-tip {
+  position: fixed;
+  z-index: 20;
+  transform: translateY(-50%);
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+.sidebar ul.plain {
+  gap: 2px;
+}
+
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+
+.sidebar .brand {
+  margin: 0;
+  font-weight: 650;
+}
+
+.nav-source {
+  margin: 0;
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The footer is pinned to the bottom of the column. */
+.sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar-foot p {
+  margin: 0;
+  padding: 0 var(--space-2);
+}
+
+.sidebar .sync-status {
+  min-height: 1.2em;
+  font-size: 0.82rem;
+}
+
+.page-head {
   flex-wrap: wrap;
   row-gap: var(--space-2);
 }
 
-.topbar .sync-status {
+.page-head h1 {
   margin: 0;
-  align-self: center;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
 
-.topbar .sync-status,
-.topbar button {
+.page-head p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.topbar h1 {
-  margin: 0;
-  font-size: 1.15rem;
+.main {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
+
+/* Dashboards: grid, widget frame */
 
 /* The mark leads the platform title; Signal Blue via the accent token, so it follows the theme. */
 .brand {
@@ -435,38 +641,6 @@ h3 {
   width: 1.5em;
   height: 1.5em;
   color: var(--accent);
-}
-
-/* Wrap to a second row when the window is too narrow for the strip, rather than
-   overflowing it. (overflow-x:auto would clip the "More" dropdown, so wrap instead.) */
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  row-gap: 0;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.tab {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  padding: var(--space-2) var(--space-3);
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.tab:hover {
-  color: var(--fg);
-}
-
-.tab[aria-current="page"],
-.tab.active {
-  color: var(--fg);
-  border-bottom-color: var(--accent);
-  background: var(--accent-wash);
-  font-weight: 600;
 }
 
 .toolbar {
@@ -545,10 +719,6 @@ button.edit-toggle.active {
   overflow: auto;
 }
 
-.more {
-  position: relative;
-}
-
 .menu {
   position: absolute;
   z-index: 1;
@@ -562,7 +732,7 @@ button.edit-toggle.active {
   box-shadow: var(--shadow-pop);
 }
 
-/* Menu rows read like the tabs they overflow from: Ink text, the current one in bold. */
+/* Menu rows: Ink text, the current one in bold. */
 .menu-item {
   display: block;
   width: 100%;
@@ -783,11 +953,6 @@ pre.raw {
 }
 
 @media (max-width: 900px) {
-  /* Reclaim the wide side padding for widget content when the window is narrow. */
-  .screen.wide {
-    padding: var(--space-3);
-  }
-
   .grid {
     grid-template-columns: 1fr;
     grid-auto-rows: auto;
@@ -853,10 +1018,6 @@ pre.raw {
 .danger-text {
   margin: 0;
   color: var(--danger);
-}
-
-button.link.back {
-  align-self: flex-start;
 }
 
 .dialog-backdrop {
@@ -948,7 +1109,7 @@ button.link.back {
 @media (prefers-reduced-motion: no-preference) {
   button,
   .widget,
-  .tab,
+  .nav-item,
   .resize-grip,
   tbody tr {
     transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease,
@@ -963,5 +1124,37 @@ button.link.back {
 }
 
 .approval-caps dd {
+  margin: 0;
+}
+
+/* Compact top bar below the sidebar breakpoint: the dashboard menu trigger and the sync status. */
+.narrow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.narrow-menu {
+  position: relative;
+}
+
+.narrow-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.narrow-menu .menu {
+  top: 100%;
+  left: 0;
+  margin-top: var(--space-1);
+}
+
+.narrow-bar .sync-status {
   margin: 0;
 }
