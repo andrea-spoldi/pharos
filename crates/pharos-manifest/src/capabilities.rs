@@ -41,6 +41,40 @@ impl Capabilities {
         self.executables.extend(executables);
         self.paths.extend(paths);
     }
+
+    /// What is in `self` but not in `other`. Exhaustive, like `extend`.
+    pub fn minus(&self, other: &Capabilities) -> Capabilities {
+        let Capabilities {
+            hosts,
+            executables,
+            paths,
+        } = self;
+        Capabilities {
+            hosts: hosts.difference(&other.hosts).cloned().collect(),
+            executables: executables
+                .difference(&other.executables)
+                .cloned()
+                .collect(),
+            paths: paths.difference(&other.paths).cloned().collect(),
+        }
+    }
+
+    /// What is in both `self` and `other`. Exhaustive, like `extend`.
+    pub fn intersect(&self, other: &Capabilities) -> Capabilities {
+        let Capabilities {
+            hosts,
+            executables,
+            paths,
+        } = self;
+        Capabilities {
+            hosts: hosts.intersection(&other.hosts).cloned().collect(),
+            executables: executables
+                .intersection(&other.executables)
+                .cloned()
+                .collect(),
+            paths: paths.intersection(&other.paths).cloned().collect(),
+        }
+    }
 }
 
 /// Capabilities of every widget in a repo, keyed by widget name. This is what users consent to.
@@ -218,6 +252,23 @@ mod tests {
             bare_origin("gitlab.acme"),
             Err(OriginError::Invalid(_))
         ));
+    }
+
+    fn caps(hosts: &[&str], executables: &[&str], paths: &[&str]) -> Capabilities {
+        let set = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
+        Capabilities {
+            hosts: set(hosts),
+            executables: set(executables),
+            paths: set(paths),
+        }
+    }
+
+    #[test]
+    fn minus_and_intersect_cover_every_kind() {
+        let a = caps(&["h1", "h2"], &["e1", "e2"], &["p1", "p2"]);
+        let b = caps(&["h2", "h3"], &["e2", "e3"], &["p2", "p3"]);
+        assert_eq!(a.minus(&b), caps(&["h1"], &["e1"], &["p1"]));
+        assert_eq!(a.intersect(&b), caps(&["h2"], &["e2"], &["p2"]));
     }
 
     #[test]

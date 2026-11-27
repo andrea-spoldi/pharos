@@ -2,11 +2,18 @@ import { useLocation, useNavigate } from "@solidjs/router";
 import { createEffect, createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
-import { ChangeLine, shortCommit, SyncReview } from "../components/SyncReview";
+import { PharosMark } from "../components/PharosMark";
+import { ChangeLine, hasAnyCapability, shortCommit, SyncReview } from "../components/SyncReview";
 import { Dashboards } from "./Dashboards";
 import { Settings } from "./Settings";
 
 const errorCount = (plan: SyncPlan) => plan.diagnostics.filter((d) => d.severity === "error").length;
+
+/** Widgets whose capability change has anything in `side`. */
+const withCaps = (plan: SyncPlan, side: "added" | "removed") =>
+  Object.entries(plan.capability_changes)
+    .filter(([, change]) => hasAnyCapability(change[side]))
+    .map(([name]) => name);
 
 /** Mirrors `SyncPlan::is_up_to_date` in the engine. */
 const isUpToDate = (plan: SyncPlan) =>
@@ -39,6 +46,8 @@ export function Home(props: {
   const [error, setError] = createSignal<IpcError>();
   // Result of the last sync: the applied plan (changelog), or that nothing changed.
   const [changelog, setChangelog] = createSignal<SyncPlan | null>(null);
+  // Whether the changelog's plan was applied with approval; if not, widgets with new permissions wait.
+  const [changelogApproved, setChangelogApproved] = createSignal(false);
   const [upToDate, setUpToDate] = createSignal(false);
   const [widgetsVersion, setWidgetsVersion] = createSignal(0);
   const neverSynced = () => props.source.synced_commit == null;
@@ -63,9 +72,10 @@ export function Home(props: {
     }
   };
 
-  const applied = (p: SyncPlan) => {
+  const applied = (p: SyncPlan, approve: boolean) => {
     setPlan(null);
     setChangelog(p);
+    setChangelogApproved(approve);
     setWidgetsVersion((v) => v + 1);
     props.onSynced();
   };
@@ -83,16 +93,16 @@ export function Home(props: {
         setWidgetsVersion((v) => v + 1);
       } else {
         await unwrap(commands.applySync(false));
-        applied(next);
+        applied(next, false);
       }
     });
 
-  const apply = (consent: boolean) => {
+  const apply = (approve: boolean) => {
     const p = plan();
     if (!p) return;
     return run("Applying…", async () => {
-      await unwrap(commands.applySync(consent));
-      applied(p);
+      await unwrap(commands.applySync(approve));
+      applied(p, approve);
     });
   };
 
@@ -116,7 +126,10 @@ export function Home(props: {
     <main class="screen wide">
       <header class="row spread topbar">
         <div>
-          <h1>{title()}</h1>
+          <h1 class="brand">
+            <PharosMark class="brand-mark" />
+            {title()}
+          </h1>
           <p class="muted" data-testid="source">
             <code>{props.source.url}</code> · <code>{props.source.branch}</code>
             <Show when={props.source.synced_commit}>
@@ -160,6 +173,16 @@ export function Home(props: {
               <Show when={p().platform_changed}>
                 <li>
                   <strong>Platform settings</strong> changed
+                </li>
+              </Show>
+              <Show when={withCaps(p(), "removed").length > 0}>
+                <li>
+                  <strong>Permissions removed:</strong> {withCaps(p(), "removed").join(", ")}
+                </li>
+              </Show>
+              <Show when={!changelogApproved() && withCaps(p(), "added").length > 0}>
+                <li>
+                  <strong>Waiting for approval:</strong> {withCaps(p(), "added").join(", ")}
                 </li>
               </Show>
             </ul>

@@ -4,7 +4,7 @@
 mod common;
 
 use common::Fixture;
-use pharos_engine::{EngineError, FileError, HttpError};
+use pharos_engine::{Engine, EngineError, FileError, HttpError, PlacementStatus};
 use serde_json::json;
 
 #[test]
@@ -123,10 +123,14 @@ fn run_denies_unapproved_capability_via_path() {
     let mut engine = f.synced_engine();
     engine.create_dashboard("Mine").unwrap();
     engine.add_widget("u:1", "pair", None).unwrap();
-    // Consent was given at sync; withdraw it, leaving nothing approved.
+    // Consent was given at sync; withdraw it and forget what was seen, so nothing shows
+    // as pending and the run-time check is what denies.
     let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
-    db.execute("UPDATE sources SET approved_capabilities = '{}'", [])
-        .unwrap();
+    db.execute(
+        "UPDATE sources SET approved_capabilities = '{}', seen_capabilities = '{}'",
+        [],
+    )
+    .unwrap();
 
     // The http leaf is denied at the leaf, not just the composite.
     let err = engine.run_placement("u:1", &[0, 0]).unwrap_err();
@@ -231,4 +235,121 @@ fn run_on_a_group_node_is_a_clean_error() {
         engine.run_placement("u:1", &[0, 0]),
         Err(EngineError::UnknownPlacement { .. })
     ));
+}
+
+/// An engine whose first sync was applied without approval.
+fn unapproved_engine(f: &Fixture) -> Engine {
+    let mut engine = Engine::open(&f.data).unwrap();
+    engine.add_source(&f.url(), "main").unwrap();
+    engine.plan_sync().unwrap();
+    engine.apply_sync(false).unwrap();
+    engine
+}
+
+#[test]
+fn first_sync_applied_without_approval_blocks_capable_widgets() {
+    let f = Fixture::new();
+    let mut engine = unapproved_engine(&f);
+    assert!(
+        engine.approved_capabilities().unwrap().widgets.is_empty(),
+        "nothing is approved yet"
+    );
+    // What the sync recorded as declared: the engine has no public accessor for it.
+    let db = rusqlite::Connection::open(f.data.join("pharos.db")).unwrap();
+    let seen_json: String = db
+        .query_row("SELECT seen_capabilities FROM sources", [], |r| r.get(0))
+        .unwrap();
+    let seen: serde_json::Value = serde_json::from_str(&seen_json).unwrap();
+
+    let home = engine.dashboards().unwrap().remove(0);
+    for p in &home.placements {
+        if p.widget == "welcome" {
+            assert_eq!(p.status, PlacementStatus::Static);
+            continue;
+        }
+        let PlacementStatus::NeedsApproval { added } = &p.status else {
+            panic!("{}: {:?}", p.widget, p.status);
+        };
+        assert!(!added.is_empty(), "{}", p.widget);
+        assert_eq!(
+            serde_json::to_value(added).unwrap(),
+            seen[&p.widget],
+            "{}",
+            p.widget
+        );
+    }
+    let PlacementStatus::NeedsApproval { added } = &home.placements[0].status else {
+        panic!("service-catalog should be blocked");
+    };
+    assert!(added.paths.contains("catalog/services"), "{added:?}");
+    assert!(home.placements[0].reads.is_none());
+    assert!(matches!(
+        engine.run_placement("p:home", &[0]),
+        Err(EngineError::NeedsApproval(name)) if name == "service-catalog"
+    ));
+
+    engine.approve_widget("service-catalog").unwrap();
+
+    let home = engine.dashboards().unwrap().remove(0);
+    assert_eq!(home.placements[0].status, PlacementStatus::Runnable);
+    assert_eq!(engine.run_placement("p:home", &[0]).unwrap().rows.len(), 2);
+    // Approving one widget leaves the others blocked.
+    assert!(matches!(
+        home.placements[1].status,
+        PlacementStatus::NeedsApproval { .. }
+    ));
+}
+
+#[test]
+fn approve_widget_uses_the_stored_snapshot_not_the_pending_plan() {
+    let f = Fixture::new();
+    let mut engine = f.synced_engine();
+    let status = |host: &str| {
+        format!(
+            "apiVersion: pharos.io/v1alpha1\nkind: Widget\nmetadata: {{ name: status-page }}\n\
+             spec:\n  source: {{ type: http, url: {host}/api }}\n  view: {{ type: raw }}\n"
+        )
+    };
+    f.write(
+        "widgets/status-page/widget.yaml",
+        &status("https://h2.acme.dev"),
+    );
+    f.commit("h2");
+    engine.plan_sync().unwrap();
+    engine.apply_sync(false).unwrap();
+    f.write(
+        "widgets/status-page/widget.yaml",
+        &status("https://h3.acme.dev"),
+    );
+    f.commit("h3");
+    engine.plan_sync().unwrap();
+    assert!(engine.pending_sync().is_some());
+
+    engine.approve_widget("status-page").unwrap();
+
+    let hosts = engine
+        .approved_capabilities()
+        .unwrap()
+        .widgets
+        .remove("status-page")
+        .unwrap()
+        .hosts;
+    assert_eq!(hosts, ["https://h2.acme.dev".to_string()].into());
+    assert!(engine.pending_sync().is_some(), "the plan is untouched");
+}
+
+#[test]
+fn approve_widget_rejects_containers_and_unknown_names() {
+    let f = Fixture::new();
+    let mut engine = unapproved_engine(&f);
+
+    assert!(matches!(
+        engine.approve_widget("on-call-overview"),
+        Err(EngineError::NotALeaf(n)) if n == "on-call-overview"
+    ));
+    assert!(matches!(
+        engine.approve_widget("nope"),
+        Err(EngineError::UnknownWidget(n)) if n == "nope"
+    ));
+    assert!(engine.approved_capabilities().unwrap().widgets.is_empty());
 }

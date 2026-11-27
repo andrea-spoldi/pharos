@@ -16,8 +16,8 @@ mod settings;
 mod sync;
 
 use pharos_manifest::{
-    Dashboard, InputDef, Metadata, Namespace, Placement, Platform, TemplateError, TemplateRef,
-    ViewType, Widget, render_template, template_refs,
+    CapabilitySet, Dashboard, InputDef, Metadata, Namespace, Placement, Platform, TemplateError,
+    TemplateRef, ViewType, Widget, render_template, template_refs,
 };
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
@@ -36,7 +36,7 @@ pub use settings::{
     InputView, PlatformRef, SecretView, SettingsView, SetupState, StoredKind, StoredRef,
 };
 use sync::Pending;
-pub use sync::{Changes, SyncPlan};
+pub use sync::{CapabilityChange, Changes, SyncPlan};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -58,8 +58,6 @@ pub enum EngineError {
     NoPendingSync,
     #[error("the platform repo has {0} lint error(s); it cannot be applied")]
     LintErrors(usize),
-    #[error("the platform repo's capabilities changed and need approval")]
-    ConsentRequired,
     #[error("the local clone changed after the sync was planned; plan it again")]
     StalePlan,
     #[error("no widget named `{0}`")]
@@ -76,6 +74,8 @@ pub enum EngineError {
     ReadOnlyDashboard(String),
     #[error("`{0}` is a container; only widgets with a data source can run")]
     NotALeaf(String),
+    #[error("widget `{0}` needs approval")]
+    NeedsApproval(String),
     #[error("widget `{0}` needs setup in Settings")]
     NeedsSetup(String),
     #[error("`{{{{ {0} }}}}` has no value")]
@@ -97,6 +97,15 @@ pub enum EngineError {
     /// `message` comes from the store and never contains the value.
     #[error("could not update secret `{name}` in the OS keyring: {message}")]
     Keyring { name: String, message: String },
+}
+
+/// What building a dashboard's placement views needs, computed once per listing.
+struct ViewCtx<'a> {
+    source: &'a Source,
+    root: &'a Path,
+    setup: &'a SetupState,
+    /// Per widget: seen but not approved.
+    pending: &'a CapabilitySet,
 }
 
 pub type Result<T> = std::result::Result<T, EngineError>;
@@ -194,14 +203,35 @@ impl Engine {
         }
 
         let old = db::snapshot(&self.conn, source.id)?;
+        let containers = repo
+            .iter()
+            .flat_map(|r| &r.widgets)
+            .filter(|w| !w.manifest.spec.widgets.is_empty())
+            .map(|w| w.manifest.metadata.name.clone())
+            .collect();
+        // `derive` omits widgets without capabilities; list every repo widget so one that
+        // dropped its last capability still reports the removal.
+        let mut declared = report.capabilities.clone();
+        for w in repo.iter().flat_map(|r| &r.widgets) {
+            declared
+                .widgets
+                .entry(w.manifest.metadata.name.clone())
+                .or_default();
+        }
+        let capability_changes = sync::capability_changes(
+            &db::approved_capabilities(&self.conn, source.id)?,
+            &db::seen_capabilities(&self.conn, source.id)?,
+            &declared,
+            &containers,
+        );
         let plan = SyncPlan {
             from_commit: source.synced_commit.clone(),
             to_commit,
             platform_changed: old.platform != platform,
             widgets: sync::diff(&old.widgets, &widgets),
             dashboards: sync::diff(&old.dashboards, &dashboards),
-            needs_consent: source.approved_capability_hash.as_deref()
-                != Some(report.capability_hash.as_str()),
+            needs_consent: capability_changes.values().any(|c| !c.added.is_empty()),
+            capability_changes,
             diagnostics: report.diagnostics,
             capabilities: report.capabilities,
             capability_hash: report.capability_hash,
@@ -219,9 +249,10 @@ impl Engine {
         self.pending.as_ref().map(|p| &p.plan)
     }
 
-    /// Stores the planned snapshot. `consent` approves the plan's capability set;
-    /// it is required when the plan says `needs_consent`.
-    pub fn apply_sync(&mut self, consent: bool) -> Result<()> {
+    /// Stores the planned snapshot. `approve` approves exactly the additions listed in the
+    /// plan's `capability_changes`; without it they stay unapproved (and are not asked
+    /// about again until they change). Removals always take effect.
+    pub fn apply_sync(&mut self, approve: bool) -> Result<()> {
         let source = self.source()?.ok_or(EngineError::NoSource)?;
         let pending = self.pending.as_ref().ok_or(EngineError::NoPendingSync)?;
         let plan = &pending.plan;
@@ -231,12 +262,21 @@ impl Engine {
         if git::head(&source.local_path)? != plan.to_commit {
             return Err(EngineError::StalePlan);
         }
-        if plan.needs_consent && !consent {
-            return Err(EngineError::ConsentRequired);
-        }
-        db::store_snapshot(&mut self.conn, source.id, pending, consent)?;
+        let approved = sync::merge_approval(
+            &db::approved_capabilities(&self.conn, source.id)?,
+            &plan.capabilities,
+            &plan.capability_changes,
+            approve,
+        );
+        db::store_snapshot(&mut self.conn, source.id, pending, &approved)?;
         self.pending = None;
         Ok(())
+    }
+
+    /// What the user has approved, per widget; empty before the first applied sync.
+    pub fn approved_capabilities(&self) -> Result<CapabilitySet> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        Ok(db::approved_capabilities(&self.conn, source.id)?)
     }
 
     /// Drops the plan and moves the clone back to the last applied commit, so files on
@@ -270,6 +310,13 @@ impl Engine {
         };
         let root = fs::canonicalize(&source.local_path)?;
         let setup = self.settings()?.setup_state();
+        let pending = self.pending_capabilities(&source)?;
+        let ctx = ViewCtx {
+            source: &source,
+            root: &root,
+            setup: &setup,
+            pending: &pending,
+        };
         let mut templates: Vec<Dashboard> = self.dashboard_templates()?;
         templates.sort_by_key(|d| d.metadata.name != "home");
         let mut views = Vec::new();
@@ -278,7 +325,7 @@ impl Engine {
                 .spec
                 .widgets
                 .iter()
-                .map(|p| self.placement_view(&source, &root, &setup, p, 0))
+                .map(|p| self.placement_view(&ctx, p, 0))
                 .collect::<Result<_>>()?;
             views.push(DashboardView {
                 id: format!("p:{}", d.metadata.name),
@@ -289,7 +336,7 @@ impl Engine {
             });
         }
         for row in db::user_dashboards(&self.conn)? {
-            views.push(self.user_view(&source, &root, &setup, row)?);
+            views.push(self.user_view(&ctx, row)?);
         }
         if let Some(landing) = db::app_setting(&self.conn, LANDING_KEY)?
             && let Some(at) = views.iter().position(|v| v.id == landing)
@@ -300,18 +347,12 @@ impl Engine {
         Ok(views)
     }
 
-    fn user_view(
-        &self,
-        source: &Source,
-        root: &Path,
-        setup: &SetupState,
-        row: db::DashboardRow,
-    ) -> Result<DashboardView> {
+    fn user_view(&self, ctx: &ViewCtx, row: db::DashboardRow) -> Result<DashboardView> {
         let rows = db::placements_of(&self.conn, row.id)?;
         let placements = rows
             .iter()
             .filter(|r| r.parent_id.is_none())
-            .map(|r| self.user_placement_view(source, root, setup, &rows, r, 0))
+            .map(|r| self.user_placement_view(ctx, &rows, r, 0))
             .collect::<Result<Vec<_>>>()?;
         Ok(DashboardView {
             id: format!("u:{}", row.id),
@@ -332,15 +373,13 @@ impl Engine {
     /// widget) is a titled container of the rows whose `parent_id` is its id.
     fn user_placement_view(
         &self,
-        source: &Source,
-        root: &Path,
-        setup: &SetupState,
+        ctx: &ViewCtx,
         rows: &[db::PlacementRow],
         row: &db::PlacementRow,
         depth: usize,
     ) -> Result<PlacementView> {
         if row.widget.is_some() {
-            let mut view = self.placement_view(source, root, setup, &placement_of(row), 0)?;
+            let mut view = self.placement_view(ctx, &placement_of(row), 0)?;
             view.id = Some(row.id as u32);
             return Ok(view);
         }
@@ -350,7 +389,7 @@ impl Engine {
         } else {
             rows.iter()
                 .filter(|c| c.parent_id == Some(row.id))
-                .map(|c| self.user_placement_view(source, root, setup, rows, c, depth + 1))
+                .map(|c| self.user_placement_view(ctx, rows, c, depth + 1))
                 .collect::<Result<Vec<_>>>()?
         };
         let status = if too_deep {
@@ -384,7 +423,49 @@ impl Engine {
             .into_iter()
             .find(|d| d.id == row_id)
             .ok_or_else(|| EngineError::UnknownDashboard(format!("u:{row_id}")))?;
-        self.user_view(&source, &root, &setup, row)
+        let pending = self.pending_capabilities(&source)?;
+        let ctx = ViewCtx {
+            source: &source,
+            root: &root,
+            setup: &setup,
+            pending: &pending,
+        };
+        self.user_view(&ctx, row)
+    }
+
+    /// Per widget, what the last applied sync declared but the user has not approved.
+    fn pending_capabilities(&self, source: &Source) -> Result<CapabilitySet> {
+        let containers = self
+            .widgets()?
+            .into_iter()
+            .filter(|w| !w.spec.widgets.is_empty())
+            .map(|w| w.metadata.name)
+            .collect();
+        Ok(sync::pending_approvals(
+            &db::seen_capabilities(&self.conn, source.id)?,
+            &db::approved_capabilities(&self.conn, source.id)?,
+            &containers,
+        ))
+    }
+
+    /// Approves what the stored snapshot declares for leaf widget `name`: its approved set
+    /// becomes its seen set. Reads only stored state, never a pending plan, so it approves
+    /// exactly what the dashboards showed as blocked.
+    pub fn approve_widget(&mut self, name: &str) -> Result<()> {
+        let source = self.source()?.ok_or(EngineError::NoSource)?;
+        let (_, json) = db::widget(&self.conn, source.id, name)?
+            .ok_or_else(|| EngineError::UnknownWidget(name.into()))?;
+        let widget: Widget = serde_json::from_str(&json).expect("stored manifests are valid JSON");
+        if !widget.spec.widgets.is_empty() {
+            return Err(EngineError::NotALeaf(name.into()));
+        }
+        let seen = db::seen_capabilities(&self.conn, source.id)?;
+        let mut approved = db::approved_capabilities(&self.conn, source.id)?;
+        match seen.widgets.get(name).filter(|c| !c.is_empty()) {
+            Some(caps) => approved.widgets.insert(name.to_string(), caps.clone()),
+            None => approved.widgets.remove(name),
+        };
+        Ok(db::set_approved(&self.conn, source.id, &approved)?)
     }
 
     /// Widgets a user can place, by name.
@@ -700,15 +781,8 @@ impl Engine {
     /// One placement with its widget and status; a container's children are expanded
     /// recursively (the manifest lint refuses cycles; `MAX_PLACEMENT_DEPTH` bounds a
     /// pathologically deep acyclic chain so one widget cannot break the whole list).
-    fn placement_view(
-        &self,
-        source: &Source,
-        root: &Path,
-        setup: &SetupState,
-        p: &Placement,
-        depth: usize,
-    ) -> Result<PlacementView> {
-        let stored = db::widget(&self.conn, source.id, &p.widget)?;
+    fn placement_view(&self, ctx: &ViewCtx, p: &Placement, depth: usize) -> Result<PlacementView> {
+        let stored = db::widget(&self.conn, ctx.source.id, &p.widget)?;
         let manifest = stored.as_ref().map(|(_, json)| {
             serde_json::from_str::<Widget>(json).expect("stored manifests are valid JSON")
         });
@@ -738,18 +812,18 @@ impl Engine {
                 .spec
                 .widgets
                 .iter()
-                .map(|c| self.placement_view(source, root, setup, c, depth + 1))
+                .map(|c| self.placement_view(ctx, c, depth + 1))
                 .collect::<Result<Vec<_>>>()?,
             None => Vec::new(),
         };
         let status = if is_container || manifest.is_none() {
             dashboard::container_status(manifest.is_some(), &children)
         } else {
-            dashboard::placement_status(manifest.as_ref(), p, setup)
+            dashboard::placement_status(manifest.as_ref(), p, ctx.setup, ctx.pending)
         };
         let reads = match (&status, &stored, &manifest) {
             (PlacementStatus::Runnable, Some((file, _)), Some(w)) if !is_container => {
-                file_reads(root, file, w)
+                file_reads(ctx.root, file, w)
             }
             _ => None,
         };
@@ -939,8 +1013,17 @@ impl Engine {
         }
         let settings = self.settings()?;
         // The same decision the dashboard showed: only runnable placements run.
-        match dashboard::placement_status(Some(&widget), &placement, &settings.setup_state()) {
+        let pending = self.pending_capabilities(&source)?;
+        match dashboard::placement_status(
+            Some(&widget),
+            &placement,
+            &settings.setup_state(),
+            &pending,
+        ) {
             PlacementStatus::Runnable => {}
+            PlacementStatus::NeedsApproval { .. } => {
+                return Err(EngineError::NeedsApproval(name.clone()));
+            }
             PlacementStatus::NeedsSetup { .. } => {
                 return Err(EngineError::NeedsSetup(name.clone()));
             }

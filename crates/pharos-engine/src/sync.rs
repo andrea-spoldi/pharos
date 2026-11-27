@@ -1,6 +1,6 @@
-use pharos_manifest::{CapabilitySet, Diagnostic, Severity};
+use pharos_manifest::{Capabilities, CapabilitySet, Diagnostic, Severity};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Names added, removed or changed between the stored snapshot and the repo.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -30,7 +30,10 @@ pub struct SyncPlan {
     pub diagnostics: Vec<Diagnostic>,
     pub capabilities: CapabilitySet,
     pub capability_hash: String,
-    /// The capability set differs from what the user last approved.
+    /// Per leaf widget: what it newly declares (neither approved nor already seen) and
+    /// what it no longer declares.
+    pub capability_changes: BTreeMap<String, CapabilityChange>,
+    /// Some widget declares a capability that is neither approved nor already seen.
     pub needs_consent: bool,
 }
 
@@ -49,6 +52,89 @@ impl SyncPlan {
             && self.dashboards.is_empty()
             && !self.needs_consent
     }
+}
+
+/// What one leaf widget gains and loses against what the user approved.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CapabilityChange {
+    /// New to this widget: not approved and not already seen.
+    pub added: Capabilities,
+    /// Approved earlier, no longer declared.
+    pub removed: Capabilities,
+}
+
+/// Per-leaf capability changes. Containers are never diffed; widgets absent from `new`
+/// are omitted (they show as removed widgets).
+pub(crate) fn capability_changes(
+    approved: &CapabilitySet,
+    seen: &CapabilitySet,
+    new: &CapabilitySet,
+    containers: &BTreeSet<String>,
+) -> BTreeMap<String, CapabilityChange> {
+    let none = Capabilities::default();
+    let mut out = BTreeMap::new();
+    for (name, now) in &new.widgets {
+        if containers.contains(name) {
+            continue;
+        }
+        let approved = approved.widgets.get(name).unwrap_or(&none);
+        let seen = seen.widgets.get(name).unwrap_or(&none);
+        let mut known = approved.clone();
+        known.extend(seen.clone());
+        let change = CapabilityChange {
+            added: now.minus(&known),
+            removed: approved.minus(now),
+        };
+        if !change.added.is_empty() || !change.removed.is_empty() {
+            out.insert(name.clone(), change);
+        }
+    }
+    out
+}
+
+/// Per widget, what was seen but is not approved: what blocks it until approved. Widgets
+/// with nothing pending are omitted, and so are `containers`, which are never approved.
+pub(crate) fn pending_approvals(
+    seen: &CapabilitySet,
+    approved: &CapabilitySet,
+    containers: &BTreeSet<String>,
+) -> CapabilitySet {
+    let none = Capabilities::default();
+    let mut out = CapabilitySet::default();
+    for (name, caps) in &seen.widgets {
+        if containers.contains(name) {
+            continue;
+        }
+        let added = caps.minus(approved.widgets.get(name).unwrap_or(&none));
+        if !added.is_empty() {
+            out.widgets.insert(name.clone(), added);
+        }
+    }
+    out
+}
+
+/// The approved set after a sync: each widget keeps only what `new` still declares, plus
+/// its listed additions when `approve`. Widgets absent from `new` drop out.
+pub(crate) fn merge_approval(
+    approved: &CapabilitySet,
+    new: &CapabilitySet,
+    changes: &BTreeMap<String, CapabilityChange>,
+    approve: bool,
+) -> CapabilitySet {
+    let none = Capabilities::default();
+    let mut out = CapabilitySet::default();
+    for (name, now) in &new.widgets {
+        let mut caps = approved.widgets.get(name).unwrap_or(&none).intersect(now);
+        if approve && let Some(change) = changes.get(name) {
+            // Intersected with `new`: a stale change list never approves what is not declared.
+            caps.extend(change.added.intersect(now));
+        }
+        if !caps.is_empty() {
+            out.widgets.insert(name.clone(), caps);
+        }
+    }
+    out
 }
 
 /// Stored manifests: name → JSON.
@@ -91,6 +177,102 @@ pub(crate) fn diff(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pharos_manifest::Capabilities;
+    use std::collections::BTreeSet;
+
+    fn set(entries: &[(&str, &[&str], &[&str])]) -> CapabilitySet {
+        let strs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
+        CapabilitySet {
+            widgets: entries
+                .iter()
+                .map(|(n, hosts, paths)| {
+                    (
+                        n.to_string(),
+                        Capabilities {
+                            hosts: strs(hosts),
+                            paths: strs(paths),
+                            ..Default::default()
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    fn hosts(of: &[&str]) -> BTreeSet<String> {
+        of.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn changes_list_only_unseen_additions() {
+        let approved = set(&[("a", &["h1"], &[])]);
+        let seen = set(&[("a", &["h1", "h2"], &[])]);
+        let new = set(&[("a", &["h1", "h2", "h3"], &[])]);
+        let changes = capability_changes(&approved, &seen, &new, &BTreeSet::new());
+        assert_eq!(changes["a"].added.hosts, hosts(&["h3"]));
+        assert!(changes["a"].removed.is_empty());
+    }
+
+    #[test]
+    fn removals_are_reported_without_additions() {
+        let approved = set(&[("a", &["h1", "h2"], &[])]);
+        let new = set(&[("a", &["h1"], &[])]);
+        let changes =
+            capability_changes(&approved, &CapabilitySet::default(), &new, &BTreeSet::new());
+        assert!(changes["a"].added.is_empty());
+        assert_eq!(changes["a"].removed.hosts, hosts(&["h2"]));
+    }
+
+    #[test]
+    fn new_widget_is_all_added_and_containers_are_skipped() {
+        let new = set(&[("leaf", &[], &["p"]), ("box", &[], &["p"])]);
+        let containers = BTreeSet::from(["box".to_string()]);
+        let empty = CapabilitySet::default();
+        let changes = capability_changes(&empty, &empty, &new, &containers);
+        assert_eq!(changes.keys().collect::<Vec<_>>(), ["leaf"]);
+        assert_eq!(changes["leaf"].added.paths, hosts(&["p"]));
+    }
+
+    #[test]
+    fn merge_without_approval_shrinks_but_never_grows() {
+        let approved = set(&[("a", &["h1", "h2"], &[])]);
+        let new = set(&[("a", &["h1", "h3"], &[])]);
+        let changes =
+            capability_changes(&approved, &CapabilitySet::default(), &new, &BTreeSet::new());
+        assert_eq!(
+            merge_approval(&approved, &new, &changes, false),
+            set(&[("a", &["h1"], &[])])
+        );
+    }
+
+    #[test]
+    fn merge_with_approval_adds_only_the_listed_additions() {
+        let approved = set(&[("a", &["h1"], &[])]);
+        let seen = set(&[("a", &["h1", "h2"], &[])]);
+        let new = set(&[("a", &["h1", "h2", "h3"], &[])]);
+        let changes = capability_changes(&approved, &seen, &new, &BTreeSet::new());
+        assert_eq!(
+            merge_approval(&approved, &new, &changes, true),
+            set(&[("a", &["h1", "h3"], &[])])
+        );
+    }
+
+    #[test]
+    fn merge_never_approves_what_new_does_not_declare() {
+        let approved = CapabilitySet::default();
+        let stale = set(&[("a", &["h1", "h2"], &[])]);
+        let new = set(&[("a", &["h1"], &[])]);
+        let changes = capability_changes(
+            &approved,
+            &CapabilitySet::default(),
+            &stale,
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            merge_approval(&approved, &new, &changes, true),
+            set(&[("a", &["h1"], &[])])
+        );
+    }
 
     #[test]
     fn diffs_by_name_and_content() {

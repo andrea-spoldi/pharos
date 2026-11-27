@@ -817,3 +817,42 @@ fn set_layout_rejects_out_of_range_geometry() {
     let g = view.placements.iter().find(|p| p.id == Some(gid)).unwrap();
     assert_eq!((g.w, g.h), (3, 2));
 }
+
+#[test]
+fn container_with_a_blocked_leaf_stays_runnable() {
+    let f = Fixture::new();
+    let mut engine = Engine::open(&f.data).unwrap();
+    engine.add_source(&f.url(), "main").unwrap();
+    engine.plan_sync().unwrap();
+    engine.apply_sync(false).unwrap();
+    // Approve every leaf except one, so the container has runnable and blocked children.
+    let overview = engine.widgets().unwrap();
+    let container = overview
+        .iter()
+        .find(|w| w.metadata.name == "on-call-overview")
+        .unwrap();
+    let children: Vec<String> = container
+        .spec
+        .widgets
+        .iter()
+        .map(|c| c.widget.clone())
+        .collect();
+    assert!(children.len() >= 2, "{children:?}");
+    for child in &children[1..] {
+        engine.approve_widget(child).unwrap();
+    }
+
+    engine.create_dashboard("Mine").unwrap();
+    let mine = engine.add_widget("u:1", "on-call-overview", None).unwrap();
+    let placement = &mine.placements[0];
+
+    assert!(
+        matches!(
+            placement.children[0].status,
+            PlacementStatus::NeedsApproval { .. }
+        ),
+        "{:?}",
+        placement.children[0].status
+    );
+    assert_eq!(placement.status, PlacementStatus::Runnable);
+}

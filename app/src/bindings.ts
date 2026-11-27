@@ -15,10 +15,12 @@ export const commands = {
 	planSync: () => typedError<SyncPlan, CommandError>(__TAURI_INVOKE("plan_sync")),
 	pendingSync: () => typedError<SyncPlan | null, CommandError>(__TAURI_INVOKE("pending_sync")),
 	/**
-	 *  `consent` approves the capabilities of the plan held by the engine, never a set
-	 *  supplied by the frontend (D-014).
+	 *  `approve` approves exactly the additions the held plan lists, never a set supplied by
+	 *  the frontend (D-014).
 	 */
-	applySync: (consent: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { consent })),
+	applySync: (approve: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("apply_sync", { approve })),
+	/**  Approves what the stored snapshot declares for the named leaf widget. */
+	approveWidget: (name: string) => typedError<null, CommandError>(__TAURI_INVOKE("approve_widget", { name })),
 	discardSync: () => typedError<null, CommandError>(__TAURI_INVOKE("discard_sync")),
 	listWidgets: () => typedError<Manifest<WidgetSpec>[], CommandError>(__TAURI_INVOKE("list_widgets")),
 	/**  Platform dashboards of the last applied sync, with each placement's status. */
@@ -76,6 +78,14 @@ export type Capabilities = {
 	paths?: string[],
 };
 
+/**  What one leaf widget gains and loses against what the user approved. */
+export type CapabilityChange = {
+	/**  New to this widget: not approved and not already seen. */
+	added: Capabilities,
+	/**  Approved earlier, no longer declared. */
+	removed: Capabilities,
+};
+
 /**  Capabilities of every widget in a repo, keyed by widget name. This is what users consent to. */
 export type CapabilitySet = { [key in string]: Capabilities };
 
@@ -117,7 +127,9 @@ export type Diagnostic = {
 };
 
 /**  What the UI branches on; `message` is for display only. */
-export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | "consentRequired" | "stalePlan" | "unknownWidget" | 
+export type ErrorKind = "gitMissing" | "git" | "gitTimedOut" | "sourceExists" | "noSource" | "invalidBranch" | "noPendingSync" | "lintErrors" | 
+/**  The widget has capabilities its approved set does not cover yet. */
+"needsApproval" | "stalePlan" | "unknownWidget" | 
 /**  A dashboard id that does not exist. */
 "unknownDashboard" | 
 /**  A platform dashboard cannot be edited, renamed or deleted. */
@@ -225,6 +237,8 @@ export type PlacementGeometry = {
 export type PlacementStatus = 
 /**  The dashboard names a widget that is not in the snapshot. */
 { kind: "missing" } | 
+/**  Declares capabilities the user has not approved; `added` is all of them. */
+{ kind: "needsApproval"; added: Capabilities } | 
 /**  `user.*` inputs and secrets the placement or its source refers to. */
 { kind: "needsSetup"; inputs: string[]; secrets: string[] } | 
 /**  A part this version cannot run or render yet, e.g. `the kv view`. */
@@ -332,7 +346,12 @@ export type SyncPlan = {
 	diagnostics: Diagnostic[],
 	capabilities: CapabilitySet,
 	capability_hash: string,
-	/**  The capability set differs from what the user last approved. */
+	/**
+	 *  Per leaf widget: what it newly declares (neither approved nor already seen) and
+	 *  what it no longer declares.
+	 */
+	capability_changes: { [key in string]: CapabilityChange },
+	/**  Some widget declares a capability that is neither approved nor already seen. */
 	needs_consent: boolean,
 };
 

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type WidgetData, type PlacementView, type WidgetSpec } from "../bindings";
 import { WidgetFrame } from "./WidgetFrame";
 
-vi.mock("../bindings", () => ({ commands: { runPlacement: vi.fn() } }));
+vi.mock("../bindings", () => ({ commands: { runPlacement: vi.fn(), approveWidget: vi.fn() } }));
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
@@ -60,7 +60,7 @@ describe("WidgetFrame", () => {
   });
 
   it("names a missing widget without running it", () => {
-    render(() => <WidgetFrame slot={slot} placement={placement({ widget: "ghost", manifest: null, status: { kind: "missing" } })} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({ widget: "ghost", manifest: null, status: { kind: "missing" } })} version={0} />);
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toContain("Missing widget");
     expect(alert.textContent).toContain("This dashboard places ghost, which the platform repo doesn't define.");
@@ -70,7 +70,7 @@ describe("WidgetFrame", () => {
 
   it("lists what setup is needed", () => {
     render(() => (
-      <WidgetFrame slot={slot}
+      <WidgetFrame onApproved={() => {}} slot={slot}
         placement={placement({ status: { kind: "needsSetup", inputs: ["team"], secrets: ["GITLAB_TOKEN"] } })}
         version={0}
       />
@@ -82,7 +82,7 @@ describe("WidgetFrame", () => {
 
   it("names inputs by the platform's label when it has one", () => {
     render(() => (
-      <WidgetFrame slot={slot}
+      <WidgetFrame onApproved={() => {}} slot={slot}
         placement={placement({ status: { kind: "needsSetup", inputs: ["team", "region"], secrets: [] } })}
         version={0}
         inputLabel={(key) => (key === "team" ? "Your team" : null)}
@@ -92,7 +92,7 @@ describe("WidgetFrame", () => {
   });
 
   it("says what is not available yet", () => {
-    render(() => <WidgetFrame slot={slot} placement={placement({ status: { kind: "notAvailable", feature: "command sources" } })} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({ status: { kind: "notAvailable", feature: "command sources" } })} version={0} />);
     expect(screen.getByText("Not available yet")).toBeTruthy();
     expect(screen.getByText("command sources arrive in a later version.")).toBeTruthy();
     expect(commands.runPlacement).not.toHaveBeenCalled();
@@ -104,13 +104,13 @@ describe("WidgetFrame", () => {
       columns: [],
       content: "# Welcome to ACME",
     });
-    const { container } = render(() => <WidgetFrame slot={slot} placement={p} version={0} />);
+    const { container } = render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={p} version={0} />);
     expect(container.querySelector("h3")?.textContent).toBe("Welcome to ACME");
     expect(commands.runPlacement).not.toHaveBeenCalled();
   });
 
   it("shows a skeleton, then the data", async () => {
-    render(() => <WidgetFrame slot={slot} placement={placement({})} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={0} />);
     expect(screen.getByLabelText("Loading").getAttribute("aria-busy")).toBe("true");
     expect(await screen.findByText("payment-service")).toBeTruthy();
     expect(screen.queryByLabelText("Loading")).toBeNull();
@@ -120,7 +120,7 @@ describe("WidgetFrame", () => {
 
   it("says where it looked when there are no rows", async () => {
     vi.mocked(commands.runPlacement).mockResolvedValue(ok({ rows: [], truncated: false }));
-    render(() => <WidgetFrame slot={slot} placement={placement({})} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={0} />);
     await waitFor(() => expect(document.body.textContent).toContain("No data in catalog/services/*.yaml."));
   });
 
@@ -129,7 +129,7 @@ describe("WidgetFrame", () => {
       status: "error",
       error: { kind: "permissionDenied", message: "path leaves the repository root" },
     });
-    render(() => <WidgetFrame slot={slot} placement={placement({})} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={0} />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Access denied");
     expect(alert.querySelector("details summary")?.textContent).toBe("Details");
@@ -138,7 +138,7 @@ describe("WidgetFrame", () => {
 
   it("says the source was empty when it reads no files", async () => {
     vi.mocked(commands.runPlacement).mockResolvedValue(ok({ rows: [], truncated: false }));
-    render(() => <WidgetFrame slot={slot} placement={placement({ reads: null })} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({ reads: null })} version={0} />);
     await waitFor(() => expect(document.body.textContent).toContain("The source returned no rows."));
   });
 
@@ -148,7 +148,7 @@ describe("WidgetFrame", () => {
       error: { kind: "permissionDenied", message: "https://gitlab.com answered 401: {\"message\":\"401 Unauthorized\"}" },
     });
     const http: WidgetSpec["source"] = { type: "http", url: "https://gitlab.com/api/v4/projects" };
-    render(() => <WidgetFrame slot={slot} placement={placement({ reads: null }, http)} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({ reads: null }, http)} version={0} />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Access denied");
     expect(alert.textContent).toContain("The service refused the request. Check the secrets this widget uses.");
@@ -162,7 +162,7 @@ describe("WidgetFrame", () => {
       error: { kind: "executableNotFound", message: "`kubectl` was not found in /usr/bin, /bin" },
     });
     const cmd: WidgetSpec["source"] = { type: "command", executable: "kubectl", args: [], timeout: null };
-    render(() => <WidgetFrame slot={slot} placement={placement({ reads: null }, cmd)} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({ reads: null }, cmd)} version={0} />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Program not found");
     expect(alert.textContent).toContain("Add the folder that contains it to the program search path in Settings.");
@@ -175,7 +175,7 @@ describe("WidgetFrame", () => {
       status: "error",
       error: { kind: "commandFailed", message: "`kubectl` exited with code 1: error: current-context is not set" },
     });
-    render(() => <WidgetFrame slot={slot} placement={placement({})} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={0} />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("The command failed");
     expect(alert.querySelector("details")).toBeNull();
@@ -187,14 +187,14 @@ describe("WidgetFrame", () => {
       status: "error",
       error: { kind: "network", message: "request to https://gitlab.acme failed: timed out" },
     });
-    render(() => <WidgetFrame slot={slot} placement={placement({})} version={0} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={0} />);
     expect((await screen.findByRole("alert")).textContent).toContain("Could not reach the service");
     expect(screen.queryByRole("button", { name: "Open Settings" })).toBeNull();
   });
 
   it("keeps data visible while re-running", async () => {
     const [version, setVersion] = createSignal(0);
-    render(() => <WidgetFrame slot={slot} placement={placement({})} version={version()} />);
+    render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={version()} />);
     await screen.findByText("payment-service");
     vi.mocked(commands.runPlacement).mockReturnValue(new Promise(() => {}));
     setVersion(1);
@@ -205,7 +205,7 @@ describe("WidgetFrame", () => {
 
   it("needs setup links to the first missing field", async () => {
     render(() => (
-      <WidgetFrame slot={slot}
+      <WidgetFrame onApproved={() => {}} slot={slot}
         placement={placement({ status: { kind: "needsSetup", inputs: ["team"], secrets: ["GITLAB_TOKEN"] } })}
         version={0}
       />
@@ -216,7 +216,7 @@ describe("WidgetFrame", () => {
 
   it("links to the secret when no input is missing", async () => {
     render(() => (
-      <WidgetFrame slot={slot} placement={placement({ status: { kind: "needsSetup", inputs: [], secrets: ["GITLAB_TOKEN"] } })} version={0} />
+      <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({ status: { kind: "needsSetup", inputs: [], secrets: ["GITLAB_TOKEN"] } })} version={0} />
     ));
     fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
     await waitFor(() => expect(decodeURIComponent(history.get())).toBe("/settings?focus=secret:GITLAB_TOKEN"));
@@ -240,6 +240,7 @@ describe("WidgetFrame", () => {
       });
     render(() => (
       <WidgetFrame
+        onApproved={() => {}}
         slot={{ dashboardId: "p:home", path: [3] }}
         placement={placement({
           widget: "pair",
@@ -268,6 +269,7 @@ describe("WidgetFrame", () => {
     const leaf = (name: string) => placement({ widget: name });
     render(() => (
       <WidgetFrame
+        onApproved={() => {}}
         slot={{ dashboardId: "p:home", path: [3] }}
         placement={placement({ widget: "pair", container: true, children: [leaf("a"), leaf("b")] })}
         version={0}
@@ -283,6 +285,7 @@ describe("WidgetFrame", () => {
   it("says so when a leaf has no view", () => {
     render(() => (
       <WidgetFrame
+        onApproved={() => {}}
         slot={slot}
         placement={placement({ status: { kind: "static" } }, null, null)}
         version={0}
@@ -298,7 +301,7 @@ describe("WidgetFrame", () => {
 
     it("renders an empty group as a titled sub-grid with an Add widget control", () => {
       const e = edit();
-      render(() => <WidgetFrame slot={slot} placement={group({ children: [] })} version={0} edit={e} />);
+      render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={group({ children: [] })} version={0} edit={e} />);
       const sub = screen.getByRole("region", { name: "Ops" });
       expect(sub.classList.contains("subgrid")).toBe(true);
       expect(screen.getByText("Ops", { selector: "header *" })).toBeTruthy();
@@ -308,7 +311,7 @@ describe("WidgetFrame", () => {
     });
 
     it("offers no group controls when not editing", () => {
-      render(() => <WidgetFrame slot={slot} placement={group({ children: [] })} version={0} />);
+      render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={group({ children: [] })} version={0} />);
       expect(screen.getByRole("region", { name: "Ops" })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /Add widget/ })).toBeNull();
       expect(screen.queryByRole("button", { name: /Rename/ })).toBeNull();
@@ -317,7 +320,7 @@ describe("WidgetFrame", () => {
     it("wires rename and remove on the group, and remove on a member", () => {
       const e = edit();
       const member = placement({ widget: "welcome", manifest: null, status: { kind: "missing" }, reads: null, id: 9 });
-      render(() => <WidgetFrame slot={slot} placement={group({ children: [member] })} version={0} edit={e} />);
+      render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={group({ children: [member] })} version={0} edit={e} />);
       const sub = screen.getByRole("region", { name: "Ops" });
       expect(sub.querySelectorAll("article.widget").length).toBe(1);
       fireEvent.click(screen.getByRole("button", { name: "Remove welcome" }));
@@ -326,6 +329,56 @@ describe("WidgetFrame", () => {
       expect(e.onRename).toHaveBeenCalledWith(7, "Ops");
       fireEvent.click(screen.getByRole("button", { name: "Remove Ops" }));
       expect(e.onRemove).toHaveBeenCalledWith(7, "Ops");
+    });
+  });
+
+  describe("needs approval", () => {
+    const needs: PlacementView["status"] = { kind: "needsApproval", added: { hosts: ["https://api.example.com"] } };
+    const blocked = (over: Partial<PlacementView> = {}) =>
+      placement({ status: needs, ...over });
+
+    beforeEach(() => {
+      vi.mocked(commands.approveWidget).mockReset().mockResolvedValue(ok(null));
+    });
+
+    it("shows the added capabilities and does not run", () => {
+      render(() => <WidgetFrame slot={slot} placement={blocked()} version={0} onApproved={() => {}} />);
+      expect(screen.getByText("Needs approval")).toBeTruthy();
+      expect(screen.getByText("This widget now wants to:")).toBeTruthy();
+      expect(document.body.textContent).toContain("api.example.com");
+      expect(commands.runPlacement).not.toHaveBeenCalled();
+    });
+
+    it("Approve calls approveWidget with the widget name then onApproved", async () => {
+      const onApproved = vi.fn();
+      render(() => <WidgetFrame slot={slot} placement={blocked()} version={0} onApproved={onApproved} />);
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      await waitFor(() => expect(onApproved).toHaveBeenCalledTimes(1));
+      expect(commands.approveWidget).toHaveBeenCalledWith("service-catalog");
+    });
+
+    it("a failed approve shows the error", async () => {
+      vi.mocked(commands.approveWidget).mockResolvedValue({ status: "error", error: { kind: "internal", message: "boom" } });
+      const onApproved = vi.fn();
+      render(() => <WidgetFrame slot={slot} placement={blocked()} version={0} onApproved={onApproved} />);
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain("boom");
+      expect(onApproved).not.toHaveBeenCalled();
+    });
+
+    it("a container with needsApproval renders its children and has no Approve of its own", () => {
+      const child = blocked({ widget: "child", title: "Child" });
+      render(() => (
+        <WidgetFrame
+          slot={slot}
+          placement={blocked({ container: true, title: "Group", children: [child] })}
+          version={0}
+          onApproved={() => {}}
+        />
+      ));
+      expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(1);
+      expect(screen.getAllByText("Needs approval")).toHaveLength(1);
     });
   });
 });

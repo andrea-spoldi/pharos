@@ -423,6 +423,20 @@ h3 {
   font-size: 1.15rem;
 }
 
+/* The mark leads the platform title; Signal Blue via the accent token, so it follows the theme. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.brand-mark {
+  flex: none;
+  width: 1.5em;
+  height: 1.5em;
+  color: var(--accent);
+}
+
 /* Wrap to a second row when the window is too narrow for the strip, rather than
    overflowing it. (overflow-x:auto would clip the "More" dropdown, so wrap instead.) */
 .tabs {
@@ -940,4 +954,14 @@ button.link.back {
     transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease,
       opacity 150ms ease;
   }
+}
+
+/* The needs-approval card: what the widget now asks for, left-aligned under the centred heading. */
+.approval-caps {
+  margin: var(--space-2) 0;
+  text-align: left;
+}
+
+.approval-caps dd {
+  margin: 0;
 }
