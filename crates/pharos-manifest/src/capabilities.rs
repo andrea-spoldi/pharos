@@ -332,6 +332,40 @@ mod tests {
     }
 
     #[test]
+    fn rows_does_not_change_capabilities() {
+        let sources = [
+            "{ type: file, path: ../../data.json }",
+            "{ type: command, executable: kubectl }",
+            "{ type: http, url: \"https://g.example/api\" }",
+        ];
+        for source in sources {
+            let hash_for = |rows: &str| {
+                let dir = tempfile::tempdir().unwrap();
+                let root = dir.path();
+                std::fs::write(
+                    root.join("pharos.yaml"),
+                    "apiVersion: pharos.io/v1alpha1\nkind: Platform\nmetadata: { name: t }\nspec: {}\n",
+                )
+                .unwrap();
+                std::fs::write(root.join("data.json"), "{}").unwrap();
+                let source = source.replace(" }", &format!("{rows} }}"));
+                write_widget(
+                    root,
+                    "w",
+                    &format!("  source: {source}\n  view: {{ type: raw }}"),
+                );
+                let repo = crate::load::load(root).0.expect("repo loads");
+                let set = derive(&repo);
+                (set.clone(), set.hash())
+            };
+            let (a, ha) = hash_for("");
+            let (b, hb) = hash_for(", rows: items.0");
+            assert_eq!(a, b, "{source}");
+            assert_eq!(ha, hb, "{source}");
+        }
+    }
+
+    #[test]
     fn container_capability_is_union_of_children() {
         let dir = tempfile::tempdir().unwrap();
         let repo = container_repo(dir.path());

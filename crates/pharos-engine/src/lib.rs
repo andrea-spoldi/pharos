@@ -1068,7 +1068,7 @@ impl Engine {
             .remove(name)
             .unwrap_or_default();
         match &widget.spec.source {
-            Some(pharos_manifest::Source::File { path, glob }) => {
+            Some(pharos_manifest::Source::File { path, glob, .. }) => {
                 let root = fs::canonicalize(&source.local_path)?;
                 let dir = root.join(&file);
                 let dir = dir.parent().expect("widget file has a parent");
@@ -1085,6 +1085,7 @@ impl Engine {
                 url,
                 method,
                 headers,
+                ..
             }) => {
                 let values = Values {
                     user: settings.usable_inputs(),
@@ -1109,6 +1110,7 @@ impl Engine {
                 executable,
                 args,
                 timeout,
+                ..
             }) => {
                 // No secrets in args (lint): they would show in `ps`.
                 let values = Values {
@@ -1333,7 +1335,7 @@ fn ref_name(r: &TemplateRef) -> String {
 
 /// A file source's path and glob as seen from the repo root, e.g. `catalog/services/*.yaml`.
 fn file_reads(root: &Path, widget_file: &str, widget: &Widget) -> Option<String> {
-    let Some(pharos_manifest::Source::File { path, glob }) = &widget.spec.source else {
+    let Some(pharos_manifest::Source::File { path, glob, .. }) = &widget.spec.source else {
         return None;
     };
     let joined = root.join(widget_file);

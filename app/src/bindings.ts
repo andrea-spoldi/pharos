@@ -338,7 +338,13 @@ export type Severity = "error" | "warning";
 
 export type Source = { type: "file"; 
 /**  Relative to the widget directory; must stay inside the repo. */
-path: string; glob?: string | null } | { type: "command"; executable: string; args?: string[]; timeout?: string | null } | { type: "http"; url: string; method?: HttpMethod; headers?: { [key in string]: string } };
+path: string; glob?: string | null; 
+/**  Dot path to the array of rows inside the fetched data (e.g. `items`). */
+rows?: string | null } | { type: "command"; executable: string; args?: string[]; timeout?: string | null; 
+/**  Dot path to the array of rows inside the fetched data (e.g. `items`). */
+rows?: string | null } | { type: "http"; url: string; method?: HttpMethod; headers?: { [key in string]: string }; 
+/**  Dot path to the array of rows inside the fetched data (e.g. `items`). */
+rows?: string | null };
 
 export type StoredKind = "input" | "secret";
 

@@ -52,6 +52,7 @@ fixture! {
     containers_cycle => "containers-cycle",
     containers_self => "containers-self",
     containers_cycle3 => "containers-cycle3",
+    rows => "rows",
     containers_nested => "containers-nested",
 }
 

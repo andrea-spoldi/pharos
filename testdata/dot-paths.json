@@ -1,0 +1,130 @@
+[
+  {
+    "value": {
+      "items": [
+        1,
+        2
+      ]
+    },
+    "path": "items",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "value": {
+      "a": {
+        "b": {
+          "c": 5
+        }
+      }
+    },
+    "path": "a.b",
+    "expected": {
+      "c": 5
+    }
+  },
+  {
+    "value": {
+      "a": {
+        "b": {
+          "c": 5
+        }
+      }
+    },
+    "path": "a.b.c",
+    "expected": 5
+  },
+  {
+    "value": {
+      "contexts": [
+        {
+          "name": "x"
+        },
+        {
+          "name": "y"
+        }
+      ]
+    },
+    "path": "contexts.0",
+    "expected": {
+      "name": "x"
+    }
+  },
+  {
+    "value": {
+      "contexts": [
+        {
+          "name": "x"
+        },
+        {
+          "name": "y"
+        }
+      ]
+    },
+    "path": "contexts.1.name",
+    "expected": "y"
+  },
+  {
+    "value": [
+      1,
+      2
+    ],
+    "path": "items.x",
+    "expected": null
+  },
+  {
+    "value": {
+      "items": [
+        1,
+        2
+      ]
+    },
+    "path": "items.x",
+    "expected": null
+  },
+  {
+    "value": {
+      "a": {
+        "0": "zero"
+      }
+    },
+    "path": "a.0",
+    "expected": "zero"
+  },
+  {
+    "value": {
+      "a": 1
+    },
+    "path": "missing",
+    "expected": null
+  },
+  {
+    "value": {
+      "a": {
+        "b": null
+      }
+    },
+    "path": "a.b.c",
+    "expected": null
+  },
+  {
+    "value": {
+      "a": null
+    },
+    "path": "a.b",
+    "expected": null
+  },
+  {
+    "value": {
+      "list": [
+        1,
+        2,
+        3
+      ]
+    },
+    "path": "list.5",
+    "expected": null
+  }
+]

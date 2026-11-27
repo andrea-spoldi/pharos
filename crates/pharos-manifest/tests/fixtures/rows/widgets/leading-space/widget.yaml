@@ -1,0 +1,6 @@
+apiVersion: pharos.io/v1alpha1
+kind: Widget
+metadata: { name: leading-space }
+spec:
+  source: { type: command, executable: kubectl, rows: ' items' }
+  view: { type: raw }

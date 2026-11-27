@@ -144,6 +144,9 @@ pub enum Source {
         path: String,
         #[serde(default)]
         glob: Option<String>,
+        /// Dot path to the array of rows inside the fetched data (e.g. `items`).
+        #[serde(default)]
+        rows: Option<String>,
     },
     Command {
         executable: String,
@@ -151,6 +154,9 @@ pub enum Source {
         args: Vec<String>,
         #[serde(default)]
         timeout: Option<String>,
+        /// Dot path to the array of rows inside the fetched data (e.g. `items`).
+        #[serde(default)]
+        rows: Option<String>,
     },
     Http {
         url: String,
@@ -158,7 +164,21 @@ pub enum Source {
         method: HttpMethod,
         #[serde(default)]
         headers: BTreeMap<String, String>,
+        /// Dot path to the array of rows inside the fetched data (e.g. `items`).
+        #[serde(default)]
+        rows: Option<String>,
     },
+}
+
+impl Source {
+    /// The optional row selector. Pure data: never changes derived capabilities.
+    pub fn rows(&self) -> Option<&str> {
+        match self {
+            Source::File { rows, .. }
+            | Source::Command { rows, .. }
+            | Source::Http { rows, .. } => rows.as_deref(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -238,4 +258,28 @@ pub struct Placement {
     pub h: u32,
     #[serde(default)]
     pub inputs: BTreeMap<String, String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(yaml: &str) -> Result<Source, serde_yaml_ng::Error> {
+        serde_yaml_ng::from_str(yaml)
+    }
+
+    #[test]
+    fn source_rows_parses_for_each_type() {
+        for base in [
+            "type: file\npath: data/",
+            "type: command\nexecutable: kubectl",
+            "type: http\nurl: https://x.example/api",
+        ] {
+            let with = parse(&format!("{base}\nrows: items")).unwrap();
+            assert_eq!(with.rows(), Some("items"), "{base}");
+            let without = parse(base).unwrap();
+            assert_eq!(without.rows(), None, "{base}");
+            assert!(parse(&format!("{base}\nbogus: 1")).is_err(), "{base}");
+        }
+    }
 }
