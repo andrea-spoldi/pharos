@@ -313,6 +313,8 @@ describe("Home", () => {
       expect(await screen.findByRole("heading", { name: "Repository" })).toBeTruthy();
       expect(history.get()).toBe("/settings");
       expect(screen.queryByText("Kubernetes Context")).toBeNull();
+      expect(sidebar().getByRole("button", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+      expect(screen.queryByRole("button", { name: /Back to dashboards/ })).toBeNull();
 
       fireEvent.click(sidebar().getByRole("button", { name: "Home" }));
       await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
@@ -366,6 +368,14 @@ describe("Home", () => {
       // Present on the first render, inside the sidebar footer: a live region announces only changes.
       const region = sidebar().getByRole("status");
       expect(region.classList.contains("sync-status")).toBe(true);
+    });
+
+    it("sync_now_is_disabled_and_reads_syncing_while_in_flight", async () => {
+      vi.mocked(commands.planSync).mockReturnValue(new Promise(() => {}));
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      const button = (await sidebar().findByRole("button", { name: "Syncing…" })) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      expect(sidebar().queryByRole("button", { name: "Sync now" })).toBeNull();
     });
 
     it("footer_shows_sync_status_commit_and_sync_now", async () => {

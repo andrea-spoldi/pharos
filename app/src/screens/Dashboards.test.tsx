@@ -95,7 +95,7 @@ function renderAt(path: string) {
 }
 
 /** Lets the launch sync finish, so that a later Sync now is the only thing that re-runs widgets. */
-async function launchSynced() {
+function launchSynced() {
   vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
   return () => screen.findByTestId("up-to-date");
 }
@@ -205,7 +205,7 @@ describe("Dashboards", () => {
   });
 
   it("falls back when the current dashboard disappears", async () => {
-    const synced = await launchSynced();
+    const synced = launchSynced();
     const history = renderAt("/d/p:ops");
     await synced();
     await screen.findByText("k8s", { selector: "header *" });
@@ -233,7 +233,7 @@ describe("Dashboards", () => {
   it("keeps widget data visible across a re-sync", async () => {
     vi.mocked(commands.listDashboards).mockImplementation(async () => ok([runnableHome()]));
     vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
-    const synced = await launchSynced();
+    const synced = launchSynced();
     renderAt("/d/p:home");
     await synced();
     await screen.findByText("payment-service");

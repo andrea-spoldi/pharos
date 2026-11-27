@@ -87,7 +87,6 @@ describe("Sidebar", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
     expect(commands.createDashboard).toHaveBeenCalledWith("Fresh");
   });
-});
 
   it("derives_owner_repo_with_fallback_to_the_full_url", () => {
     expect(repoName("https://github.com/acme/platform.git")).toBe("acme/platform");
@@ -117,3 +116,4 @@ describe("Sidebar", () => {
     fireEvent.click(settings);
     expect(onSettings).toHaveBeenCalled();
   });
+});
