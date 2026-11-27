@@ -406,6 +406,12 @@ h3 {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .app-shell {
+    transition: grid-template-columns 150ms ease;
+  }
+}
+
 /* Below the sidebar breakpoint (viewport.ts) no sidebar renders; the main area takes the row. */
 @media (max-width: 900px) {
   .app-shell,
@@ -489,6 +495,61 @@ h3 {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.sidebar-toggle {
+  align-self: flex-end;
+  padding: 0 var(--space-2);
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+/* Rail: icons only. Labels are .sr-only in the markup; the New dashboard label is not ours to class. */
+.sidebar.rail .sidebar-top {
+  align-items: center;
+  padding: 0;
+}
+
+.sidebar.rail .sidebar-toggle {
+  align-self: center;
+}
+
+.sidebar.rail .nav-item {
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.sidebar.rail .nav-item .nav-label:not(.sr-only) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.sidebar.rail .landing-mark {
+  display: none;
+}
+
+.sidebar.rail .sidebar-foot p {
+  padding: 0;
+}
+
+/* One tooltip for the rail, fixed so the sidebar's own scrolling cannot clip it. */
+.rail-tip {
+  position: fixed;
+  z-index: 20;
+  transform: translateY(-50%);
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  pointer-events: none;
 }
 
 .sidebar ul.plain {
@@ -1094,6 +1155,7 @@ pre.raw {
   button,
   .widget,
   .tab,
+  .nav-item,
   .resize-grip,
   tbody tr {
     transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease,

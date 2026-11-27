@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView } from "../bindings";
+import { SIDEBAR_KEY, setSidebarMode, sidebarMode } from "../sidebar";
 import { repoName, Sidebar } from "./Sidebar";
 
 vi.mock("../bindings", () => ({ commands: { createDashboard: vi.fn() } }));
@@ -43,7 +44,11 @@ const labels = (nav: HTMLElement) =>
     .map((b) => b.querySelector(".nav-label")?.textContent);
 
 describe("Sidebar", () => {
-  beforeEach(() => vi.mocked(commands.createDashboard).mockReset());
+  beforeEach(() => {
+    vi.mocked(commands.createDashboard).mockReset();
+    localStorage.clear();
+    setSidebarMode("open");
+  });
 
   it("groups_platform_and_mine", () => {
     render(() => <Sidebar {...chrome} dashboards={list} onOpen={() => {}} onCreated={() => {}} />);
@@ -115,5 +120,86 @@ describe("Sidebar", () => {
     expect(settings.getAttribute("aria-current")).toBe("page");
     fireEvent.click(settings);
     expect(onSettings).toHaveBeenCalled();
+  });
+
+  describe("rail", () => {
+    const mount = (extra: Record<string, unknown> = {}) =>
+      render(() => (
+        <Sidebar {...chrome} dashboards={list} onOpen={() => {}} onCreated={() => {}} onSync={() => {}} {...extra} />
+      ));
+
+    it("toggle_sets_aria_expanded_and_persists", () => {
+      mount();
+      const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      fireEvent.click(toggle);
+      const expand = screen.getByRole("button", { name: "Expand sidebar" });
+      expect(expand.getAttribute("aria-expanded")).toBe("false");
+      expect(localStorage.getItem(SIDEBAR_KEY)).toBe("rail");
+    });
+
+    it("rail_labels_reachable_by_accessible_name", () => {
+      setSidebarMode("rail");
+      mount();
+      expect(screen.getByRole("button", { name: "Home" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Sync now" }).textContent).toBe("↻");
+      expect(screen.getByRole("button", { name: "+ New dashboard" })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Platform" })).toBeTruthy();
+      expect(screen.getByTestId("brand").textContent).toContain("ACME");
+      expect(screen.getByTestId("brand").querySelector(".sr-only")).toBeTruthy();
+      expect(screen.getByTestId("source").classList.contains("sr-only")).toBe(true);
+    });
+
+    it("rail_keeps_sync_status_region", () => {
+      setSidebarMode("rail");
+      mount({ status: "Synced" });
+      const region = screen.getByRole("status");
+      expect(region.textContent).toBe("Synced");
+      expect(region.classList.contains("sr-only")).toBe(true);
+    });
+
+    it("shortcut_toggles", () => {
+      mount();
+      fireEvent.keyDown(document.body, { key: "\\", ctrlKey: true });
+      expect(sidebarMode()).toBe("rail");
+      fireEvent.keyDown(document.body, { key: "\\", metaKey: true });
+      expect(sidebarMode()).toBe("open");
+      fireEvent.keyDown(document.body, { key: "\\" });
+      expect(sidebarMode()).toBe("open");
+    });
+
+    it("shortcut_ignored_while_typing_or_in_dialog", () => {
+      mount();
+      const input = document.createElement("input");
+      document.body.append(input);
+      input.focus();
+      fireEvent.keyDown(input, { key: "\\", ctrlKey: true });
+      expect(sidebarMode()).toBe("open");
+      input.remove();
+
+      fireEvent.click(screen.getByRole("button", { name: "+ New dashboard" }));
+      expect(screen.getByRole("dialog")).toBeTruthy();
+      fireEvent.keyDown(document.body, { key: "\\", ctrlKey: true });
+      expect(sidebarMode()).toBe("open");
+    });
+
+    it("tooltip_on_focus_in_rail", () => {
+      setSidebarMode("rail");
+      mount();
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      fireEvent.focusIn(screen.getByRole("button", { name: "Ops" }));
+      expect(screen.getByRole("tooltip").textContent).toBe("Ops");
+      fireEvent.focusOut(screen.getByRole("button", { name: "Ops" }));
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      fireEvent.mouseOver(screen.getByRole("button", { name: "Sync now" }));
+      expect(screen.getByRole("tooltip").textContent).toBe("Sync now");
+    });
+
+    it("no_tooltip_when_open", () => {
+      mount();
+      fireEvent.focusIn(screen.getByRole("button", { name: "Ops" }));
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
   });
 });

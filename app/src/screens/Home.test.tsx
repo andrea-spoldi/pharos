@@ -3,6 +3,7 @@ import { fireEvent, render as renderUi, screen, waitFor, within } from "@solidjs
 import type { JSX } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
+import { setSidebarMode } from "../sidebar";
 import { Home } from "./Home";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
@@ -112,6 +113,7 @@ const sidebar = () => within(screen.getByRole("complementary"));
 
 describe("Home", () => {
   beforeEach(() => {
+    setSidebarMode("open"); // jsdom is 1024 wide, which defaults to the rail
     for (const fn of Object.values(commands)) vi.mocked(fn).mockReset();
     vi.mocked(commands.pendingSync).mockResolvedValue(ok(null));
     vi.mocked(commands.planSync).mockResolvedValue(ok(firstPlan));

@@ -2,6 +2,7 @@ import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
+import { setSidebarMode } from "../sidebar";
 import { setViewport } from "../test-utils";
 import { dragControllerFor } from "./Dashboards";
 import { Home } from "./Home";
@@ -145,6 +146,7 @@ const tab = (name: string) => screen.getByRole("button", { name: new RegExp(`^${
 // Home runs a launch sync around every screen; it never finishes unless a test asks, so widgets
 // run once per list load.
 beforeEach(() => {
+  setSidebarMode("open"); // jsdom is 1024 wide, which defaults to the rail
   vi.mocked(commands.pendingSync).mockReset().mockResolvedValue(ok(null));
   vi.mocked(commands.planSync).mockReset().mockReturnValue(new Promise(() => {}));
   vi.mocked(commands.discardSync).mockReset().mockResolvedValue(ok(null));
