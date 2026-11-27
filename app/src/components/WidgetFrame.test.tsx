@@ -1,7 +1,7 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { fireEvent, render as renderUi, screen, waitFor } from "@solidjs/testing-library";
 import { createSignal, type JSX } from "solid-js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type WidgetData, type PlacementView, type WidgetSpec } from "../bindings";
 import { WidgetFrame } from "./WidgetFrame";
 
@@ -375,7 +375,10 @@ describe("WidgetFrame", () => {
       beforeEach(() => {
         vi.mocked(commands.reportWidget).mockReset();
         writeText.mockReset();
-        Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+        vi.stubGlobal("navigator", Object.create(navigator, { clipboard: { value: { writeText }, configurable: true } }));
+      });
+      afterEach(() => {
+        vi.unstubAllGlobals();
       });
 
       it("Report opens in the browser", async () => {

@@ -67,7 +67,13 @@ pub fn run() {
     export_bindings(&builder, BINDINGS_PATH);
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+        // The opener is used from Rust only (design anti-goal: no frontend-triggered opens;
+        // D-026 links stay text), so the click-intercepting script is disabled.
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -90,7 +96,15 @@ mod tests {
 
     #[test]
     fn frontend_capabilities_cannot_open_urls() {
-        assert!(!include_str!("../capabilities/default.json").contains("opener"));
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&dir).expect("capabilities dir") {
+            let path = entry.expect("dir entry").path();
+            let text = std::fs::read_to_string(&path).expect("read capability");
+            assert!(!text.contains("opener"), "{} grants opener", path.display());
+            checked += 1;
+        }
+        assert!(checked > 0, "no capability files found");
     }
 
     /// Regenerates bindings; CI fails if the committed file drifts (`git diff --exit-code`).

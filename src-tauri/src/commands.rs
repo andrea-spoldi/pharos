@@ -252,7 +252,13 @@ pub async fn report_widget(
 ) -> CmdResult<ReportOutcome> {
     let report = with_engine(state, move |e| e.report_widget(&name)).await?;
     Ok(outcome(report, |url| {
-        app.opener().open_url(url, None::<&str>).is_ok()
+        match app.opener().open_url(url, None::<&str>) {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("report_widget: could not open the report link: {e}");
+                false
+            }
+        }
     }))
 }
 

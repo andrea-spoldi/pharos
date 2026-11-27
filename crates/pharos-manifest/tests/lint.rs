@@ -131,6 +131,9 @@ fn support_repo_must_be_plain_https() {
         "https://h/x?y",
         "https://h/x#y",
         "https://{{ user.x }}/r",
+        "https://user:pw@h/r",
+        "https://user@h/r",
+        "https://h/a b",
     ] {
         let got = support_diags(&format!("{{ type: github, repo: '{bad}' }}"));
         assert_eq!(
@@ -149,7 +152,7 @@ fn support_repo_must_be_plain_https() {
 
 #[test]
 fn support_address_must_be_plain() {
-    for bad in ["team", "a@b@c", "a@b?cc=x", "a @b"] {
+    for bad in ["team", "a@b@c", "a@b?cc=x", "a @b", "a@b#x", "a@b%0Ax"] {
         let got = support_diags(&format!("{{ type: email, address: '{bad}' }}"));
         assert_eq!(
             got,

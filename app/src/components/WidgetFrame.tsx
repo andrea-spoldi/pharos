@@ -355,8 +355,8 @@ function NeedsApproval(props: { widget: string; added: Capabilities; onApproved:
         </Show>
         <Show when={manualText()}>
           {(text) => (
-            <div role="status">
-              <p>Copy this and send it to your platform team:</p>
+            <div>
+              <p role="status">Copy this and send it to your platform team:</p>
               <textarea readOnly rows={8} value={text()} />
             </div>
           )}
