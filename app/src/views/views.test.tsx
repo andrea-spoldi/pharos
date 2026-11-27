@@ -28,9 +28,9 @@ describe("TableView", () => {
     ]);
   });
 
-  it("says when files were left out", () => {
+  it("says when rows were left out", () => {
     render(() => <TableView columns={columns} data={{ ...data, truncated: true }} />);
-    expect(screen.getByText(/Only the first 500 files are shown/)).toBeTruthy();
+    expect(screen.getByText("Only the first 500 rows are shown.")).toBeTruthy();
   });
 });
 

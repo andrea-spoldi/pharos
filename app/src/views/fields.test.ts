@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { columnsFor, display, field } from "./fields";
+import cases from "../../../testdata/dot-paths.json";
+import { columnsFor, display, field, type Row } from "./fields";
 
 describe("field", () => {
   it("follows dot paths and stops at missing keys", () => {
@@ -12,6 +13,17 @@ describe("field", () => {
 
   it("indexes into lists", () => {
     expect(field({ tags: ["a", "b"] }, "tags.1")).toBe("b");
+  });
+});
+
+describe("field shared cases", () => {
+  it("field matches shared cases", () => {
+    expect(cases.length).toBeGreaterThan(0);
+    for (const c of cases as { value: unknown; path: string; found: boolean; expected?: unknown }[]) {
+      const got = field(c.value as Row, c.path);
+      expect(got !== undefined, `${c.path} on ${JSON.stringify(c.value)}`).toBe(c.found);
+      if (c.found) expect(got).toEqual(c.expected);
+    }
   });
 });
 

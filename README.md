@@ -268,6 +268,26 @@ To start over, quit the app and repeat 5.2.
 
 ---
 
+### 5.6 Shaping rows with `source.rows`
+
+Tools often wrap the list you want, for example `kubectl get pods -o json` prints
+`{"items": [...]}`. Point `rows` at it with a dot path and each element becomes a row:
+
+```yaml
+spec:
+  source:
+    type: command
+    command: kubectl
+    args: ["get", "pods", "-o", "json"]
+    rows: items
+```
+
+List items are addressed by index (`contexts.0.items`). `rows` is applied before the
+500-row cap, so a view shows at most 500 rows after selection. `aws --query` and
+`gh --jq` remain a fine alternative when the tool can shape its own output. There are
+no filters or expressions in `rows`; filtering arrives in slice 14. `rows` does not
+change what a widget may do, so it never needs fresh consent.
+
 ## 6. How trust works
 
 - **Capabilities are derived, not declared.** Hosts, executables and repo paths come

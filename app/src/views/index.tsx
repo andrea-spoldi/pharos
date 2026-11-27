@@ -1,6 +1,6 @@
 import { For, Show, type JSX } from "solid-js";
 import type { Column, WidgetData } from "../bindings";
-import { columnsFor, display, field, MAX_FILES } from "./fields";
+import { columnsFor, display, field, MAX_ROWS } from "./fields";
 
 export type ViewProps = { columns?: Column[]; data: WidgetData };
 
@@ -10,7 +10,7 @@ function Frame(props: { data: WidgetData; children: JSX.Element }) {
     <div class="view">
       {props.children}
       <Show when={props.data.truncated}>
-        <p class="muted">Only the first {MAX_FILES} files are shown.</p>
+        <p class="muted">Only the first {MAX_ROWS} rows are shown.</p>
       </Show>
     </div>
   );

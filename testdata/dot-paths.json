@@ -162,7 +162,8 @@
       ]
     },
     "path": "a.1.5",
-    "found": false
+    "found": false,
+    "description": "descends into a scalar (list item 1 is the number 2): not found"
   },
   {
     "value": {
@@ -182,5 +183,27 @@
     "path": "a.b",
     "found": true,
     "expected": null
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.1e0",
+    "found": true,
+    "expected": 2
+  },
+  {
+    "value": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "path": "a.0x1",
+    "found": true,
+    "expected": 2
   }
 ]
