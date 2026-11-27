@@ -495,6 +495,61 @@ h3 {
   gap: 2px;
 }
 
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+
+.sidebar .brand {
+  margin: 0;
+  font-weight: 650;
+}
+
+.nav-source {
+  margin: 0;
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The footer is pinned to the bottom of the column. */
+.sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar-foot p {
+  margin: 0;
+  padding: 0 var(--space-2);
+}
+
+.sidebar .sync-status {
+  min-height: 1.2em;
+  font-size: 0.82rem;
+}
+
+.page-head {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.page-head p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 .nav-label {
   flex: 1;
   min-width: 0;
@@ -515,28 +570,6 @@ h3 {
 .screen.wide {
   max-width: none;
   padding: var(--space-3) var(--space-4);
-}
-
-/* When the title and actions don't fit side by side, the actions drop below the title
-   instead of squeezing their labels onto two lines. */
-.topbar {
-  flex-wrap: wrap;
-  row-gap: var(--space-2);
-}
-
-.topbar .sync-status {
-  margin: 0;
-  align-self: center;
-}
-
-.topbar .sync-status,
-.topbar button {
-  white-space: nowrap;
-}
-
-.topbar h1 {
-  margin: 0;
-  font-size: 1.15rem;
 }
 
 /* The mark leads the platform title; Signal Blue via the accent token, so it follows the theme. */
@@ -969,10 +1002,6 @@ pre.raw {
 .danger-text {
   margin: 0;
   color: var(--danger);
-}
-
-button.link.back {
-  align-self: flex-start;
 }
 
 .dialog-backdrop {

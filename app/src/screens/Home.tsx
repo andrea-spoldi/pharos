@@ -1,8 +1,7 @@
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
-import { createEffect, createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
+import { createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
 import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
-import { PharosMark } from "../components/PharosMark";
 import { Sidebar } from "../components/Sidebar";
 import { ChangeLine, hasAnyCapability, shortCommit, SyncReview } from "../components/SyncReview";
 import { sidebarMode } from "../sidebar";
@@ -29,7 +28,7 @@ const isUpToDate = (plan: SyncPlan) =>
  * Connected state. Syncs on launch and on demand (D-004), never blocking the widget list.
  * A plan with unchanged capabilities and no lint errors is applied without asking and
  * reported as a changelog (restart-plan §3); anything else is reviewed first.
- * The header names the platform (`pharos.yaml` title, else name, else "Pharos").
+ * The sidebar names the platform (`pharos.yaml` title, else name, else "Pharos") and carries the sync status, Sync now and Settings.
  * Owns the dashboard list, shared by the sidebar and the dashboard screen: one resource, one refetch.
  */
 export function Home(props: {
@@ -41,11 +40,6 @@ export function Home(props: {
   const navigate = useNavigate();
   const params = useParams<{ id?: string }>();
   const onSettings = () => location.pathname === "/settings";
-  // Where "Back to dashboards" returns to.
-  const [lastDashboard, setLastDashboard] = createSignal("/");
-  createEffect(() => {
-    if (location.pathname.startsWith("/d/")) setLastDashboard(location.pathname);
-  });
   const [plan, setPlan] = createSignal<SyncPlan | null>(null);
   const [busy, setBusy] = createSignal<string | null>(null);
   const [error, setError] = createSignal<IpcError>();
@@ -67,12 +61,17 @@ export function Home(props: {
     () => unwrap(commands.listDashboards()),
   );
   const dashboardList = () => (dashboards.error ? [] : (dashboards.latest ?? []));
+  // The engine puts the landing dashboard first; computed once, for the sidebar and the page header.
+  const landingId = () => dashboardList()[0]?.id;
   const openDashboard = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
   // A new dashboard is opened once it is listed, else the unknown-id fallback would bounce to the first.
-  const created = async (view: DashboardView) => {
+  const onCreated = async (view: DashboardView) => {
     await refetchDashboards();
     openDashboard(view.id);
   };
+
+  // Sync progress or result, shown in the sidebar's always-mounted live region.
+  const status = () => busy() ?? (upToDate() ? <span data-testid="up-to-date">Already up to date.</span> : null);
 
   const run = async (label: string, step: () => Promise<void>) => {
     setBusy(label);
@@ -144,49 +143,20 @@ export function Home(props: {
         <Sidebar
           dashboards={dashboardList()}
           current={params.id === undefined ? undefined : safeDecode(params.id)}
-          landing={dashboardList()[0]?.id}
+          landing={landingId()}
           onOpen={openDashboard}
-          onCreated={created}
+          onCreated={onCreated}
+          title={title()}
+          source={props.source}
+          status={status()}
+          onSync={!neverSynced() && !plan() ? sync : undefined}
+          syncing={!!busy()}
+          onSettings={() => navigate("/settings")}
+          settingsCurrent={onSettings()}
+          neverSynced={neverSynced()}
         />
       </Show>
       <main class="main">
-        <header class="row spread topbar">
-          <div>
-            <h1 class="brand">
-              <PharosMark class="brand-mark" />
-              {title()}
-            </h1>
-            <p class="muted" data-testid="source">
-              <code>{props.source.url}</code> · <code>{props.source.branch}</code>
-              <Show when={props.source.synced_commit}>
-                {(c) => (
-                  <>
-                    {" "}
-                    · <code>{shortCommit(c())}</code>
-                  </>
-                )}
-              </Show>
-            </p>
-          </div>
-          <div class="row">
-            {/* Sync progress sits beside the actions, so a launch sync never shifts the dashboard.
-              Always mounted: a live region only announces text that changes inside it. */}
-            <p class="muted sync-status" role="status">
-              {busy() ?? (upToDate() ? <span data-testid="up-to-date">Already up to date.</span> : null)}
-            </p>
-            <Show when={!onSettings()}>
-              <button type="button" onClick={() => navigate("/settings")}>
-                Settings
-              </button>
-            </Show>
-            <Show when={!neverSynced() && !plan()}>
-              <button type="button" onClick={sync} disabled={!!busy()}>
-                {busy() ? "Syncing…" : "Sync now"}
-              </button>
-            </Show>
-          </div>
-        </header>
-
         <Show when={changelog()}>
           {(p) => (
             <div class="notice" role="status" data-testid="changelog">
@@ -245,21 +215,18 @@ export function Home(props: {
             )}
           </Match>
           <Match when={onSettings()}>
-            <div class="stack">
-              <button type="button" class="link back" onClick={() => navigate(lastDashboard())}>
-                ← Back to dashboards
-              </button>
-              <Settings
-                source={props.source}
-                onChanged={() => setWidgetsVersion((v) => v + 1)}
-                onDisconnected={props.onDisconnected}
-              />
-            </div>
+            <Settings
+              source={props.source}
+              onChanged={() => setWidgetsVersion((v) => v + 1)}
+              onDisconnected={props.onDisconnected}
+            />
           </Match>
           <Match when={!neverSynced()}>
             <Dashboards
               dashboards={dashboards}
               refetch={refetchDashboards}
+              landing={landingId()}
+              onCreated={onCreated}
               version={widgetsVersion()}
               inputLabel={inputLabel}
             />

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView } from "../bindings";
-import { Sidebar } from "./Sidebar";
+import { repoName, Sidebar } from "./Sidebar";
 
 vi.mock("../bindings", () => ({ commands: { createDashboard: vi.fn() } }));
 
@@ -18,6 +18,22 @@ function view(id: string, title: string): DashboardView {
   };
 }
 
+const chrome = {
+  title: "ACME",
+  source: {
+    id: 1,
+    url: "https://github.com/acme/platform.git",
+    branch: "main",
+    local_path: "",
+    synced_commit: "a".repeat(40),
+    synced_at: null,
+    approved_capability_hash: null,
+  },
+  status: null,
+  syncing: false,
+  onSettings: () => {},
+  settingsCurrent: false,
+};
 const list = [view("p:home", "Home"), view("p:ops", "Ops"), view("u:1", "My work")];
 const platformNav = () => screen.getByRole("navigation", { name: "Platform dashboards" });
 const mineNav = () => screen.getByRole("navigation", { name: "Your dashboards" });
@@ -30,7 +46,7 @@ describe("Sidebar", () => {
   beforeEach(() => vi.mocked(commands.createDashboard).mockReset());
 
   it("groups_platform_and_mine", () => {
-    render(() => <Sidebar dashboards={list} onOpen={() => {}} onCreated={() => {}} />);
+    render(() => <Sidebar {...chrome} dashboards={list} onOpen={() => {}} onCreated={() => {}} />);
     expect(within(platformNav()).getByRole("heading", { name: "Platform" })).toBeTruthy();
     expect(within(mineNav()).getByRole("heading", { name: "Mine" })).toBeTruthy();
     expect(labels(platformNav())).toEqual(["Home", "Ops"]);
@@ -40,7 +56,7 @@ describe("Sidebar", () => {
 
   it("current_item_has_aria_current", () => {
     const onOpen = vi.fn();
-    render(() => <Sidebar dashboards={list} current="p:ops" onOpen={onOpen} onCreated={() => {}} />);
+    render(() => <Sidebar {...chrome} dashboards={list} current="p:ops" onOpen={onOpen} onCreated={() => {}} />);
     expect(screen.getByRole("button", { name: "Ops" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "My work" }));
@@ -48,7 +64,7 @@ describe("Sidebar", () => {
   });
 
   it("landing_cue_in_accessible_name", () => {
-    render(() => <Sidebar dashboards={list} landing="p:home" onOpen={() => {}} onCreated={() => {}} />);
+    render(() => <Sidebar {...chrome} dashboards={list} landing="p:home" onOpen={() => {}} onCreated={() => {}} />);
     const home = screen.getByRole("button", { name: /Home.*Landing dashboard/ });
     expect(home.querySelector(".landing-mark")?.getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByRole("button", { name: "Ops" })).toBeTruthy();
@@ -58,7 +74,7 @@ describe("Sidebar", () => {
     const created = view("u:2", "Fresh");
     vi.mocked(commands.createDashboard).mockResolvedValue(ok(created));
     const onCreated = vi.fn();
-    render(() => <Sidebar dashboards={list} onOpen={() => {}} onCreated={onCreated} />);
+    render(() => <Sidebar {...chrome} dashboards={list} onOpen={() => {}} onCreated={onCreated} />);
     expect(within(mineNav()).getAllByRole("button").at(-1)).toBe(
       within(mineNav()).getByRole("button", { name: "+ New dashboard" }),
     );
@@ -72,3 +88,32 @@ describe("Sidebar", () => {
     expect(commands.createDashboard).toHaveBeenCalledWith("Fresh");
   });
 });
+
+  it("derives_owner_repo_with_fallback_to_the_full_url", () => {
+    expect(repoName("https://github.com/acme/platform.git")).toBe("acme/platform");
+    expect(repoName("git@github.com:acme/platform.git")).toBe("acme/platform");
+    expect(repoName("/Users/me/work/platform/")).toBe("work/platform");
+    expect(repoName("platform")).toBe("platform");
+  });
+
+  it("footer_offers_sync_and_settings", () => {
+    const onSync = vi.fn();
+    const onSettings = vi.fn();
+    render(() => (
+      <Sidebar
+        {...chrome}
+        dashboards={list}
+        onOpen={() => {}}
+        onCreated={() => {}}
+        onSync={onSync}
+        onSettings={onSettings}
+        settingsCurrent
+      />
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
+    expect(onSync).toHaveBeenCalled();
+    const settings = screen.getByRole("button", { name: "Settings" });
+    expect(settings.getAttribute("aria-current")).toBe("page");
+    fireEvent.click(settings);
+    expect(onSettings).toHaveBeenCalled();
+  });

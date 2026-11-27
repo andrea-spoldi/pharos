@@ -108,6 +108,8 @@ const platform = {
   spec: { inputs: {}, secrets: [], widgets: "widgets/", dashboards: "dashboards/" },
 };
 
+const sidebar = () => within(screen.getByRole("complementary"));
+
 describe("Home", () => {
   beforeEach(() => {
     for (const fn of Object.values(commands)) vi.mocked(fn).mockReset();
@@ -297,7 +299,7 @@ describe("Home", () => {
       expect(screen.getByText("Try again")).toBeTruthy();
     });
 
-    it("settings button opens settings and back returns", async () => {
+    it("settings_has_aria_current_and_no_back_link", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
       vi.mocked(commands.getSettings).mockResolvedValue(
         ok({ source: synced, platform: null, inputs: [], secrets: [], unused: [] }),
@@ -307,12 +309,12 @@ describe("Home", () => {
       await screen.findByText("Kubernetes Context");
       await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
 
-      fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+      fireEvent.click(sidebar().getByRole("button", { name: "Settings" }));
       expect(await screen.findByRole("heading", { name: "Repository" })).toBeTruthy();
       expect(history.get()).toBe("/settings");
       expect(screen.queryByText("Kubernetes Context")).toBeNull();
 
-      fireEvent.click(screen.getByRole("button", { name: "← Back to dashboards" }));
+      fireEvent.click(sidebar().getByRole("button", { name: "Home" }));
       await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
       expect(await screen.findByText("Kubernetes Context")).toBeTruthy();
     });
@@ -358,10 +360,63 @@ describe("Home", () => {
       await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     });
 
+    it("sync_status_region_is_mounted_before_sync", () => {
+      vi.mocked(commands.planSync).mockReturnValue(new Promise(() => {}));
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      // Present on the first render, inside the sidebar footer: a live region announces only changes.
+      const region = sidebar().getByRole("status");
+      expect(region.classList.contains("sync-status")).toBe(true);
+    });
+
+    it("footer_shows_sync_status_commit_and_sync_now", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      expect((await sidebar().findByTestId("up-to-date")).closest("[role=status]")).toBe(sidebar().getByRole("status"));
+      expect(sidebar().getByText("aaaaaaa")).toBeTruthy();
+      expect(sidebar().getByRole("button", { name: "Sync now" })).toBeTruthy();
+    });
+
+    it("sidebar_refreshes_after_sync", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      const other: DashboardView = {
+        ...home,
+        id: "p:ops",
+        metadata: { name: "ops", title: "Ops", version: null, description: null },
+      };
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      await screen.findByTestId("up-to-date");
+      expect(sidebar().queryByRole("button", { name: "Ops" })).toBeNull();
+
+      vi.mocked(commands.listDashboards).mockResolvedValue(ok([home, other]));
+      fireEvent.click(sidebar().getByRole("button", { name: "Sync now" }));
+      expect(await sidebar().findByRole("button", { name: "Ops" })).toBeTruthy();
+    });
+
+    it("shows_the_source_as_owner_repo_and_branch", async () => {
+      const remote = { ...synced, url: "https://github.com/acme/platform.git" };
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      render(() => <Home source={remote} onSynced={() => {}} onDisconnected={() => {}} />);
+      const line = await screen.findByTestId("source");
+      expect(line.textContent).toContain("acme/platform · main");
+      expect(line.getAttribute("title")).toBe("https://github.com/acme/platform.git");
+      expect(sidebar().getByText(/https:\/\/github.com\/acme\/platform.git/)).toBeTruthy();
+    });
+
+    it("never_synced_sidebar_has_no_dashboard_sections", async () => {
+      render(() => <Home source={fresh} onSynced={() => {}} onDisconnected={() => {}} />);
+      await screen.findByTestId("capabilities");
+      expect(screen.getByTestId("brand").textContent).toBe("ACME Developer Portal");
+      expect(screen.queryByRole("navigation", { name: "Platform dashboards" })).toBeNull();
+      expect(screen.queryByRole("navigation", { name: "Your dashboards" })).toBeNull();
+      expect(sidebar().getByRole("status")).toBeTruthy();
+      expect(sidebar().getByRole("button", { name: "Settings" })).toBeTruthy();
+      expect(sidebar().queryByRole("button", { name: "Sync now" })).toBeNull();
+    });
+
     it("shows the platform title", async () => {
       vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
       render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
-      expect(await screen.findByRole("heading", { level: 1, name: "ACME Developer Portal" })).toBeTruthy();
+      await waitFor(() => expect(screen.getByTestId("brand").textContent).toBe("ACME Developer Portal"));
     });
 
     it("falls back to Pharos", async () => {
@@ -369,7 +424,7 @@ describe("Home", () => {
       vi.mocked(commands.getPlatform).mockResolvedValue(ok(null));
       render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
       await screen.findByTestId("up-to-date");
-      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Pharos");
+      expect(screen.getByTestId("brand").textContent).toBe("Pharos");
     });
   });
 });

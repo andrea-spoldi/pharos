@@ -28,6 +28,10 @@ export function dragControllerFor(grid: Element | null | undefined): DragControl
 export function Dashboards(props: {
   dashboards: Resource<DashboardView[]>;
   refetch: () => unknown;
+  /** The landing dashboard's id, computed once by Home. */
+  landing?: string;
+  /** Opens a dashboard created by the toolbar (Customize) once it is listed; Home owns it. */
+  onCreated: (d: DashboardView) => void;
   version: number;
   inputLabel?: (key: string) => string | null | undefined;
 }) {
@@ -39,7 +43,6 @@ export function Dashboards(props: {
   // Ids contain `:`, which navigation percent-encodes; compare the decoded form.
   const routeId = () => (params.id === undefined ? undefined : safeDecode(params.id));
   const current = () => dashboards.latest?.find((d) => d.id === routeId());
-  const open = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
   const [removing, setRemoving] = createSignal<{ dashboardId: string; placementId: number; name: string }>();
   const [adding, setAdding] = createSignal<{ dashboardId: string; parentId: number }>();
   const [renaming, setRenaming] = createSignal<{ dashboardId: string; placementId: number; title: string }>();
@@ -130,15 +133,6 @@ export function Dashboards(props: {
   document.addEventListener("keydown", onDragKey);
   onCleanup(() => document.removeEventListener("keydown", onDragKey));
 
-  // The engine puts the landing dashboard first, and the app opens on the first one.
-  const landingId = () => dashboards.latest?.[0]?.id;
-  // Mutations re-read the list from the engine; a new dashboard is opened once it is listed,
-  // else the unknown-id fallback below would bounce to the first.
-  const created = async (view: DashboardView) => {
-    await refetch();
-    open(view.id);
-  };
-
   createEffect(() => {
     if (dashboards.error) return;
     const list = dashboards.latest;
@@ -164,15 +158,21 @@ export function Dashboards(props: {
       <Match when={current()}>
         {(d) => (
           <section class="stack">
-            <DashboardToolbar
-              dashboard={d()}
-              landing={d().id === landingId()}
-              editing={editing()}
-              onToggleEdit={() => setEditing((v) => !v)}
-              onChanged={refetch}
-              onCreated={created}
-              onDeleted={refetch}
-            />
+            <header class="row spread page-head">
+              <div>
+                <h1>{d().metadata.title ?? d().metadata.name}</h1>
+                <p class="muted">{d().origin === "platform" ? "Platform dashboard · read-only" : "Your dashboard"}</p>
+              </div>
+              <DashboardToolbar
+                dashboard={d()}
+                landing={d().id === props.landing}
+                editing={editing()}
+                onToggleEdit={() => setEditing((v) => !v)}
+                onChanged={refetch}
+                onCreated={props.onCreated}
+                onDeleted={refetch}
+              />
+            </header>
             <RemoveWidgetDialog target={removing()} onClose={() => setRemoving(undefined)} onRemoved={refetch} />
             <AddWidgetDialog
               open={adding() !== undefined}

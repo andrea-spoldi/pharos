@@ -1,17 +1,20 @@
-import { createMemoryHistory, MemoryRouter, Route, useNavigate, useParams } from "@solidjs/router";
+import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
-import { createResource, createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commands, type DashboardView } from "../bindings";
-import { unwrap } from "../ipc";
-import { Sidebar } from "../components/Sidebar";
+import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
 import { setViewport } from "../test-utils";
-import { Dashboards, dragControllerFor, safeDecode } from "./Dashboards";
+import { dragControllerFor } from "./Dashboards";
+import { Home } from "./Home";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
 vi.mock("../bindings", () => ({
   commands: {
+    pendingSync: vi.fn(),
+    planSync: vi.fn(),
+    discardSync: vi.fn(),
+    applySync: vi.fn(),
+    getPlatform: vi.fn(),
     listDashboards: vi.fn(),
     runPlacement: vi.fn(),
     listCatalog: vi.fn(),
@@ -53,42 +56,48 @@ function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView
   };
 }
 
-/** The list wiring Home owns: one resource, keyed on the sync version, shared by Sidebar and Dashboards. */
-function Shell(props: { version: () => number }) {
-  const params = useParams<{ id?: string }>();
-  const navigate = useNavigate();
-  const [dashboards, { refetch }] = createResource(
-    () => props.version(),
-    () => unwrap(commands.listDashboards()),
-  );
-  const list = () => (dashboards.error ? [] : (dashboards.latest ?? []));
-  const open = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
-  return (
-    <>
-      <Sidebar
-        dashboards={list()}
-        current={params.id === undefined ? undefined : safeDecode(params.id)}
-        landing={list()[0]?.id}
-        onOpen={open}
-        onCreated={async (d) => {
-          await refetch();
-          open(d.id);
-        }}
-      />
-      <Dashboards dashboards={dashboards} refetch={refetch} version={props.version()} />
-    </>
-  );
-}
+const source: RepoSource = {
+  id: 1,
+  url: "/tmp/platform",
+  branch: "main",
+  local_path: "/data/sources/1",
+  synced_commit: "a".repeat(40),
+  synced_at: null,
+  approved_capability_hash: "sha256:x",
+};
+const none = { added: [], removed: [], changed: [] };
+const upToDate: SyncPlan = {
+  from_commit: source.synced_commit,
+  to_commit: source.synced_commit!,
+  platform_changed: false,
+  widgets: none,
+  dashboards: none,
+  diagnostics: [],
+  capabilities: {},
+  capability_hash: "sha256:x",
+  capability_changes: {},
+  needs_consent: false,
+};
 
-function renderAt(path: string, version: () => number = () => 0) {
+/** Renders through Home, which owns the list wiring, so these tests exercise the real thing. */
+function renderAt(path: string) {
   const history = createMemoryHistory();
   history.set({ value: path });
   render(() => (
     <MemoryRouter history={history}>
-      <Route path={["/", "/d/:id"]} component={() => <Shell version={version} />} />
+      <Route
+        path={["/", "/d/:id"]}
+        component={() => <Home source={source} onSynced={() => {}} onDisconnected={() => {}} />}
+      />
     </MemoryRouter>
   ));
   return history;
+}
+
+/** Lets the launch sync finish, so that a later Sync now is the only thing that re-runs widgets. */
+async function launchSynced() {
+  vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+  return () => screen.findByTestId("up-to-date");
 }
 
 const rows = { rows: [{ metadata: { name: "payment-service" }, _source: "p.yaml" }], truncated: false };
@@ -132,6 +141,15 @@ function runnableHome(): DashboardView {
 
 // A landing item's accessible name carries a "(Landing dashboard)" suffix, so match the title prefix.
 const tab = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}\\b`) });
+
+// Home runs a launch sync around every screen; it never finishes unless a test asks, so widgets
+// run once per list load.
+beforeEach(() => {
+  vi.mocked(commands.pendingSync).mockReset().mockResolvedValue(ok(null));
+  vi.mocked(commands.planSync).mockReset().mockReturnValue(new Promise(() => {}));
+  vi.mocked(commands.discardSync).mockReset().mockResolvedValue(ok(null));
+  vi.mocked(commands.getPlatform).mockReset().mockResolvedValue(ok(null));
+});
 
 describe("Dashboards", () => {
   beforeEach(() => {
@@ -187,11 +205,12 @@ describe("Dashboards", () => {
   });
 
   it("falls back when the current dashboard disappears", async () => {
-    const [version, setVersion] = createSignal(0);
-    const history = renderAt("/d/p:ops", version);
+    const synced = await launchSynced();
+    const history = renderAt("/d/p:ops");
+    await synced();
     await screen.findByText("k8s", { selector: "header *" });
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home")]));
-    setVersion(1);
+    fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
     await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
   });
@@ -214,18 +233,37 @@ describe("Dashboards", () => {
   it("keeps widget data visible across a re-sync", async () => {
     vi.mocked(commands.listDashboards).mockImplementation(async () => ok([runnableHome()]));
     vi.mocked(commands.runPlacement).mockReset().mockResolvedValue(ok(rows));
-    const [version, setVersion] = createSignal(0);
-    renderAt("/d/p:home", version);
+    const synced = await launchSynced();
+    renderAt("/d/p:home");
+    await synced();
     await screen.findByText("payment-service");
-
-    vi.mocked(commands.runPlacement).mockReturnValue(new Promise(() => {}));
-    setVersion(1);
     await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(2));
+
+    vi.mocked(commands.runPlacement).mockReturnValue(new Promise(() => {}));
+    fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
+    await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(commands.runPlacement).toHaveBeenCalledTimes(3));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getByText("payment-service")).toBeTruthy();
     expect(screen.queryByLabelText("Loading")).toBeNull();
-    expect(commands.runPlacement).toHaveBeenCalledTimes(2);
+    expect(commands.runPlacement).toHaveBeenCalledTimes(3);
+  });
+
+  it("page_header_shows_title_and_origin_line", async () => {
+    const mine: DashboardView = { ...dashboard("mine", []), id: "u:1", origin: "user", editable: true };
+    vi.mocked(commands.listDashboards).mockResolvedValue(ok([dashboard("home"), mine]));
+    const history = renderAt("/d/p:home");
+    const head = async (title: string) => {
+      const h1 = await screen.findByRole("heading", { level: 1, name: title });
+      return h1.closest("header.page-head") as HTMLElement;
+    };
+    expect((await head("Home")).textContent).toContain("Platform dashboard · read-only");
+
+    history.set({ value: "/d/u:1" });
+    const userHead = await head("Mine");
+    expect(userHead.textContent).toContain("Your dashboard");
+    expect(userHead.textContent).not.toContain("read-only");
   });
 
   it("reports a failed load", async () => {
@@ -302,7 +340,7 @@ describe("Dashboards compose", () => {
     await waitFor(() => expect(commands.addWidget).toHaveBeenCalledWith("u:1", "welcome", null));
     expect(await screen.findByText("welcome", { selector: "header *" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove welcome" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove welcome" }));
     const confirm = within(screen.getByRole("dialog"));
     const buttons = confirm.getAllByRole("button").map((b) => b.textContent);
     expect(buttons).toEqual(["Cancel", "Remove"]);
