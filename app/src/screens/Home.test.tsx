@@ -1,5 +1,5 @@
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
-import { fireEvent, render as renderUi, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render as renderUi, screen, waitFor, within } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
@@ -29,6 +29,9 @@ vi.mock("../bindings", () => ({
     runPlacement: vi.fn(),
     getSettings: vi.fn(),
     getSearchPath: vi.fn(),
+    createDashboard: vi.fn(),
+    renameDashboard: vi.fn(),
+    deleteDashboard: vi.fn(),
   },
 }));
 
@@ -290,7 +293,7 @@ describe("Home", () => {
       render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
 
       expect((await screen.findByRole("alert")).textContent).toContain("offline");
-      expect(await screen.findByRole("navigation", { name: "Dashboards" })).toBeTruthy();
+      expect(await screen.findByRole("navigation", { name: "Platform dashboards" })).toBeTruthy();
       expect(screen.getByText("Try again")).toBeTruthy();
     });
 
@@ -312,6 +315,47 @@ describe("Home", () => {
       fireEvent.click(screen.getByRole("button", { name: "← Back to dashboards" }));
       await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
       expect(await screen.findByText("Kubernetes Context")).toBeTruthy();
+    });
+
+    it("sidebar_refreshes_after_create_rename_delete", async () => {
+      vi.mocked(commands.planSync).mockResolvedValue(ok(upToDate));
+      const mine: DashboardView = { ...home, id: "u:1", origin: "user", editable: true, placements: [] };
+      const titled = (title: string): DashboardView => ({
+        ...mine,
+        metadata: { ...mine.metadata, name: "mine", title },
+      });
+      vi.mocked(commands.createDashboard).mockResolvedValue(ok(titled("Mine")));
+      vi.mocked(commands.renameDashboard).mockResolvedValue(ok(null));
+      vi.mocked(commands.deleteDashboard).mockResolvedValue(ok(null));
+      render(() => <Home source={synced} onSynced={() => {}} onDisconnected={() => {}} />);
+      await screen.findByTestId("up-to-date");
+      await waitFor(() => expect(commands.listDashboards).toHaveBeenCalledTimes(2));
+      // The same landmark element throughout: the sidebar updates in place, it is not remounted.
+      const nav = screen.getByRole("navigation", { name: "Your dashboards" });
+      const submit = (button: string, value?: string) => {
+        const dialog = within(screen.getByRole("dialog"));
+        if (value !== undefined) fireEvent.input(dialog.getByLabelText("Title"), { target: { value } });
+        fireEvent.click(dialog.getByRole("button", { name: button }));
+      };
+
+      vi.mocked(commands.listDashboards).mockResolvedValue(ok([home, titled("Mine")]));
+      fireEvent.click(within(nav).getByRole("button", { name: "+ New dashboard" }));
+      submit("Create", "Mine");
+      expect(await within(nav).findByRole("button", { name: "Mine" })).toBeTruthy();
+      await waitFor(() => expect(history.get()).toBe("/d/u%3A1"));
+
+      vi.mocked(commands.listDashboards).mockResolvedValue(ok([home, titled("Renamed")]));
+      fireEvent.click(await screen.findByRole("button", { name: "Rename" }));
+      submit("Rename", "Renamed");
+      expect(await within(nav).findByRole("button", { name: "Renamed" })).toBeTruthy();
+      expect(within(nav).queryByRole("button", { name: "Mine" })).toBeNull();
+
+      vi.mocked(commands.listDashboards).mockResolvedValue(ok([home]));
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+      submit("Delete");
+      await waitFor(() => expect(within(nav).queryByRole("button", { name: "Renamed" })).toBeNull());
+      expect(screen.getByRole("navigation", { name: "Your dashboards" })).toBe(nav);
+      await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
     });
 
     it("shows the platform title", async () => {

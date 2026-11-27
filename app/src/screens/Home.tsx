@@ -1,10 +1,13 @@
-import { useLocation, useNavigate } from "@solidjs/router";
+import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { createEffect, createResource, createSignal, Match, onMount, Show, Switch } from "solid-js";
-import { commands, type RepoSource, type SyncPlan } from "../bindings";
+import { commands, type DashboardView, type RepoSource, type SyncPlan } from "../bindings";
 import { type IpcError, toIpcError, unwrap } from "../ipc";
 import { PharosMark } from "../components/PharosMark";
+import { Sidebar } from "../components/Sidebar";
 import { ChangeLine, hasAnyCapability, shortCommit, SyncReview } from "../components/SyncReview";
-import { Dashboards } from "./Dashboards";
+import { sidebarMode } from "../sidebar";
+import { narrow } from "../viewport";
+import { Dashboards, safeDecode } from "./Dashboards";
 import { Settings } from "./Settings";
 
 const errorCount = (plan: SyncPlan) => plan.diagnostics.filter((d) => d.severity === "error").length;
@@ -27,6 +30,7 @@ const isUpToDate = (plan: SyncPlan) =>
  * A plan with unchanged capabilities and no lint errors is applied without asking and
  * reported as a changelog (restart-plan §3); anything else is reviewed first.
  * The header names the platform (`pharos.yaml` title, else name, else "Pharos").
+ * Owns the dashboard list, shared by the sidebar and the dashboard screen: one resource, one refetch.
  */
 export function Home(props: {
   source: RepoSource;
@@ -35,6 +39,7 @@ export function Home(props: {
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const params = useParams<{ id?: string }>();
   const onSettings = () => location.pathname === "/settings";
   // Where "Back to dashboards" returns to.
   const [lastDashboard, setLastDashboard] = createSignal("/");
@@ -57,6 +62,17 @@ export function Home(props: {
   );
   const title = () => platform.latest?.metadata.title ?? platform.latest?.metadata.name ?? "Pharos";
   const inputLabel = (key: string) => platform.latest?.spec.inputs?.[key]?.label;
+  const [dashboards, { refetch: refetchDashboards }] = createResource(
+    () => widgetsVersion(),
+    () => unwrap(commands.listDashboards()),
+  );
+  const dashboardList = () => (dashboards.error ? [] : (dashboards.latest ?? []));
+  const openDashboard = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
+  // A new dashboard is opened once it is listed, else the unknown-id fallback would bounce to the first.
+  const created = async (view: DashboardView) => {
+    await refetchDashboards();
+    openDashboard(view.id);
+  };
 
   const run = async (label: string, step: () => Promise<void>) => {
     setBusy(label);
@@ -123,125 +139,141 @@ export function Home(props: {
   });
 
   return (
-    <main class="screen wide">
-      <header class="row spread topbar">
-        <div>
-          <h1 class="brand">
-            <PharosMark class="brand-mark" />
-            {title()}
-          </h1>
-          <p class="muted" data-testid="source">
-            <code>{props.source.url}</code> · <code>{props.source.branch}</code>
-            <Show when={props.source.synced_commit}>
-              {(c) => (
-                <>
-                  {" "}
-                  · <code>{shortCommit(c())}</code>
-                </>
-              )}
-            </Show>
-          </p>
-        </div>
-        <div class="row">
-          {/* Sync progress sits beside the actions, so a launch sync never shifts the dashboard.
+    <div class="app-shell" classList={{ rail: sidebarMode() === "rail" }}>
+      <Show when={!narrow()}>
+        <Sidebar
+          dashboards={dashboardList()}
+          current={params.id === undefined ? undefined : safeDecode(params.id)}
+          landing={dashboardList()[0]?.id}
+          onOpen={openDashboard}
+          onCreated={created}
+        />
+      </Show>
+      <main class="main">
+        <header class="row spread topbar">
+          <div>
+            <h1 class="brand">
+              <PharosMark class="brand-mark" />
+              {title()}
+            </h1>
+            <p class="muted" data-testid="source">
+              <code>{props.source.url}</code> · <code>{props.source.branch}</code>
+              <Show when={props.source.synced_commit}>
+                {(c) => (
+                  <>
+                    {" "}
+                    · <code>{shortCommit(c())}</code>
+                  </>
+                )}
+              </Show>
+            </p>
+          </div>
+          <div class="row">
+            {/* Sync progress sits beside the actions, so a launch sync never shifts the dashboard.
               Always mounted: a live region only announces text that changes inside it. */}
-          <p class="muted sync-status" role="status">
-            {busy() ?? (upToDate() ? <span data-testid="up-to-date">Already up to date.</span> : null)}
-          </p>
-          <Show when={!onSettings()}>
-            <button type="button" onClick={() => navigate("/settings")}>
-              Settings
-            </button>
-          </Show>
-          <Show when={!neverSynced() && !plan()}>
-            <button type="button" onClick={sync} disabled={!!busy()}>
-              {busy() ? "Syncing…" : "Sync now"}
-            </button>
-          </Show>
-        </div>
-      </header>
-
-      <Show when={changelog()}>
-        {(p) => (
-          <div class="notice" role="status" data-testid="changelog">
-            <strong>
-              Synced to <code>{shortCommit(p().to_commit)}</code>
-            </strong>
-            <ul class="plain changelog">
-              <ChangeLine label="Widgets" changes={p().widgets} />
-              <ChangeLine label="Dashboards" changes={p().dashboards} />
-              <Show when={p().platform_changed}>
-                <li>
-                  <strong>Platform settings</strong> changed
-                </li>
-              </Show>
-              <Show when={withCaps(p(), "removed").length > 0}>
-                <li>
-                  <strong>Permissions removed:</strong> {withCaps(p(), "removed").join(", ")}
-                </li>
-              </Show>
-              <Show when={!changelogApproved() && withCaps(p(), "added").length > 0}>
-                <li>
-                  <strong>Waiting for approval:</strong> {withCaps(p(), "added").join(", ")}
-                </li>
-              </Show>
-            </ul>
-            <button type="button" class="link" onClick={() => setChangelog(null)}>
-              Dismiss
-            </button>
+            <p class="muted sync-status" role="status">
+              {busy() ?? (upToDate() ? <span data-testid="up-to-date">Already up to date.</span> : null)}
+            </p>
+            <Show when={!onSettings()}>
+              <button type="button" onClick={() => navigate("/settings")}>
+                Settings
+              </button>
+            </Show>
+            <Show when={!neverSynced() && !plan()}>
+              <button type="button" onClick={sync} disabled={!!busy()}>
+                {busy() ? "Syncing…" : "Sync now"}
+              </button>
+            </Show>
           </div>
-        )}
-      </Show>
+        </header>
 
-      <Show when={error()}>
-        {(err) => (
-          <div class="notice danger" role="alert">
-            <strong>{err().kind === "stalePlan" ? "The repo changed since this review" : "Sync failed"}</strong>
-            <pre>{err().message}</pre>
-            <button type="button" onClick={sync} disabled={!!busy()}>
-              {err().kind === "stalePlan" ? "Review again" : "Try again"}
-            </button>
-          </div>
-        )}
-      </Show>
-
-      <Switch>
-        <Match when={plan()}>
+        <Show when={changelog()}>
           {(p) => (
-            <SyncReview
-              plan={p()}
-              firstSync={neverSynced()}
-              busy={!!busy()}
-              onApply={apply}
-              onDiscard={discard}
-              onReview={sync}
-            />
+            <div class="notice" role="status" data-testid="changelog">
+              <strong>
+                Synced to <code>{shortCommit(p().to_commit)}</code>
+              </strong>
+              <ul class="plain changelog">
+                <ChangeLine label="Widgets" changes={p().widgets} />
+                <ChangeLine label="Dashboards" changes={p().dashboards} />
+                <Show when={p().platform_changed}>
+                  <li>
+                    <strong>Platform settings</strong> changed
+                  </li>
+                </Show>
+                <Show when={withCaps(p(), "removed").length > 0}>
+                  <li>
+                    <strong>Permissions removed:</strong> {withCaps(p(), "removed").join(", ")}
+                  </li>
+                </Show>
+                <Show when={!changelogApproved() && withCaps(p(), "added").length > 0}>
+                  <li>
+                    <strong>Waiting for approval:</strong> {withCaps(p(), "added").join(", ")}
+                  </li>
+                </Show>
+              </ul>
+              <button type="button" class="link" onClick={() => setChangelog(null)}>
+                Dismiss
+              </button>
+            </div>
           )}
-        </Match>
-        <Match when={onSettings()}>
-          <div class="stack">
-            <button type="button" class="link back" onClick={() => navigate(lastDashboard())}>
-              ← Back to dashboards
-            </button>
-            <Settings
-              source={props.source}
-              onChanged={() => setWidgetsVersion((v) => v + 1)}
-              onDisconnected={props.onDisconnected}
+        </Show>
+
+        <Show when={error()}>
+          {(err) => (
+            <div class="notice danger" role="alert">
+              <strong>{err().kind === "stalePlan" ? "The repo changed since this review" : "Sync failed"}</strong>
+              <pre>{err().message}</pre>
+              <button type="button" onClick={sync} disabled={!!busy()}>
+                {err().kind === "stalePlan" ? "Review again" : "Try again"}
+              </button>
+            </div>
+          )}
+        </Show>
+
+        <Switch>
+          <Match when={plan()}>
+            {(p) => (
+              <SyncReview
+                plan={p()}
+                firstSync={neverSynced()}
+                busy={!!busy()}
+                onApply={apply}
+                onDiscard={discard}
+                onReview={sync}
+              />
+            )}
+          </Match>
+          <Match when={onSettings()}>
+            <div class="stack">
+              <button type="button" class="link back" onClick={() => navigate(lastDashboard())}>
+                ← Back to dashboards
+              </button>
+              <Settings
+                source={props.source}
+                onChanged={() => setWidgetsVersion((v) => v + 1)}
+                onDisconnected={props.onDisconnected}
+              />
+            </div>
+          </Match>
+          <Match when={!neverSynced()}>
+            <Dashboards
+              dashboards={dashboards}
+              refetch={refetchDashboards}
+              version={widgetsVersion()}
+              inputLabel={inputLabel}
             />
-          </div>
-        </Match>
-        <Match when={!neverSynced()}>
-          <Dashboards version={widgetsVersion()} inputLabel={inputLabel} />
-        </Match>
-        <Match when={!busy() && !error()}>
-          <div class="notice">
-            <p>Nothing from the platform repo is applied yet.</p>
-            <button type="button" class="primary" onClick={sync}>
-              Review the repo
-            </button>
-          </div>
-        </Match>
-      </Switch>
-    </main>
+          </Match>
+          <Match when={!busy() && !error()}>
+            <div class="notice">
+              <p>Nothing from the platform repo is applied yet.</p>
+              <button type="button" class="primary" onClick={sync}>
+                Review the repo
+              </button>
+            </div>
+          </Match>
+        </Switch>
+      </main>
+    </div>
   );
 }

@@ -1,9 +1,12 @@
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { createMemoryHistory, MemoryRouter, Route, useNavigate, useParams } from "@solidjs/router";
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createResource, createSignal } from "solid-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, type DashboardView } from "../bindings";
-import { Dashboards, dragControllerFor } from "./Dashboards";
+import { unwrap } from "../ipc";
+import { Sidebar } from "../components/Sidebar";
+import { setViewport } from "../test-utils";
+import { Dashboards, dragControllerFor, safeDecode } from "./Dashboards";
 
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 
@@ -50,12 +53,39 @@ function dashboard(name: string, widgets: string[] = ["welcome"]): DashboardView
   };
 }
 
+/** The list wiring Home owns: one resource, keyed on the sync version, shared by Sidebar and Dashboards. */
+function Shell(props: { version: () => number }) {
+  const params = useParams<{ id?: string }>();
+  const navigate = useNavigate();
+  const [dashboards, { refetch }] = createResource(
+    () => props.version(),
+    () => unwrap(commands.listDashboards()),
+  );
+  const list = () => (dashboards.error ? [] : (dashboards.latest ?? []));
+  const open = (id: string) => navigate(`/d/${encodeURIComponent(id)}`);
+  return (
+    <>
+      <Sidebar
+        dashboards={list()}
+        current={params.id === undefined ? undefined : safeDecode(params.id)}
+        landing={list()[0]?.id}
+        onOpen={open}
+        onCreated={async (d) => {
+          await refetch();
+          open(d.id);
+        }}
+      />
+      <Dashboards dashboards={dashboards} refetch={refetch} version={props.version()} />
+    </>
+  );
+}
+
 function renderAt(path: string, version: () => number = () => 0) {
   const history = createMemoryHistory();
   history.set({ value: path });
   render(() => (
     <MemoryRouter history={history}>
-      <Route path={["/", "/d/:id"]} component={() => <Dashboards version={version()} />} />
+      <Route path={["/", "/d/:id"]} component={() => <Shell version={version} />} />
     </MemoryRouter>
   ));
   return history;
@@ -100,7 +130,7 @@ function runnableHome(): DashboardView {
   };
 }
 
-// A landing tab's accessible name carries a "(Landing dashboard)" suffix, so match the title prefix.
+// A landing item's accessible name carries a "(Landing dashboard)" suffix, so match the title prefix.
 const tab = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}\\b`) });
 
 describe("Dashboards", () => {
@@ -120,7 +150,7 @@ describe("Dashboards", () => {
     await waitFor(() => expect(history.get()).toBe("/d/p%3Ahome"));
   });
 
-  it("switches dashboards from the tabs", async () => {
+  it("switches_dashboards_from_the_sidebar", async () => {
     const history = renderAt("/d/p:home");
     await screen.findByText("welcome", { selector: "header *" });
     fireEvent.click(tab("Ops"));
@@ -129,30 +159,25 @@ describe("Dashboards", () => {
     expect(screen.queryByText("welcome", { selector: "header *" })).toBeNull();
   });
 
-  it("more menu closes on escape and selection", async () => {
-    const names = ["home", "a", "b", "c", "d", "e", "f"];
+  it("no_more_menu_with_nine_dashboards", async () => {
+    const names = ["home", "a", "b", "c", "d", "e", "f", "g", "h"];
     vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
     const history = renderAt("/d/p:home");
-    await screen.findByRole("button", { name: "More ▾" });
-    expect(screen.getByRole("navigation", { name: "Dashboards" }).querySelectorAll(".tab").length).toBe(6);
-    expect(screen.queryByRole("button", { name: "E" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "More ▾" }));
-    expect(screen.getByRole("button", { name: "E" })).toBeTruthy();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("button", { name: "E" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "More ▾" }));
-    fireEvent.click(screen.getByRole("button", { name: "E" }));
-    await waitFor(() => expect(history.get()).toBe("/d/p%3Ae"));
-    expect(screen.queryByRole("button", { name: "F" })).toBeNull();
+    const nav = await screen.findByRole("navigation", { name: "Platform dashboards" });
+    await waitFor(() => expect(within(nav).getAllByRole("button")).toHaveLength(9));
+    expect(screen.queryByRole("button", { name: "More ▾" })).toBeNull();
+    fireEvent.click(within(nav).getByRole("button", { name: "H" }));
+    await waitFor(() => expect(history.get()).toBe("/d/p%3Ah"));
+    expect(tab("H").getAttribute("aria-current")).toBe("page");
   });
 
-  it("shows no tabs when there are no dashboards", async () => {
+  it("shows no dashboard items when there are none", async () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([]));
     renderAt("/");
     expect(await screen.findByText("No dashboards yet. Click + New dashboard to create one.")).toBeTruthy();
-    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Platform dashboards" })).toBeNull();
+    const mine = screen.getByRole("navigation", { name: "Your dashboards" });
+    expect(within(mine).getAllByRole("button").map((b) => b.textContent)).toEqual(["+ New dashboard"]);
   });
 
   it("shows an empty dashboard notice", async () => {
@@ -212,15 +237,6 @@ describe("Dashboards", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Could not load dashboards");
     expect(alert.textContent).toContain("database is locked");
-  });
-
-  it("marks More as active when the current dashboard is in the menu", async () => {
-    const names = ["home", "a", "b", "c", "d", "e", "f"];
-    vi.mocked(commands.listDashboards).mockResolvedValue(ok(names.map((n) => dashboard(n))));
-    renderAt("/d/p:e");
-    const more = await screen.findByRole("button", { name: "More ▾" });
-    expect(more.classList.contains("active")).toBe(true);
-    expect(tab("Home").getAttribute("aria-current")).toBeNull();
   });
 });
 
@@ -492,8 +508,7 @@ const article = (text: string) => screen.getByText(text, { selector: "header *" 
 
 describe("Dashboards drag/resize", () => {
   beforeEach(() => {
-    window.innerWidth = 1200;
-    window.dispatchEvent(new Event("resize"));
+    setViewport(1200);
     vi.mocked(commands.listDashboards).mockReset().mockResolvedValue(ok([layoutDashboard()]));
     vi.mocked(commands.setLayout).mockReset().mockResolvedValue(ok(layoutDashboard()));
   });
@@ -585,8 +600,7 @@ describe("Dashboards drag/resize", () => {
   });
 
   it("handlers_inert_below_the_single_column_breakpoint", async () => {
-    window.innerWidth = 800;
-    window.dispatchEvent(new Event("resize"));
+    setViewport(800);
     renderAt("/d/u:1");
     await screen.findByText("welcome", { selector: "header *" });
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));

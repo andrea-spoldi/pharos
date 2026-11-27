@@ -218,7 +218,7 @@ label.row {
 }
 
 /* Hover deepens the fill by one tone (Tone Not Shadow); tabs, menu rows and links have their own. */
-button:hover:not(:disabled, .primary, .danger, .link, .tab, .menu-item, .resize-grip) {
+button:hover:not(:disabled, .primary, .danger, .link, .tab, .menu-item, .nav-item, .resize-grip) {
   background: var(--border);
 }
 
@@ -393,6 +393,122 @@ h3 {
 .fields dd {
   margin: 0;
   word-break: break-word;
+}
+
+/* App shell: the sidebar beside the main area. */
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-shell.rail {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+/* Below the sidebar breakpoint (viewport.ts) no sidebar renders; the main area takes the row. */
+@media (max-width: 900px) {
+  .app-shell,
+  .app-shell.rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sidebar {
+  /* Required: there is no global border-box, and the padding would overflow 100vh. */
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.nav-heading {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The current item marks place: the Halo wash plus a 3px accent bar on its inner edge. */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  text-align: left;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+}
+
+.nav-item:hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+.nav-item[aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+  background: var(--accent-wash);
+}
+
+.nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+/* The monogram tile: the title's first letter, in a 22px square. */
+.nav-mono {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sidebar ul.plain {
+  gap: 2px;
+}
+
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 /* Dashboards: tabs, grid, widget frame */

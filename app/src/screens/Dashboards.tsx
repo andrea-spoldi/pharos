@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { createEffect, createResource, createSignal, For, Index, Match, onCleanup, Show, Switch } from "solid-js";
+import { createEffect, createSignal, Index, Match, onCleanup, type Resource, Show, Switch } from "solid-js";
 import { commands, type DashboardView } from "../bindings";
 import { unwrap } from "../ipc";
 import { AddWidgetDialog, DashboardToolbar, RemoveWidgetDialog, TitleDialog } from "../components/DashboardEditor";
@@ -7,12 +7,9 @@ import { narrow } from "../viewport";
 import { WidgetFrame, type WidgetEdit } from "../components/WidgetFrame";
 import { type Box, type DragController, type DragMode, type LayoutItem, resolveLayout } from "../components/grid-layout";
 
-const MAX_TABS = 5;
 /** A leaf never shrinks below 1×1; a group keeps room for its members. */
 const GRID_COLS = 12;
 const MIN_SIZE ={ leaf: { w: 1, h: 1 }, container: { w: 3, h: 2 } } as const;
-
-const label = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
 
 // The drag coordinator is reached in tests through the grid element it is mounted on, keeping
 // the gesture seam out of the component's props while leaving no trace in the rendered DOM.
@@ -23,18 +20,22 @@ export function dragControllerFor(grid: Element | null | undefined): DragControl
 }
 
 /**
- * Platform dashboards (read-only) and the user's own (composable), in the engine's order:
- * the landing dashboard first. `#/d/:id` picks one; a missing
- * or unknown id goes to the first, which the engine orders `home` first (D-025).
- * Bump `version` after a sync to reload.
+ * The current dashboard from `dashboards` (owned by Home, which also feeds the sidebar), in the
+ * engine's order: the landing dashboard first. `#/d/:id` picks one; a missing or unknown id
+ * goes to the first, which the engine orders `home` first (D-025). Every mutation calls
+ * `refetch`, so the sidebar sees it too. `version` is the sync version; bumping it re-runs widgets.
  */
-export function Dashboards(props: { version: number; inputLabel?: (key: string) => string | null | undefined }) {
+export function Dashboards(props: {
+  dashboards: Resource<DashboardView[]>;
+  refetch: () => unknown;
+  version: number;
+  inputLabel?: (key: string) => string | null | undefined;
+}) {
   const params = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const [dashboards, { refetch }] = createResource(
-    () => props.version,
-    () => unwrap(commands.listDashboards()),
-  );
+  // One resource for the screen's lifetime: Home owns it and never swaps it.
+  const dashboards = props.dashboards;
+  const refetch = () => props.refetch();
   // Ids contain `:`, which navigation percent-encodes; compare the decoded form.
   const routeId = () => (params.id === undefined ? undefined : safeDecode(params.id));
   const current = () => dashboards.latest?.find((d) => d.id === routeId());
@@ -156,24 +157,13 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
         </div>
       </Match>
       <Match when={dashboards.latest?.length === 0}>
-        <section class="stack">
-          <DashboardToolbar
-            landing={false}
-            editing={editing()}
-            onToggleEdit={() => setEditing((v) => !v)}
-            onChanged={refetch}
-            onCreated={created}
-            onDeleted={refetch}
-          />
-          <div class="notice">
-            <p>No dashboards yet. Click + New dashboard to create one.</p>
-          </div>
-        </section>
+        <div class="notice">
+          <p>No dashboards yet. Click + New dashboard to create one.</p>
+        </div>
       </Match>
       <Match when={current()}>
         {(d) => (
           <section class="stack">
-            <Tabs dashboards={dashboards.latest ?? []} current={d().id} landing={landingId()} onOpen={open} />
             <DashboardToolbar
               dashboard={d()}
               landing={d().id === landingId()}
@@ -245,80 +235,8 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
   );
 }
 
-function Tabs(props: { dashboards: DashboardView[]; current: string; landing?: string; onOpen: (id: string) => void }) {
-  const [menuOpen, setMenuOpen] = createSignal(false);
-  let more: HTMLDivElement | undefined;
-
-  const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
-  const onClick = (e: MouseEvent) => more && !more.contains(e.target as Node) && setMenuOpen(false);
-  document.addEventListener("keydown", onKey);
-  document.addEventListener("click", onClick);
-  onCleanup(() => {
-    document.removeEventListener("keydown", onKey);
-    document.removeEventListener("click", onClick);
-  });
-
-  const tab = (d: DashboardView) => (
-    <button
-      type="button"
-      class="tab"
-      aria-current={d.id === props.current ? "page" : undefined}
-      onClick={() => props.onOpen(d.id)}
-    >
-      {label(d)}
-      <Show when={props.dashboards.length > 1 && d.id === props.landing}>
-        {/* The star is decorative; the sr-only text puts the cue in the tab's accessible name. */}
-        <span class="landing-mark" aria-hidden="true" title="Landing dashboard">
-          {" "}
-          ★
-        </span>
-        <span class="sr-only">{" (Landing dashboard)"}</span>
-      </Show>
-    </button>
-  );
-
-  return (
-    <nav class="tabs" aria-label="Dashboards">
-      <For each={props.dashboards.slice(0, MAX_TABS)}>{tab}</For>
-      <Show when={props.dashboards.length > MAX_TABS}>
-        <div class="more" ref={more}>
-          <button
-            type="button"
-            class="tab"
-            classList={{ active: props.dashboards.slice(MAX_TABS).some((d) => d.id === props.current) }}
-            aria-expanded={menuOpen()}
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            More ▾
-          </button>
-          <Show when={menuOpen()}>
-            <ul class="menu">
-              <For each={props.dashboards.slice(MAX_TABS)}>
-                {(d) => (
-                  <li>
-                    <button
-                      type="button"
-                      class="menu-item"
-                      aria-current={d.id === props.current ? "page" : undefined}
-                      onClick={() => {
-                        setMenuOpen(false);
-                        props.onOpen(d.id);
-                      }}
-                    >
-                      {label(d)}
-                    </button>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </Show>
-        </div>
-      </Show>
-    </nav>
-  );
-}
-
-function safeDecode(s: string): string {
+/** Route ids contain `:`, which navigation percent-encodes; this gives back the stored id. */
+export function safeDecode(s: string): string {
   try {
     return decodeURIComponent(s);
   } catch {
