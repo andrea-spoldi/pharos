@@ -30,9 +30,9 @@ pub use command::{CommandError, DEFAULT_SEARCH_PATH};
 pub use dashboard::{DashboardView, Origin, PlacementGeometry, PlacementStatus, PlacementView};
 pub use db::Source;
 pub use git::GitError;
-pub use http::{HttpError, MAX_BYTES, MAX_ROWS, TIMEOUT};
+pub use http::{HttpError, MAX_BYTES, TIMEOUT};
 pub use report::Report;
-pub use run::{FileError, MAX_FILES, WidgetData};
+pub use run::{FileError, MAX_FILES, MAX_ROWS, RowsError, WidgetData};
 pub use secrets::{KEYRING_SERVICE, KeyringStore, SecretStore};
 pub use settings::{
     InputView, PlatformRef, SecretView, SettingsView, SetupState, StoredKind, StoredRef,
@@ -1068,7 +1068,7 @@ impl Engine {
             .remove(name)
             .unwrap_or_default();
         match &widget.spec.source {
-            Some(pharos_manifest::Source::File { path, glob, .. }) => {
+            Some(src @ pharos_manifest::Source::File { path, glob, .. }) => {
                 let root = fs::canonicalize(&source.local_path)?;
                 let dir = root.join(&file);
                 let dir = dir.parent().expect("widget file has a parent");
@@ -1077,16 +1077,19 @@ impl Engine {
                     dir,
                     path,
                     glob.as_deref(),
+                    src.rows(),
                     &approved.paths,
                     MAX_FILES,
                 )?)
             }
-            Some(pharos_manifest::Source::Http {
-                url,
-                method,
-                headers,
-                ..
-            }) => {
+            Some(
+                src @ pharos_manifest::Source::Http {
+                    url,
+                    method,
+                    headers,
+                    ..
+                },
+            ) => {
                 let values = Values {
                     user: settings.usable_inputs(),
                     placement: &placement,
@@ -1102,16 +1105,19 @@ impl Engine {
                     method: *method,
                     url: &url,
                     headers: &headers,
+                    rows: src.rows(),
                 };
                 let secrets: Vec<String> = values.secrets.into_values().collect();
                 Ok(http::fetch(&request, &approved.hosts, &secrets)?)
             }
-            Some(pharos_manifest::Source::Command {
-                executable,
-                args,
-                timeout,
-                ..
-            }) => {
+            Some(
+                src @ pharos_manifest::Source::Command {
+                    executable,
+                    args,
+                    timeout,
+                    ..
+                },
+            ) => {
                 // No secrets in args (lint): they would show in `ps`.
                 let values = Values {
                     user: settings.usable_inputs(),
@@ -1127,6 +1133,7 @@ impl Engine {
                     executable,
                     args: &args,
                     timeout: command::timeout(timeout.as_deref()),
+                    rows: src.rows(),
                 };
                 let search = command::expand(&self.search_path()?, home_dir().as_deref());
                 Ok(command::execute(

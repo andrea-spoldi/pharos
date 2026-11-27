@@ -2,7 +2,7 @@
 //! redirects. Checked on every run, not just at consent time. Error messages never contain
 //! secret values, even when the server or the transport echoes them back.
 
-use crate::run::{WidgetData, rows};
+use crate::run::{MAX_ROWS, RowsError, WidgetData, select_rows};
 use pharos_manifest::{HttpMethod, http_origin};
 use std::collections::BTreeSet;
 use std::time::Duration;
@@ -10,8 +10,6 @@ use std::time::Duration;
 pub const TIMEOUT: Duration = Duration::from_secs(15);
 /// Largest response body read; anything bigger fails the run.
 pub const MAX_BYTES: u64 = 5 * 1024 * 1024;
-/// Most rows one response yields; the rest are dropped and `truncated` is set.
-pub const MAX_ROWS: usize = 500;
 /// How much of an error response body a message quotes.
 const BODY_EXCERPT: usize = 300;
 
@@ -37,6 +35,8 @@ pub enum HttpError {
     TooLarge { origin: String },
     #[error("{origin} did not return JSON: {message}")]
     Parse { origin: String, message: String },
+    #[error(transparent)]
+    Rows(#[from] RowsError),
 }
 
 fn excerpt(body: &str) -> String {
@@ -65,6 +65,8 @@ pub(crate) struct Request<'a> {
     pub method: HttpMethod,
     pub url: &'a str,
     pub headers: &'a [(String, String)],
+    /// The manifest's `rows` selector.
+    pub rows: Option<&'a str>,
 }
 
 /// Sends `request` if its origin is in `approved` and parses the JSON body into rows.
@@ -132,11 +134,23 @@ pub(crate) fn fetch(
             body: redact(&text[..cut]),
         });
     }
-    let value: serde_json::Value = serde_json::from_slice(&body).map_err(|e| HttpError::Parse {
-        origin,
-        message: e.to_string(),
-    })?;
-    Ok(rows(value, MAX_ROWS))
+    let value: serde_json::Value = match (serde_json::from_slice(&body), request.rows) {
+        (Ok(value), _) => value,
+        (Err(_), Some(path)) => {
+            return Err(RowsError::NotJson {
+                path: path.into(),
+                what: "the response was not JSON".into(),
+            }
+            .into());
+        }
+        (Err(e), None) => {
+            return Err(HttpError::Parse {
+                origin,
+                message: e.to_string(),
+            });
+        }
+    };
+    Ok(select_rows(value, request.rows, "the output", MAX_ROWS)?)
 }
 
 fn agent() -> ureq::Agent {
@@ -223,6 +237,7 @@ mod tests {
             method: HttpMethod::Get,
             url: "https://elsewhere.example/x",
             headers: &[],
+            rows: None,
         };
         let approved = BTreeSet::from(["https://gitlab.com".to_string()]);
         assert_eq!(
@@ -238,6 +253,7 @@ mod tests {
             method: HttpMethod::Get,
             url: "https://gitlab.com/x",
             headers: &headers,
+            rows: None,
         };
         let approved = BTreeSet::from(["https://gitlab.com".to_string()]);
         assert_eq!(

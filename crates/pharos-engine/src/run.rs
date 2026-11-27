@@ -11,6 +11,9 @@ use std::path::{Path, PathBuf};
 
 /// Most files one file source reads; the rest are dropped and `truncated` is set.
 pub const MAX_FILES: usize = 500;
+/// Most rows any source yields, counted after `rows` selection; the rest are dropped and
+/// `truncated` is set.
+pub const MAX_ROWS: usize = 500;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -52,6 +55,72 @@ pub enum FileError {
     Read { file: String, message: String },
     #[error("cannot parse `{file}`: {message}")]
     Parse { file: String, message: String },
+    #[error(transparent)]
+    Rows(#[from] RowsError),
+}
+
+/// A source's `rows` selector did not fit the data. Never a lint error: only the data knows.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RowsError {
+    #[error("`rows: {path}` matched nothing in {place}")]
+    NotFound { path: String, place: String },
+    #[error("`rows: {path}` needs JSON output, but {what}")]
+    NotJson { path: String, what: String },
+}
+
+/// The value at a dot path, mirroring `field()` in `app/src/views/fields.ts` (shared cases in
+/// `testdata/dot-paths.json`): an object takes the key, an array the index that JS `Number()`
+/// makes of the segment, anything else has nothing below it. Lint guarantees no empty or
+/// whitespace segments.
+pub(crate) fn select<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+    path.split('.').try_fold(value, |value, key| match value {
+        Value::Object(map) => map.get(key),
+        Value::Array(items) => items.get(js_index(key)?),
+        _ => None,
+    })
+}
+
+/// What `Number(key)` is, when that is a non-negative integer (so `"01"` is 1, `"-1"` and
+/// `"1.5"` are not indexes).
+fn js_index(key: &str) -> Option<usize> {
+    let radix = |prefix: &[&str], radix| {
+        let digits = prefix.iter().find_map(|p| key.strip_prefix(p))?;
+        u64::from_str_radix(digits, radix).ok().map(|n| n as f64)
+    };
+    let number = radix(&["0x", "0X"], 16)
+        .or_else(|| radix(&["0o", "0O"], 8))
+        .or_else(|| radix(&["0b", "0B"], 2))
+        .or_else(|| {
+            // Rust also accepts `inf`/`nan`, which are never indexes anyway.
+            key.parse::<f64>().ok()
+        })?;
+    (number.is_finite() && number >= 0.0 && number.fract() == 0.0 && number < usize::MAX as f64)
+        .then_some(number as usize)
+}
+
+/// Applies the optional `rows` selector, then converts to rows. `place` names where the data
+/// came from for the error. A path that resolves to `null` counts as a miss: an empty result
+/// would hide an authoring mistake.
+pub(crate) fn select_rows(
+    value: Value,
+    path: Option<&str>,
+    place: &str,
+    max: usize,
+) -> Result<WidgetData, RowsError> {
+    Ok(rows(selected(value, path, place)?, max))
+}
+
+fn selected(value: Value, path: Option<&str>, place: &str) -> Result<Value, RowsError> {
+    let Some(path) = path else {
+        return Ok(value);
+    };
+    match select(&value, path) {
+        Some(Value::Null) | None => Err(RowsError::NotFound {
+            path: path.into(),
+            place: place.into(),
+        }),
+        Some(found) => Ok(found.clone()),
+    }
 }
 
 /// Reads `path` (relative to the widget's `dir`) as one file, or as a directory filtered by
@@ -61,6 +130,7 @@ pub(crate) fn read_files(
     dir: &Path,
     path: &str,
     glob: Option<&str>,
+    rows_path: Option<&str>,
     approved: &BTreeSet<String>,
     max: usize,
 ) -> Result<WidgetData, FileError> {
@@ -111,11 +181,14 @@ pub(crate) fn read_files(
             file: rel.clone(),
             message: e.to_string(),
         })?;
-        match value {
+        // The selector applies to each document; the error names the file.
+        match selected(value, rows_path, &rel)? {
             Value::Array(items) => rows.extend(items.into_iter().map(|v| with_source(v, &rel))),
             value => rows.push(with_source(value, &rel)),
         }
     }
+    let truncated = truncated || rows.len() > MAX_ROWS;
+    rows.truncate(MAX_ROWS);
     Ok(WidgetData { rows, truncated })
 }
 
@@ -146,7 +219,16 @@ pub(crate) fn read_catalog(root: &Path, from: &str, max: usize) -> Result<Vec<Va
         return Ok(Vec::new());
     }
     let approved = BTreeSet::from([display_relative(root, &target)]);
-    Ok(read_files(root, root, from, Some("*.{yaml,yml,json}"), &approved, max)?.rows)
+    Ok(read_files(
+        root,
+        root,
+        from,
+        Some("*.{yaml,yml,json}"),
+        None,
+        &approved,
+        max,
+    )?
+    .rows)
 }
 
 /// Every non-directory under `dir`. Symlinked directories are not followed.
@@ -227,6 +309,7 @@ mod tests {
             &root.join("widget"),
             path,
             glob,
+            None,
             &approved(ok),
             MAX_FILES,
         )
@@ -323,6 +406,7 @@ mod tests {
             &root.join("widget"),
             "../data",
             Some("**/*.yaml"),
+            None,
             &approved(&["data"]),
             1,
         )
@@ -337,6 +421,102 @@ mod tests {
         fs::write(root.join("data/bad.yaml"), "a: [").unwrap();
         let err = read(&root, "../data", Some("bad.yaml"), &["data"]).unwrap_err();
         assert!(matches!(err, FileError::Parse { ref file, .. } if file == "data/bad.yaml"));
+    }
+
+    fn read_rows(
+        root: &Path,
+        path: &str,
+        glob: Option<&str>,
+        rows: &str,
+    ) -> Result<WidgetData, FileError> {
+        read_files(
+            root,
+            &root.join("widget"),
+            path,
+            glob,
+            Some(rows),
+            &approved(&[path.trim_start_matches("../")]),
+            MAX_FILES,
+        )
+    }
+
+    #[test]
+    fn select_matches_shared_cases() {
+        let cases: Vec<Value> =
+            serde_json::from_str(include_str!("../../../testdata/dot-paths.json")).unwrap();
+        assert!(!cases.is_empty());
+        for case in cases {
+            let path = case["path"].as_str().unwrap();
+            let got = select(&case["value"], path);
+            if case["found"].as_bool().unwrap() {
+                assert_eq!(got, Some(&case["expected"]), "{case}");
+            } else {
+                assert_eq!(got, None, "{case}");
+            }
+        }
+    }
+
+    #[test]
+    fn file_rows_selected_per_document() {
+        let (_tmp, root) = setup();
+        fs::write(
+            root.join("data/one.yaml"),
+            "items:\n  - name: x\n  - name: y\n",
+        )
+        .unwrap();
+        fs::write(root.join("data/two.yaml"), "items:\n  - name: z\n").unwrap();
+        let data = read_rows(&root, "../data", Some("{one,two}.yaml"), "items").unwrap();
+        let names: Vec<_> = data
+            .rows
+            .iter()
+            .map(|r| r["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["x", "y", "z"]);
+        assert_eq!(
+            sources(&data),
+            ["data/one.yaml", "data/one.yaml", "data/two.yaml"]
+        );
+        assert!(!data.truncated);
+    }
+
+    #[test]
+    fn file_rows_not_found_names_the_file() {
+        let (_tmp, root) = setup();
+        fs::write(root.join("data/one.yaml"), "items: []\n").unwrap();
+        let err = read_rows(&root, "../data/one.yaml", None, "nope").unwrap_err();
+        assert_eq!(
+            err,
+            FileError::Rows(RowsError::NotFound {
+                path: "nope".into(),
+                place: "data/one.yaml".into()
+            })
+        );
+        assert_eq!(
+            err.to_string(),
+            "`rows: nope` matched nothing in data/one.yaml"
+        );
+    }
+
+    #[test]
+    fn file_rows_capped_after_selection() {
+        let (_tmp, root) = setup();
+        let body: String = (0..600).map(|i| format!("  - n: {i}\n")).collect();
+        fs::write(root.join("data/big.yaml"), format!("items:\n{body}")).unwrap();
+        let data = read_rows(&root, "../data/big.yaml", None, "items").unwrap();
+        assert_eq!(data.rows.len(), MAX_ROWS);
+        assert!(data.truncated);
+    }
+
+    #[test]
+    fn a_selected_null_is_not_found() {
+        let err = select_rows(
+            serde_json::json!({ "a": null }),
+            Some("a"),
+            "the output",
+            10,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RowsError::NotFound { .. }));
     }
 
     #[test]

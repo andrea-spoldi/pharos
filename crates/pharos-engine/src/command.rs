@@ -2,7 +2,7 @@
 //! found in the search path from Settings. Checked on every run, not just at consent time.
 
 use crate::process::{self, RunError};
-use crate::run::{WidgetData, rows};
+use crate::run::{MAX_ROWS, RowsError, WidgetData, select_rows};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::os::unix::fs::PermissionsExt;
@@ -15,8 +15,6 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const MAX_TIMEOUT: Duration = Duration::from_secs(60);
 /// Largest stdout read; anything bigger fails the run.
 pub const MAX_BYTES: u64 = 5 * 1024 * 1024;
-/// Most rows one run yields; the rest are dropped and `truncated` is set.
-pub const MAX_ROWS: usize = 500;
 /// How much of stderr a message quotes.
 const STDERR_EXCERPT: usize = 300;
 
@@ -55,6 +53,8 @@ pub enum CommandError {
     TooLarge(String),
     #[error("could not run `{executable}`: {message}")]
     Io { executable: String, message: String },
+    #[error(transparent)]
+    Rows(#[from] RowsError),
 }
 
 fn status(code: &Option<i32>) -> String {
@@ -77,6 +77,8 @@ pub(crate) struct Invocation<'a> {
     pub executable: &'a str,
     pub args: &'a [String],
     pub timeout: Duration,
+    /// The manifest's `rows` selector.
+    pub rows: Option<&'a str>,
 }
 
 /// The manifest's `timeout`, defaulted and capped.
@@ -134,8 +136,18 @@ pub(crate) fn execute(
         return Err(CommandError::TooLarge(executable.into()));
     }
     let text = out.stdout.trim();
-    let value = serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.into()));
-    Ok(rows(value, MAX_ROWS))
+    let value = match (serde_json::from_str(text), invocation.rows) {
+        (Ok(value), _) => value,
+        (Err(_), None) => Value::String(text.into()),
+        (Err(_), Some(path)) => {
+            return Err(RowsError::NotJson {
+                path: path.into(),
+                what: "the command printed text".into(),
+            }
+            .into());
+        }
+    };
+    Ok(select_rows(value, invocation.rows, "the output", MAX_ROWS)?)
 }
 
 /// An absolute path is used as is; a bare name is the first executable file in `search`.
@@ -200,6 +212,10 @@ mod tests {
     }
 
     fn run_sh(script: &str) -> Result<WidgetData, CommandError> {
+        run_sh_rows(script, None)
+    }
+
+    fn run_sh_rows(script: &str, rows: Option<&str>) -> Result<WidgetData, CommandError> {
         let (approved, search) = sh();
         let args = ["-c".to_string(), script.to_string()];
         execute(
@@ -207,10 +223,34 @@ mod tests {
                 executable: "sh",
                 args: &args,
                 timeout: Duration::from_secs(5),
+                rows,
             },
             &approved,
             &search,
         )
+    }
+
+    #[test]
+    fn command_rows_selects_items() {
+        let data = run_sh_rows(
+            r#"echo '{"items":[{"name":"a"},{"name":"b"}]}'"#,
+            Some("items"),
+        )
+        .unwrap();
+        assert_eq!(data.rows.len(), 2);
+        assert_eq!(data.rows[1]["name"], "b");
+    }
+
+    #[test]
+    fn command_text_output_with_rows_errors() {
+        let err = run_sh_rows("echo hello", Some("items")).unwrap_err();
+        assert_eq!(
+            err,
+            CommandError::Rows(RowsError::NotJson {
+                path: "items".into(),
+                what: "the command printed text".into()
+            })
+        );
     }
 
     #[test]
@@ -237,6 +277,7 @@ mod tests {
                 executable: "printf",
                 args: &args,
                 timeout: Duration::from_secs(5),
+                rows: None,
             },
             &approved,
             &search,
@@ -253,6 +294,7 @@ mod tests {
                 executable: "sh",
                 args: &[],
                 timeout: DEFAULT_TIMEOUT,
+                rows: None,
             },
             &BTreeSet::from(["kubectl".to_string()]),
             &search,
@@ -283,6 +325,7 @@ mod tests {
                 executable: "sh",
                 args: &args,
                 timeout: Duration::from_millis(200),
+                rows: None,
             },
             &approved,
             &search,
@@ -299,6 +342,7 @@ mod tests {
                 executable: "pharos-no-such-tool",
                 args: &[],
                 timeout: DEFAULT_TIMEOUT,
+                rows: None,
             },
             &approved,
             &[PathBuf::from("/bin")],
