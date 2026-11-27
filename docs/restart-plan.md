@@ -223,9 +223,10 @@ run in the real app. No slice is "done" on checkboxes alone.
 | 8 | **User dashboards**: create/rename/delete (in-app dialogs), "Customize" fork of platform dashboard, add any widget from Catalog screen, auto-placement | M | Fork Home, add a widget, restart app → layout persists; re-sync doesn't touch fork |
 | 9 | **Capability diff on re-sync** | S | Add a host to a widget in repo → sync → only that diff is asked; widget blocked until approved |
 | 10 | **Layout editing**: drag/resize | M | Resize/move persists across restart |
-| 11 | **Command palette**: jump to dashboard/widget, sync, refresh all | S | ⌘K → type widget name → focuses it |
-| 12 | **Pre-configured build**: embedded `platform.json`, app name/icon override | S | Build with config → first launch skips URL entry |
-| 13 | **Environments + team scoping** (§6.1): env switcher, `{{ env.X }}`, team picker from catalog, row `filter` | M | Switch dev→prod → pipelines widget hits the prod URL; team picker narrows the service catalog |
+| 11 | **Data shaping + starter pack** (2026-11-27): `source.rows` row selector, `kv` view, refresh scheduler (`spec.refresh`), markdown from a source, starter widget pack + dashboards | M×3 + S×2 | Sync the example repo → kv identity cards, pods table via `rows: items`, announcements from a `.md` file, pipelines refreshing on their own |
+| 12 | **Command palette**: jump to dashboard/widget, sync, refresh all | S | ⌘K → type widget name → focuses it |
+| 13 | **Pre-configured build**: embedded `platform.json`, app name/icon override | S | Build with config → first launch skips URL entry |
+| 14 | **Environments + team scoping** (§6.1): env switcher, `{{ env.X }}`, team picker from catalog, row `filter` | M | Switch dev→prod → pipelines widget hits the prod URL; team picker narrows the service catalog |
 
 Slices 0–5 are the "it works for the IDP story" milestone. 6–7 bring back the prototype's
 runtimes. 8+ is personalisation.
