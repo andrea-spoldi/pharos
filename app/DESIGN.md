@@ -38,6 +38,12 @@ typography:
     fontSize: "1.5rem"
     fontWeight: 700
     lineHeight: 1.45
+  page-title:
+    fontFamily: "system-ui, -apple-system, sans-serif"
+    fontSize: "1.35rem"
+    fontWeight: 650
+    lineHeight: 1.45
+    letterSpacing: "-0.015em"
   title:
     fontFamily: "system-ui, -apple-system, sans-serif"
     fontSize: "1.15rem"
@@ -63,6 +69,11 @@ typography:
     fontSize: "1rem"
     fontWeight: 500
     lineHeight: 1.45
+  nav-heading:
+    fontFamily: "system-ui, -apple-system, sans-serif"
+    fontSize: "0.72rem"
+    fontWeight: 600
+    letterSpacing: "0.06em"
   mono:
     fontFamily: "ui-monospace, \"SF Mono\", Menlo, monospace"
     fontSize: "0.85rem"
@@ -98,12 +109,33 @@ components:
   button-link:
     textColor: "{colors.signal-blue}"
     padding: "0"
-  tab:
+  sidebar:
+    backgroundColor: "{colors.open-white}"
+    width: "240px"
+  sidebar-rail:
+    backgroundColor: "{colors.open-white}"
+    width: "56px"
+  nav-item:
     textColor: "{colors.slate-muted}"
-    padding: "0.5rem 1rem"
-  tab-active:
+    rounded: "{rounded.base}"
+    padding: "6px 0.5rem"
+  nav-item-hover:
+    backgroundColor: "{colors.mist-surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.base}"
+    padding: "6px 0.5rem"
+  nav-item-current:
     backgroundColor: "{colors.accent-wash}"
     textColor: "{colors.ink}"
+    rounded: "{rounded.base}"
+    padding: "6px 0.5rem"
+  nav-monogram:
+    backgroundColor: "{colors.mist-surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.base}"
+    size: "22px"
+  narrow-bar:
+    backgroundColor: "{colors.open-white}"
     padding: "0.5rem 1rem"
   segmented-option:
     textColor: "{colors.slate-muted}"
@@ -150,7 +182,7 @@ components:
 Pharos is named after a lighthouse, and its interface works like one. The page is a cool
 tinted neutral, like water at dusk; the widgets are crisp white and lift off it toward a
 single soft beam at the top of the frame. One blue is the lamp, kept for the places where
-the developer's attention belongs: the current tab, the one primary action on a screen, and
+the developer's attention belongs: the current dashboard in the sidebar, the one primary action, and
 the prompt that says a widget needs setup. Everything else is quiet — system type, pale
 tonal surfaces, thin fog-colored borders. The platform team's own content and data fill the
 frame; Pharos itself stays in the background.
@@ -175,6 +207,7 @@ light or dark from Settings.
 - System UI type. Mono for anything a machine reads: inputs, paths, hosts, code.
 - One shadow family, for overlays and widget hover only. One ambient beam, app-level.
 - A single radius (6px) on every enclosed shape; 4px on segments nested inside one.
+- Navigation lives in a quiet white sidebar beside the page; the page itself is all data.
 
 ## Colors
 
@@ -183,11 +216,11 @@ and two plain state colors.
 
 ### Primary
 - **Signal Blue** (light / dark: `signal-blue` / `signal-blue-dark`): the lamp. Primary
-  button fill, the underline under the active tab, link buttons, focus outlines, and the
+  button fill, the 3px bar on the current sidebar item, link buttons, focus outlines, and the
   heading of the "needs setup" widget state. Text on a blue fill uses **Signal Ink**
   (`signal-ink` / `signal-ink-dark`).
 - **Accent Wash** (`accent-wash` / `accent-wash-dark`): Signal Blue at ~9–15% alpha. The
-  soft presence of the lamp — behind the active tab and the selected theme segment.
+  soft presence of the lamp — behind the current sidebar item and the selected theme segment.
 - **Accent Weak** (`accent-weak` / `accent-weak-dark`): Signal Blue at ~24–30% alpha. The
   border a widget takes on hover, and the fading top hairline of the beam.
 
@@ -195,17 +228,17 @@ and two plain state colors.
 - **Page** (`page` / `page-dark`): the tinted page background — cool off-white in light,
   near-black in dark. The surface everything else sits on; it recedes so widgets advance.
 - **Open White / Deep Slate** (`open-white` / `deep-slate-surface`): the raised surface for
-  widgets, cards, notices, default buttons, inputs, dialogs and menus. White on the tint in
+  the sidebar, the narrow top bar, widgets, cards, notices, default buttons, inputs, dialogs and menus. White on the tint in
   light; one soft step above the page in dark.
 - **Mist** (`mist-surface` / `mist-surface-dark`): a faint tonal step above the surface, for
-  sticky table headers and hovered table rows.
+  sticky table headers, hovered table rows, hovered sidebar items and the monogram tiles.
 - **Ink / Moon Gray** (`ink` / `moon-gray`): body and heading text.
 - **Slate Muted** (`slate-muted` / `slate-muted-dark`): secondary text, table headers, field
-  labels, inactive tabs, empty and loading states. The most-used text class after body text.
+  labels, inactive sidebar items, sidebar group headings, empty and loading states. The most-used text class after body text.
 - **Fog Line** (`fog-line` / `fog-line-dark`): every outer 1px border — widgets, cards,
-  notices, inputs, dialogs, menus.
+  notices, inputs, dialogs, menus, the sidebar's inner edge and the narrow bar's bottom edge.
 - **Fog Soft** (`fog-soft` / `fog-soft-dark`): inner dividers and table rules — the widget
-  header rule, the tab strip's underline, table row lines, section separators. Softer than
+  header rule, table row lines, section separators. Softer than
   Fog Line so outer edges stay the firmer line.
 
 ### State
@@ -222,7 +255,8 @@ action or a needed setup step. A screen has at most one primary button.
 
 **The Halo Rule.** The accent may appear as a low-alpha wash (`accent-wash`) or weak border
 (`accent-weak`) in addition to its solid fill — but only where the One Lamp Rule already
-allows it: the current place (active tab, selected segment), a hovered widget, focus. Never
+allows it: the current place (the current sidebar item with its 3px Signal Blue bar, the
+selected segment), a hovered widget, focus. Never
 as decoration, and never a second hue.
 
 **The Paired Theme Rule.** Each color token has a dark-mode value. System appearance follows
@@ -239,14 +273,18 @@ pairing makes the app feel native on macOS and Linux, and makes paths, hosts and
 obviously exact.
 
 ### Hierarchy
-- **Headline** (700, 1.5rem, 1.45): the screen title, `h1`, on Onboarding and Settings.
-- **Title** (700, 1.15rem): section titles (`h2`), dialog titles (1.1rem) and the dashboard
-  top bar's `h1`, which is set smaller on purpose so the data leads.
+- **Headline** (700, 1.5rem, 1.45): the screen title, `h1`, on Onboarding.
+- **Page Title** (650, 1.35rem, -0.015em): the dashboard's `h1` in the slim page header, set
+  below Headline on purpose so the data leads. Settings and the never-synced screen have no
+  `h1` yet (the sidebar brand is a paragraph); that is a known gap, not a rule.
+- **Title** (700, 1.15rem): section titles (`h2`) and dialog titles (1.1rem).
 - **Title Small** (700, 1rem): `h3`, card and markdown headings.
 - **Body** (400, 1rem, 1.45): default text. Screens cap their width at 44rem.
 - **Body Small** (400, 0.9rem): tables and `dl` field lists inside widgets.
 - **Label** (500, 1rem): form labels, table headers, capability terms, segmented options.
-  The active tab uses 600.
+  The current sidebar item uses 600.
+- **Nav Heading** (600, 0.72rem, 0.06em tracking, uppercase, Slate Muted): the *Platform* and
+  *Mine* group headings in the sidebar.
 - **Mono** (400, 0.85rem; inputs 0.9rem): code, `pre`, every text input, and capability
   values such as hosts, executables and paths.
 
@@ -263,17 +301,24 @@ gap, and labels sit 0.25rem above their fields.
 - **Form and review screens** (Onboarding, review, Settings): one column, max 44rem, 2rem
   padding. Settings fields cap at 32rem. Sections are separated by a Fog Soft rule and 1rem
   of padding.
-- **Dashboards** (`.screen.wide`): full width, padding 1rem by 2rem. A top bar holds the
-  title and actions; its actions wrap below the title when space runs out. Then a tab strip
-  (which wraps to a second row rather than overflowing a narrow window), then a **12-column
-  grid** with 80px auto rows and 1rem gaps, placed from dashboard coordinates. A container
+- **App shell:** a two-column grid — the sidebar (240px open, 56px as a rail) beside the
+  main area (padding 1rem by 2rem, 1rem gaps). The sidebar is sticky at full window height
+  and scrolls inside itself; its width change eases over 150ms under the motion guard. Above
+  the dashboards sit, in order, any sync review, changelog or sync error, then the page header.
+  Settings renders in the main area with the sidebar still visible.
+- **Dashboards:** a slim page header holds the dashboard title, a muted origin line
+  (*Platform dashboard · read-only* or *Your dashboard*) and that dashboard's actions, which
+  wrap below the title when space runs out. Then a **12-column grid** with 80px auto rows and 1rem gaps, placed from dashboard coordinates. A container
   widget lays its own parts out on a nested 12-column grid (64px rows) inside its body.
 - **Card grids** inside widgets: `auto-fill`, minimum 14rem per column, 0.5rem gaps.
-- **Responsive:** below 900px the dashboard grid collapses to one column, the wide screen's
-  side padding drops to 1rem, top-level widgets drop their placed coordinates and cap at
+- **Breakpoints:** at 1280px and wider the sidebar starts open, below it starts as the rail;
+  a saved choice wins either way. At 900px and below the sidebar gives way to the narrow top
+  bar.
+- **Responsive:** at 900px and below the dashboard grid collapses to one column, the main
+  area's side padding drops to 1rem, top-level widgets drop their placed coordinates and cap at
   24rem tall (scrolling inside); a composite's nested parts size to content and scroll once
   within that cap. Dialogs shrink to `min(28rem, 100%)` and scroll in a short window.
-- **Motion:** state changes on buttons, widgets, tabs and table rows ease over 150ms, inside
+- **Motion:** state changes on buttons, widgets, sidebar items and table rows ease over 150ms, inside
   a `prefers-reduced-motion: no-preference` guard. Under reduced motion there are no
   transitions and the loading skeleton holds still (its bars still read as loading).
 
@@ -310,8 +355,9 @@ frame. Never repeated on a widget, a card or a section.
 One gently rounded corner (6px) on every enclosed shape: buttons, inputs, cards, widget
 frames, notices, dialogs and menus. Segments nested inside a control (the theme switcher's
 options inside its track) use a tighter 4px so the inner radius reads as a child of the
-outer. Borders are always 1px solid. The exceptions are tabs, which are square with a 2px
-bottom indicator, and link buttons, which have no box at all.
+outer. Borders are always 1px solid. The exceptions are link buttons, which have no box at
+all, and the current sidebar item's marker, a 3px Signal Blue bar on its inner edge with its
+outer corners rounded to 3px.
 
 ## Components
 
@@ -333,12 +379,29 @@ Quiet by default; only the next step is lit.
 - **Hover:** one tone deeper, over 150ms. Default buttons fill with Fog Line; Primary and
   Danger darken slightly (`brightness(0.92)`); Link buttons underline.
 
-### Tabs
-- Dashboard switcher. Inactive tabs have Slate Muted text and no box. The active tab
-  (`aria-current="page"`) has Ink text, weight 600, a 2px Signal Blue bottom border and an
-  **Accent Wash** background. Hover lifts inactive tabs to Ink. The strip wraps to a second
-  row in a narrow window; extra dashboards past five go into a "More" overflow menu (min
-  12rem, Open White, Fog Line border, `shadow-pop`).
+### Sidebar (navigation)
+The way around the app, kept quiet so the dashboards lead. An Open White column beside the
+tinted page with a Fog Line border on its inner edge and no shadow. From the top: the brand
+(the mark and the platform title) with the source as `owner/repo · branch` in small muted
+text; the collapse toggle; a **Platform** group and a **Mine** group of dashboards, each its
+own `nav` landmark under a Nav Heading, with **+ New dashboard** last in Mine; and a footer
+pinned to the bottom with the sync status (an always-present live region), the short commit,
+**Sync now** and **Settings**.
+- **Item:** 6px radius, no border, 6px by 0.5rem padding, a 22px monogram tile (the title's
+  first letter, Mist fill, Fog Line border) and the title, ellipsised. The landing dashboard
+  carries a star.
+- **Rest / Hover:** Slate Muted text and no fill; hover lifts it to Ink on a Mist fill.
+- **Current** (`aria-current="page"`): Ink, weight 600, Accent Wash fill and the 3px Signal
+  Blue bar on the inner edge (the Halo Rule).
+- **Focus:** the standard 2px Signal Blue outline.
+- **Rail (56px):** only the mark, monograms, a ↻ sync button and the settings icon show.
+  Labels stay in the accessibility tree (visually hidden, never removed), and the item's
+  title appears in a small Open White tooltip on hover and on keyboard focus. ⌘\ or Ctrl+\
+  toggles open and rail, except while typing or in a dialog; the choice is saved per device.
+- **Narrow top bar (900px and below):** the sidebar is replaced by an Open White bar with a
+  Fog Line bottom edge: the mark and the current dashboard as a menu button that opens the
+  shared overflow menu (both group headings and their dashboards), then Sync now and
+  Settings.
 
 ### Segmented Control (theme switcher)
 - The Appearance control in Settings: Light / Dark / System. Native radios (so arrow keys
