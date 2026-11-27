@@ -1,5 +1,13 @@
-import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import {
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import type { DashboardView } from "../bindings";
+import { NewDashboardButton } from "./DashboardEditor";
 import { PharosMark } from "./PharosMark";
 
 const label = (d: DashboardView) => d.metadata.title ?? d.metadata.name;
@@ -15,6 +23,7 @@ export function NarrowBar(props: {
   current?: string;
   landing?: string;
   onOpen: (id: string) => void;
+  onCreated: (d: DashboardView) => void;
   /** Platform title, shown when no dashboard is current (Settings, or before the first sync). */
   title: string;
   status: JSX.Element;
@@ -28,10 +37,18 @@ export function NarrowBar(props: {
   let root: HTMLDivElement | undefined;
   let trigger: HTMLButtonElement | undefined;
 
-  const platform = () => props.dashboards.filter((d) => d.origin === "platform");
+  const platform = () =>
+    props.dashboards.filter((d) => d.origin === "platform");
   const mine = () => props.dashboards.filter((d) => d.origin === "user");
-  const shown = () => (props.current ?? props.landing) && props.dashboards.find((d) => d.id === (props.current ?? props.landing));
-  const heading = () => (props.settingsCurrent ? "Settings" : shown() ? label(shown() as DashboardView) : props.title);
+  const shown = () =>
+    (props.current ?? props.landing) &&
+    props.dashboards.find((d) => d.id === (props.current ?? props.landing));
+  const heading = () =>
+    props.settingsCurrent
+      ? "Settings"
+      : shown()
+        ? label(shown() as DashboardView)
+        : props.title;
 
   const close = (refocus: boolean) => {
     setOpen(false);
@@ -44,7 +61,15 @@ export function NarrowBar(props: {
 
   onMount(() => {
     const onDown = (e: MouseEvent) => {
-      if (open() && root && e.target instanceof Node && !root.contains(e.target)) close(false);
+      // The new-dashboard dialog is portalled out of the menu; clicks in it are not "outside".
+      if (
+        open() &&
+        root &&
+        e.target instanceof Node &&
+        !root.contains(e.target) &&
+        !(e.target instanceof Element && e.target.closest(".dialog-backdrop"))
+      )
+        close(false);
     };
     document.addEventListener("mousedown", onDown);
     onCleanup(() => document.removeEventListener("mousedown", onDown));
@@ -80,7 +105,6 @@ export function NarrowBar(props: {
           class="narrow-trigger"
           ref={trigger}
           aria-expanded={open()}
-          aria-haspopup="true"
           onClick={() => setOpen(!open())}
         >
           <PharosMark class="brand-mark" />
@@ -95,17 +119,29 @@ export function NarrowBar(props: {
                 <For each={platform()}>{item}</For>
               </ul>
             </Show>
-            <Show when={props.dashboards.length}>
-              <h2 class="nav-heading">Mine</h2>
-              <ul class="plain">
-                <For each={mine()}>{item}</For>
-              </ul>
-            </Show>
+            <h2 class="nav-heading">Mine</h2>
+            <ul class="plain">
+              <For each={mine()}>{item}</For>
+              <li>
+                <NewDashboardButton
+                  class="menu-item"
+                  onCreated={(d) => {
+                    close(false);
+                    props.onCreated(d);
+                  }}
+                />
+              </li>
+            </ul>
             <ul class="plain">
               <Show when={props.onSync}>
                 {(sync) => (
                   <li>
-                    <button type="button" class="menu-item" disabled={props.syncing} onClick={choose(sync())}>
+                    <button
+                      type="button"
+                      class="menu-item"
+                      disabled={props.syncing}
+                      onClick={choose(sync())}
+                    >
                       {props.syncing ? "Syncing…" : "Sync now"}
                     </button>
                   </li>

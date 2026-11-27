@@ -196,6 +196,29 @@ describe("Sidebar", () => {
       expect(screen.getByRole("tooltip").textContent).toBe("Sync now");
     });
 
+    it("tooltip_on_the_collapse_toggle_in_rail", () => {
+      setSidebarMode("rail");
+      mount();
+      fireEvent.focusIn(screen.getByRole("button", { name: "Expand sidebar" }));
+      expect(screen.getByRole("tooltip").textContent).toBe("Expand sidebar");
+    });
+
+    it("tooltip_is_portalled_to_body", () => {
+      setSidebarMode("rail");
+      mount();
+      fireEvent.focusIn(screen.getByRole("button", { name: "Ops" }));
+      expect(screen.getByRole("tooltip").parentElement?.parentElement).toBe(document.body);
+    });
+
+    it("new_dashboard_dialog_root_is_a_child_of_body", () => {
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "+ New dashboard" }));
+      const backdrop = screen.getByRole("dialog").parentElement as HTMLElement;
+      // Solid's Portal wraps its content in one div appended to body.
+    expect(backdrop.parentElement?.parentElement).toBe(document.body);
+      expect(document.querySelector("aside.sidebar")?.contains(backdrop)).toBe(false);
+    });
+
     it("tooltip_clears_when_leaving_rail", () => {
       setSidebarMode("rail");
       mount();

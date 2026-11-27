@@ -195,6 +195,7 @@ describe("Dashboards", () => {
     vi.mocked(commands.listDashboards).mockResolvedValue(ok([]));
     renderAt("/");
     expect(await screen.findByText("No dashboards yet. Click + New dashboard to create one.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Dashboards");
     expect(screen.queryByRole("navigation", { name: "Platform dashboards" })).toBeNull();
     const mine = screen.getByRole("navigation", { name: "Your dashboards" });
     expect(within(mine).getAllByRole("button").map((b) => b.textContent)).toEqual(["+ New dashboard"]);

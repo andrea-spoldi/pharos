@@ -148,6 +148,7 @@ export function Home(props: {
             current={params.id === undefined ? undefined : safeDecode(params.id)}
             landing={landingId()}
             onOpen={openDashboard}
+            onCreated={onCreated}
             title={title()}
             status={status()}
             onSync={!neverSynced() && !plan() ? sync : undefined}
@@ -249,6 +250,9 @@ export function Home(props: {
             />
           </Match>
           <Match when={!busy() && !error()}>
+            <header class="page-head">
+              <h1>{title()}</h1>
+            </header>
             <div class="notice">
               <p>Nothing from the platform repo is applied yet.</p>
               <button type="button" class="primary" onClick={sync}>

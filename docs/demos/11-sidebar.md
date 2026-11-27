@@ -23,7 +23,9 @@ Connect `/tmp/platform` (branch `main`) and **Approve and apply** the first revi
 
 ## Your dashboards
 
-3. Click **+ New dashboard**, give it a title. It appears under *Mine* and opens.
+3. Open a dashboard that has widgets (for example Home), then click **+ New dashboard**. The dialog must sit above the
+   widgets and the whole page, including the sidebar, is dimmed behind it. Give it a title: it appears under *Mine* and opens.
+   Below 900px the same action is at the end of *Mine* in the top bar menu.
 4. Open a platform dashboard and click **Customize**. The fork appears under *Mine*.
 
 ## Rail

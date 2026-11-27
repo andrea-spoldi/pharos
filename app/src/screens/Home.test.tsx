@@ -187,6 +187,7 @@ describe("Home", () => {
     render(() => <Home source={fresh} onSynced={() => {}} onDisconnected={() => {}} />);
     fireEvent.click(await screen.findByText("Discard"));
     expect(await screen.findByText("Nothing from the platform repo is applied yet.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
     expect(commands.discardSync).toHaveBeenCalled();
   });
 

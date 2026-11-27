@@ -84,6 +84,7 @@ describe("Settings", () => {
   it("shows the three sections", async () => {
     renderAt();
     expect(await screen.findByRole("heading", { name: "Repository" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Settings");
     expect(screen.getByRole("heading", { name: "Your details" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Secrets" })).toBeTruthy();
     expect(document.body.textContent).toContain("git@gitlab.acme:platform/pharos.git · main · aaaaaaa");

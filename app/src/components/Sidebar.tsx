@@ -1,4 +1,5 @@
 import { createEffect, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { Portal } from "solid-js/web";
 import type { DashboardView, RepoSource } from "../bindings";
 import { NewDashboardButton } from "./DashboardEditor";
 import { sidebarMode, toggleSidebar } from "../sidebar";
@@ -59,7 +60,7 @@ export function Sidebar(props: {
   const [tip, setTip] = createSignal<{ text: string; top: number; left: number }>();
   const showTip = (e: Event) => {
     if (!rail()) return;
-    const el = e.target instanceof Element ? e.target.closest(".nav-item, .sync-icon") : null;
+    const el = e.target instanceof Element ? e.target.closest(".nav-item, .sync-icon, .sidebar-toggle") : null;
     if (!el) return setTip(undefined);
     const text =
       el.getAttribute("aria-label") ?? el.querySelector(".nav-label")?.textContent ?? el.textContent ?? "";
@@ -209,9 +210,11 @@ export function Sidebar(props: {
       </div>
       <Show when={tip()}>
         {(t) => (
-          <div class="rail-tip" role="tooltip" style={{ top: `${t().top}px`, left: `${t().left}px` }}>
-            {t().text}
-          </div>
+          <Portal>
+            <div class="rail-tip" role="tooltip" style={{ top: `${t().top}px`, left: `${t().left}px` }}>
+              {t().text}
+            </div>
+          </Portal>
         )}
       </Show>
     </aside>

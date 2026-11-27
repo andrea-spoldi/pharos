@@ -15,7 +15,7 @@ function view(id: string, title: string): DashboardView {
 }
 
 const list = [view("p:home", "Home"), view("p:ops", "Ops"), view("u:1", "My work")];
-const base = { dashboards: list, title: "ACME", status: null, syncing: false, onSettings: () => {}, onOpen: () => {} };
+const base = { dashboards: list, onCreated: () => {}, title: "ACME", status: null, syncing: false, onSettings: () => {}, onOpen: () => {} };
 const trigger = () => screen.getByRole("button", { name: /Home/ });
 
 describe("NarrowBar", () => {
@@ -32,10 +32,27 @@ describe("NarrowBar", () => {
       "Home",
       "Ops",
       "My work",
+      "+ New dashboard",
       "Sync now",
       "Settings",
     ]);
     expect(menu.getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("trigger_is_a_disclosure_not_a_menu_popup", () => {
+    render(() => <NarrowBar {...base} current="p:home" />);
+    expect(trigger().getAttribute("aria-haspopup")).toBeNull();
+    expect(trigger().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("new_dashboard_is_offered_in_mine_even_when_empty", () => {
+    render(() => <NarrowBar {...base} dashboards={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: /ACME/ }));
+    expect(screen.getByRole("heading", { name: "Mine" })).toBeTruthy();
+    const item = screen.getByRole("button", { name: /New dashboard/ });
+    expect(item.className).toContain("menu-item");
+    fireEvent.click(item);
+    expect(screen.getByRole("dialog", { name: "New dashboard" })).toBeTruthy();
   });
 
   it("menu_closes_on_escape_and_selection", () => {
