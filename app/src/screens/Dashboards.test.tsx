@@ -493,6 +493,7 @@ const article = (text: string) => screen.getByText(text, { selector: "header *" 
 describe("Dashboards drag/resize", () => {
   beforeEach(() => {
     window.innerWidth = 1200;
+    window.dispatchEvent(new Event("resize"));
     vi.mocked(commands.listDashboards).mockReset().mockResolvedValue(ok([layoutDashboard()]));
     vi.mocked(commands.setLayout).mockReset().mockResolvedValue(ok(layoutDashboard()));
   });
@@ -585,6 +586,7 @@ describe("Dashboards drag/resize", () => {
 
   it("handlers_inert_below_the_single_column_breakpoint", async () => {
     window.innerWidth = 800;
+    window.dispatchEvent(new Event("resize"));
     renderAt("/d/u:1");
     await screen.findByText("welcome", { selector: "header *" });
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));

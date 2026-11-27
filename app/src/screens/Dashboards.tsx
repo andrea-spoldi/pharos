@@ -3,12 +3,11 @@ import { createEffect, createResource, createSignal, For, Index, Match, onCleanu
 import { commands, type DashboardView } from "../bindings";
 import { unwrap } from "../ipc";
 import { AddWidgetDialog, DashboardToolbar, RemoveWidgetDialog, TitleDialog } from "../components/DashboardEditor";
+import { narrow } from "../viewport";
 import { WidgetFrame, type WidgetEdit } from "../components/WidgetFrame";
 import { type Box, type DragController, type DragMode, type LayoutItem, resolveLayout } from "../components/grid-layout";
 
 const MAX_TABS = 5;
-/** The grid collapses to a single column at or below this width; drag/resize rests there. */
-const WIDE_BREAKPOINT = 900;
 /** A leaf never shrinks below 1×1; a group keeps room for its members. */
 const GRID_COLS = 12;
 const MIN_SIZE ={ leaf: { w: 1, h: 1 }, container: { w: 3, h: 2 } } as const;
@@ -70,13 +69,7 @@ export function Dashboards(props: { version: number; inputLabel?: (key: string) 
   // reflow + persist seam is exercisable without jsdom pixel measurement. Nothing is persisted
   // until pointer-up, and Escape (or a narrow window) abandons the gesture.
   const [gesture, setGesture] = createSignal<{ id: number; mode: DragMode; base: LayoutItem[]; items: LayoutItem[] }>();
-  const [wide, setWide] = createSignal(typeof window === "undefined" || window.innerWidth > WIDE_BREAKPOINT);
-  const onResize = () => setWide(window.innerWidth > WIDE_BREAKPOINT);
-  if (typeof window !== "undefined") {
-    window.addEventListener("resize", onResize);
-    onCleanup(() => window.removeEventListener("resize", onResize));
-  }
-  const enabled = () => wide() && editing() && !!current()?.editable;
+  const enabled = () => !narrow() && editing() && !!current()?.editable;
   const topLevel = () => (current()?.placements ?? []).filter((p) => p.id !== null);
   const baseItems = (): LayoutItem[] => topLevel().map((p) => ({ id: p.id as number, x: p.x, y: p.y, w: p.w, h: p.h }));
 
