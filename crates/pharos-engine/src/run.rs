@@ -85,6 +85,10 @@ pub(crate) fn select<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
 fn js_index(key: &str) -> Option<usize> {
     let radix = |prefix: &[&str], radix| {
         let digits = prefix.iter().find_map(|p| key.strip_prefix(p))?;
+        // `from_str_radix` accepts a leading `+`, which `Number` does not after a prefix.
+        if digits.starts_with('+') {
+            return None;
+        }
         u64::from_str_radix(digits, radix).ok().map(|n| n as f64)
     };
     let number = radix(&["0x", "0X"], 16)
@@ -125,6 +129,7 @@ fn selected(value: Value, path: Option<&str>, place: &str) -> Result<Value, Rows
 
 /// Reads `path` (relative to the widget's `dir`) as one file, or as a directory filtered by
 /// `glob`. `root` must be canonical. `approved` holds repo-relative paths.
+#[allow(clippy::too_many_arguments)] // file cap and row cap differ per caller (widget vs catalog)
 pub(crate) fn read_files(
     root: &Path,
     dir: &Path,
@@ -133,6 +138,7 @@ pub(crate) fn read_files(
     rows_path: Option<&str>,
     approved: &BTreeSet<String>,
     max: usize,
+    max_rows: usize,
 ) -> Result<WidgetData, FileError> {
     let target = confine(root, dir, path).map_err(|reason| FileError::Denied {
         path: path.into(),
@@ -187,8 +193,8 @@ pub(crate) fn read_files(
             value => rows.push(with_source(value, &rel)),
         }
     }
-    let truncated = truncated || rows.len() > MAX_ROWS;
-    rows.truncate(MAX_ROWS);
+    let truncated = truncated || rows.len() > max_rows;
+    rows.truncate(max_rows);
     Ok(WidgetData { rows, truncated })
 }
 
@@ -227,6 +233,7 @@ pub(crate) fn read_catalog(root: &Path, from: &str, max: usize) -> Result<Vec<Va
         None,
         &approved,
         max,
+        usize::MAX,
     )?
     .rows)
 }
@@ -312,6 +319,7 @@ mod tests {
             None,
             &approved(ok),
             MAX_FILES,
+            MAX_ROWS,
         )
     }
 
@@ -409,6 +417,7 @@ mod tests {
             None,
             &approved(&["data"]),
             1,
+            MAX_ROWS,
         )
         .unwrap();
         assert_eq!(sources(&data), ["data/a.yaml"]);
@@ -437,6 +446,7 @@ mod tests {
             Some(rows),
             &approved(&[path.trim_start_matches("../")]),
             MAX_FILES,
+            MAX_ROWS,
         )
     }
 
@@ -505,6 +515,19 @@ mod tests {
         let data = read_rows(&root, "../data/big.yaml", None, "items").unwrap();
         assert_eq!(data.rows.len(), MAX_ROWS);
         assert!(data.truncated);
+    }
+
+    #[test]
+    fn catalog_reads_are_not_capped_at_the_widget_row_limit() {
+        let (_tmp, root) = setup();
+        let body: String = (0..600).map(|i| format!("- n: {i}\n")).collect();
+        fs::write(root.join("data/big.yaml"), body).unwrap();
+        let rows = read_catalog(&root, "data", MAX_FILES).unwrap();
+        let big = rows
+            .iter()
+            .filter(|r| r["_source"] == "data/big.yaml")
+            .count();
+        assert_eq!(big, 600);
     }
 
     #[test]

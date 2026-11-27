@@ -1080,6 +1080,7 @@ impl Engine {
                     src.rows(),
                     &approved.paths,
                     MAX_FILES,
+                    MAX_ROWS,
                 )?)
             }
             Some(

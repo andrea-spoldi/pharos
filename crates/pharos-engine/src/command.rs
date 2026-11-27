@@ -142,7 +142,12 @@ pub(crate) fn execute(
         (Err(_), Some(path)) => {
             return Err(RowsError::NotJson {
                 path: path.into(),
-                what: "the command printed text".into(),
+                what: if text.is_empty() {
+                    "the command printed nothing"
+                } else {
+                    "the command printed text"
+                }
+                .into(),
             }
             .into());
         }
@@ -239,6 +244,18 @@ mod tests {
         .unwrap();
         assert_eq!(data.rows.len(), 2);
         assert_eq!(data.rows[1]["name"], "b");
+    }
+
+    #[test]
+    fn command_empty_output_with_rows_says_nothing_printed() {
+        let err = run_sh_rows("true", Some("items")).unwrap_err();
+        assert_eq!(
+            err,
+            CommandError::Rows(RowsError::NotJson {
+                path: "items".into(),
+                what: "the command printed nothing".into()
+            })
+        );
     }
 
     #[test]

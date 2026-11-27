@@ -277,8 +277,8 @@ Tools often wrap the list you want, for example `kubectl get pods -o json` print
 spec:
   source:
     type: command
-    command: kubectl
-    args: ["get", "pods", "-o", "json"]
+    executable: kubectl
+    args: [get, pods, -o, json]
     rows: items
 ```
 

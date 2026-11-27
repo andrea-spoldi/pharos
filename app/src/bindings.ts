@@ -339,11 +339,11 @@ export type Severity = "error" | "warning";
 export type Source = { type: "file"; 
 /**  Relative to the widget directory; must stay inside the repo. */
 path: string; glob?: string | null; 
-/**  Dot path to the array of rows inside the fetched data (e.g. `items`). */
+/**  Dot path to the value whose items become rows (e.g. `items`); an object or scalar gives one row. */
 rows?: string | null } | { type: "command"; executable: string; args?: string[]; timeout?: string | null; 
-/**  Dot path to the array of rows inside the fetched data (e.g. `items`). */
+/**  Dot path to the value whose items become rows (e.g. `items`); an object or scalar gives one row. */
 rows?: string | null } | { type: "http"; url: string; method?: HttpMethod; headers?: { [key in string]: string }; 
-/**  Dot path to the array of rows inside the fetched data (e.g. `items`). */
+/**  Dot path to the value whose items become rows (e.g. `items`); an object or scalar gives one row. */
 rows?: string | null };
 
 export type StoredKind = "input" | "secret";

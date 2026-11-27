@@ -144,7 +144,7 @@ pub enum Source {
         path: String,
         #[serde(default)]
         glob: Option<String>,
-        /// Dot path to the array of rows inside the fetched data (e.g. `items`).
+        /// Dot path to the value whose items become rows (e.g. `items`); an object or scalar gives one row.
         #[serde(default)]
         rows: Option<String>,
     },
@@ -154,7 +154,7 @@ pub enum Source {
         args: Vec<String>,
         #[serde(default)]
         timeout: Option<String>,
-        /// Dot path to the array of rows inside the fetched data (e.g. `items`).
+        /// Dot path to the value whose items become rows (e.g. `items`); an object or scalar gives one row.
         #[serde(default)]
         rows: Option<String>,
     },
@@ -164,7 +164,7 @@ pub enum Source {
         method: HttpMethod,
         #[serde(default)]
         headers: BTreeMap<String, String>,
-        /// Dot path to the array of rows inside the fetched data (e.g. `items`).
+        /// Dot path to the value whose items become rows (e.g. `items`); an object or scalar gives one row.
         #[serde(default)]
         rows: Option<String>,
     },
