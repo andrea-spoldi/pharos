@@ -122,6 +122,11 @@ identity, current kube context).
 - Styling: follows DESIGN.md / D-036 tokens. Labels in `--muted`, values in
   `--fg`, rows separated by `--border-soft`. No new tokens.
 
+**Implementation notes (approved S-017).** Tables use neither monospace nor clickable links today
+(D-026), so for `kv`: values starting with `arn:`, `http://` or `https://`, or shaped like a UUID or
+a long hex id (≥ 12 hex chars), render in `--mono` (the Machine Text Rule); URLs stay plain text.
+A `kv` view without a source reports "a kv view without a data source". Logged as D-042.
+
 **Engine.** Make `(Some(_), ViewType::Kv)` runnable in `dashboard.rs`. A `kv`
 view without a source stays "not available" (there's nothing to show).
 
