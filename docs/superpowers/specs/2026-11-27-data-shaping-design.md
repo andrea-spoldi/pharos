@@ -196,7 +196,9 @@ fetch one), and have it rendered.
 - Engine availability: `(Some(_), ViewType::Markdown)` becomes runnable.
 
 **Implementation notes (approved S-017).**
-- Lint already refuses `content` on a widget with a source; T-029 only adds a fixture proving it.
+- Correction (final review): lint only *warned* (`ignored-field`) about `content` on a widget with a source. T-029
+  makes it the error `content-with-source` for every view, so it now blocks sync (a compatibility break for repos
+  that had both).
 - `.md`/`.txt` files become `{ value, _source }` rows whatever the view; `rows` on a text file is the
   existing NotJson error naming the file.
 - http: the engine passes a `text_ok` flag (true only for markdown views, from the stored manifest).
