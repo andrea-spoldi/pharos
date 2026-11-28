@@ -195,6 +195,18 @@ fetch one), and have it rendered.
   rendered text at 256 KB with a truncation note.
 - Engine availability: `(Some(_), ViewType::Markdown)` becomes runnable.
 
+**Implementation notes (approved S-017).**
+- Lint already refuses `content` on a widget with a source; T-029 only adds a fixture proving it.
+- `.md`/`.txt` files become `{ value, _source }` rows whatever the view; `rows` on a text file is the
+  existing NotJson error naming the file.
+- http: the engine passes a `text_ok` flag (true only for markdown views, from the stored manifest).
+  With it, the default header is `Accept: text/markdown, text/plain;q=0.9, application/json;q=0.5`
+  (an author-set `Accept` still wins) and a `text/markdown` or `text/plain` body becomes one
+  `{ value }` row; JSON bodies are handled as before. Without it, behaviour is unchanged.
+- View: the first row's `value` (or the single `columns` field); non-string values as compact JSON;
+  over 256 KB → cut with "Only the first 256 KB is shown."; zero rows → the frame's empty state.
+- Logged as D-044 (D-043 stays reserved for the refresh scheduler).
+
 **Tests.** Engine: `.md` file read as text, http text body accepted only for
 markdown, both-content-and-source lint error. vitest: renders from `value`,
 from a named field, truncation note.
