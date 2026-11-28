@@ -5,10 +5,10 @@ import { commands, type Capabilities, type Manifest, type PlacementView, type Wi
 import { type Box, type DragController, type DragMode } from "./grid-layout";
 import { toIpcError, unwrap, type IpcError } from "../ipc";
 import { CardView, KvView, ListView, RawView, TableView } from "../views";
-import { MarkdownView } from "../views/markdown";
+import { MarkdownSourceView, MarkdownView } from "../views/markdown";
 import { CapabilityList } from "./SyncReview";
 
-const views = { table: TableView, list: ListView, card: CardView, kv: KvView, raw: RawView } as const;
+const views = { table: TableView, list: ListView, card: CardView, kv: KvView, raw: RawView, markdown: MarkdownSourceView } as const;
 
 function errorTitle(err: IpcError): string {
   switch (err.kind) {

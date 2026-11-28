@@ -115,6 +115,13 @@ describe("WidgetFrame", () => {
     expect(commands.runPlacement).not.toHaveBeenCalled();
   });
 
+  it("renders a runnable markdown placement from the fetched text", async () => {
+    vi.mocked(commands.runPlacement).mockResolvedValue(ok({ rows: [{ value: "# Fetched" }], truncated: false }));
+    const p = placement({}, { type: "file", path: "docs/README.md", glob: null }, { type: "markdown", columns: [], content: null });
+    const { container } = render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={p} version={0} />);
+    await waitFor(() => expect(container.querySelector("h3")?.textContent).toBe("Fetched"));
+  });
+
   it("shows a skeleton, then the data", async () => {
     render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={placement({})} version={0} />);
     expect(screen.getByLabelText("Loading").getAttribute("aria-busy")).toBe("true");
