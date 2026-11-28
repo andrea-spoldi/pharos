@@ -182,8 +182,9 @@ pub(crate) fn read_files(
                 reason: ConfineError::SymlinkEscape,
             });
         }
-        let text = fs::read_to_string(&real).map_err(|e| read_error(&rel, e))?;
         if is_text_file(&file) {
+            let bytes = fs::read(&real).map_err(|e| read_error(&rel, e))?;
+            let text = String::from_utf8_lossy(&bytes).into_owned();
             if let Some(path) = rows_path {
                 return Err(RowsError::NotJson {
                     path: path.into(),
@@ -194,6 +195,7 @@ pub(crate) fn read_files(
             rows.push(with_source(serde_json::json!({ "value": text }), &rel));
             continue;
         }
+        let text = fs::read_to_string(&real).map_err(|e| read_error(&rel, e))?;
         let value: Value = serde_yaml_ng::from_str(&text).map_err(|e| FileError::Parse {
             file: rel.clone(),
             message: e.to_string(),
@@ -350,6 +352,14 @@ mod tests {
             data.rows,
             [serde_json::json!({"value": "# Hi\n\n- a: b\n", "_source": "data/README.MD"})]
         );
+    }
+
+    #[test]
+    fn text_files_are_read_lossily() {
+        let (_tmp, root) = setup();
+        fs::write(root.join("data/bad.md"), b"ok \xff end").unwrap();
+        let data = read(&root, "../data/bad.md", None, &["data/bad.md"]).unwrap();
+        assert_eq!(data.rows[0]["value"], "ok \u{fffd} end");
     }
 
     #[test]

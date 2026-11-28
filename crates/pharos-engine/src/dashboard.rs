@@ -363,6 +363,16 @@ mod tests {
 
     #[test]
     fn markdown_with_source_is_runnable() {
+        let kv = widget("  source: { type: file, path: data/ }\n  view: { type: kv }\n");
+        assert_eq!(
+            placement_status(
+                Some(&kv),
+                &placement(&[]),
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
+            PlacementStatus::Runnable
+        );
         let md = widget("  source: { type: file, path: data/ }\n  view: { type: markdown }\n");
         assert_eq!(
             placement_status(

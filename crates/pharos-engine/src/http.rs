@@ -72,7 +72,8 @@ pub(crate) struct Request<'a> {
     pub text_ok: bool,
 }
 
-/// Sends `request` if its origin is in `approved` and parses the JSON body into rows.
+/// Sends `request` if its origin is in `approved` and parses the JSON body into rows. With
+/// `text_ok`, a `text/markdown` or `text/plain` body becomes one `{ value }` row instead.
 /// `secrets` are the resolved values, redacted from every error message.
 pub(crate) fn fetch(
     request: &Request,
@@ -143,11 +144,7 @@ pub(crate) fn fetch(
     }
     if request.text_ok && is_text(&response) {
         if let Some(path) = request.rows {
-            return Err(RowsError::NotJson {
-                path: path.into(),
-                what: "the response was not JSON".into(),
-            }
-            .into());
+            return Err(not_json(path));
         }
         let text = String::from_utf8_lossy(&body).into_owned();
         return Ok(WidgetData {
@@ -157,13 +154,7 @@ pub(crate) fn fetch(
     }
     let value: serde_json::Value = match (serde_json::from_slice(&body), request.rows) {
         (Ok(value), _) => value,
-        (Err(_), Some(path)) => {
-            return Err(RowsError::NotJson {
-                path: path.into(),
-                what: "the response was not JSON".into(),
-            }
-            .into());
-        }
+        (Err(_), Some(path)) => return Err(not_json(path)),
         (Err(e), None) => {
             return Err(HttpError::Parse {
                 origin,
@@ -172,6 +163,14 @@ pub(crate) fn fetch(
         }
     };
     Ok(select_rows(value, request.rows, "the output", MAX_ROWS)?)
+}
+
+fn not_json(path: &str) -> HttpError {
+    RowsError::NotJson {
+        path: path.into(),
+        what: "the response was not JSON".into(),
+    }
+    .into()
 }
 
 /// The response's media type (parameters stripped, case ignored) is markdown or plain text.
