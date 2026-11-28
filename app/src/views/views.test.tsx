@@ -114,6 +114,17 @@ describe("KvView", () => {
     expect(document.querySelectorAll("dd")).toHaveLength(1);
   });
 
+  it("more_rows_note_singular", () => {
+    render(() => <KvView data={{ rows: [{ a: 1 }, { a: 2 }], truncated: false }} />);
+    expect(screen.getByText("+ 1 more row — use a table view")).toBeTruthy();
+  });
+
+  it("more_rows_note_hidden_when_truncated", () => {
+    render(() => <KvView data={{ rows: [{ a: 1 }, { a: 2 }, { a: 3 }], truncated: true }} />);
+    expect(screen.queryByText(/more row/)).toBeNull();
+    expect(screen.getByText(/Only the first/)).toBeTruthy();
+  });
+
   it("missing_column_shows_empty_value", () => {
     one({ a: 1 }, [{ field: "nope", label: "Nope" }]);
     expect(terms()).toEqual(["Nope"]);

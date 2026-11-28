@@ -136,8 +136,10 @@ export function KvView(props: ViewProps) {
           }}
         </For>
       </dl>
-      <Show when={more() > 0}>
-        <p class="muted">+ {more()} more rows — use a table view</p>
+      <Show when={more() > 0 && !props.data.truncated}>
+        <p class="muted">
+          + {more()} more {more() === 1 ? "row" : "rows"} — use a table view
+        </p>
       </Show>
     </Frame>
   );
