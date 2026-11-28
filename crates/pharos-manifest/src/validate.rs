@@ -472,7 +472,7 @@ fn validate_view(spec: &WidgetSpec, view: &View, sink: &mut Sink) {
         sink.error(
             "content-with-source",
             "spec.view.content",
-            "`content` and a source can't be combined; a markdown view with a source renders the source's text",
+            "`content` is for widgets without a source; remove it or the source",
         );
     }
 }

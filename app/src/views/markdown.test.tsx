@@ -38,6 +38,13 @@ describe("MarkdownSourceView", () => {
     expect(container.querySelector("h3")?.textContent).toBe("Hi");
   });
 
+  it("renders_only_first_row", () => {
+    const { container } = render(() => <MarkdownSourceView data={data({ value: "# First" }, { value: "# Second" })} />);
+    expect(container.querySelectorAll(".markdown").length).toBe(1);
+    expect(container.textContent).toContain("First");
+    expect(container.textContent).not.toContain("Second");
+  });
+
   it("renders_from_named_column", () => {
     const { container } = render(() => (
       <MarkdownSourceView columns={[{ field: "body", label: null }]} data={data({ body: "# Named", value: "# Other" })} />

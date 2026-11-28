@@ -3,11 +3,11 @@ source: crates/pharos-manifest/tests/lint.rs
 expression: "render(concat! (\"tests/fixtures/\", \"views\"))"
 ---
 error: widgets/empty-table/widget.yaml: spec.view.columns: table views need at least one column [missing-columns]
-error: widgets/hosts/widget.yaml: spec.view.content: `content` and a source can't be combined; a markdown view with a source renders the source's text [content-with-source]
+error: widgets/hosts/widget.yaml: spec.view.content: `content` is for widgets without a source; remove it or the source [content-with-source]
 error: widgets/hosts/widget.yaml: spec.permissions.hosts[0]: `gitlab.acme`: not a valid URL: relative URL without a base [invalid-host]
 error: widgets/hosts/widget.yaml: spec.permissions.hosts[2]: `https://x.acme/api`: expected a bare origin like `https://gitlab.acme` [invalid-host]
 warning: widgets/hosts/widget.yaml: spec.permissions.hosts: extra hosts only apply to http sources [unused-permission]
-error: widgets/markdown-source-content/widget.yaml: spec.view.content: `content` and a source can't be combined; a markdown view with a source renders the source's text [content-with-source]
+error: widgets/markdown-source-content/widget.yaml: spec.view.content: `content` is for widgets without a source; remove it or the source [content-with-source]
 error: widgets/no-columns/widget.yaml: spec.refresh: `fast` is not a duration like 30s, 5m or 1h [invalid-duration]
 error: widgets/no-columns/widget.yaml: spec.view.columns[0].field: `a..b` is not a dot path like `metadata.name` [invalid-field]
 error: widgets/static-empty/widget.yaml: spec.view.content: static markdown widgets need `content` [missing-content]

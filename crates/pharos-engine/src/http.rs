@@ -142,7 +142,8 @@ pub(crate) fn fetch(
             body: redact(&text[..cut]),
         });
     }
-    if request.text_ok && is_text(&response) {
+    let media = media_type(&response);
+    if request.text_ok && is_text(media.as_deref()) {
         if let Some(path) = request.rows {
             return Err(not_json(path));
         }
@@ -158,7 +159,7 @@ pub(crate) fn fetch(
         (Err(e), None) => {
             return Err(HttpError::Parse {
                 origin,
-                message: e.to_string(),
+                message: parse_message(request.text_ok, media.as_deref(), &e),
             });
         }
     };
@@ -173,15 +174,32 @@ fn not_json(path: &str) -> HttpError {
     .into()
 }
 
-/// The response's media type (parameters stripped, case ignored) is markdown or plain text.
-fn is_text(response: &ureq::http::Response<ureq::Body>) -> bool {
-    let media = response
+/// The response's media type: parameters stripped, lowercased.
+fn media_type(response: &ureq::http::Response<ureq::Body>) -> Option<String> {
+    response
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.split(';').next())
-        .map(|m| m.trim().to_ascii_lowercase());
-    matches!(media.as_deref(), Some("text/markdown" | "text/plain"))
+        .map(|m| m.trim().to_ascii_lowercase())
+}
+
+/// The media type is markdown or plain text.
+fn is_text(media: Option<&str>) -> bool {
+    matches!(media, Some("text/markdown" | "text/plain"))
+}
+
+/// A body that failed to parse as JSON; when text was acceptable and the response is not
+/// declared JSON, say what was expected instead of surfacing the JSON error.
+fn parse_message(text_ok: bool, media: Option<&str>, e: &serde_json::Error) -> String {
+    if text_ok && !media.is_some_and(|m| m.contains("json")) {
+        format!(
+            "expected text/markdown, text/plain or JSON, got {}",
+            media.unwrap_or("no content type")
+        )
+    } else {
+        e.to_string()
+    }
 }
 
 fn agent() -> ureq::Agent {
@@ -253,6 +271,24 @@ fn redact(s: &str, secrets: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unexpected_content_type_is_explained() {
+        let e = serde_json::from_str::<serde_json::Value>("<html>").unwrap_err();
+        assert_eq!(
+            parse_message(true, Some("text/html"), &e),
+            "expected text/markdown, text/plain or JSON, got text/html"
+        );
+        assert_eq!(
+            parse_message(true, None, &e),
+            "expected text/markdown, text/plain or JSON, got no content type"
+        );
+        assert_eq!(
+            parse_message(true, Some("application/json"), &e),
+            e.to_string()
+        );
+        assert_eq!(parse_message(false, Some("text/html"), &e), e.to_string());
+    }
 
     #[test]
     fn encodes_components() {

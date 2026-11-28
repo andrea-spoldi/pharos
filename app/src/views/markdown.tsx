@@ -1,6 +1,6 @@
 import type { Nodes } from "mdast";
 import { fromMarkdown } from "mdast-util-from-markdown";
-import { For, Show, type JSX } from "solid-js";
+import { createMemo, For, Show, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import type { ViewProps } from ".";
 import { display, field, type Row } from "./fields";
@@ -24,17 +24,21 @@ export function MarkdownSourceView(props: ViewProps) {
     const v = field(row, key());
     return capText(typeof v === "string" ? v : display(v), MAX_MARKDOWN_BYTES);
   };
+  const capped = createMemo(() => {
+    const row = props.data.rows[0];
+    return row ? doc(row) : null;
+  });
   return (
-    <For each={props.data.rows}>
-      {(row) => (
+    <Show when={capped()}>
+      {(c) => (
         <>
-          <MarkdownView content={doc(row).text} />
-          <Show when={doc(row).cut}>
+          <MarkdownView content={c().text} />
+          <Show when={c().cut}>
             <p class="muted">Only the first 256 KB is shown.</p>
           </Show>
         </>
       )}
-    </For>
+    </Show>
   );
 }
 
