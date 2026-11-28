@@ -67,9 +67,13 @@ pub(crate) struct Request<'a> {
     pub headers: &'a [(String, String)],
     /// The manifest's `rows` selector.
     pub rows: Option<&'a str>,
+    /// The view is markdown, so a `text/markdown` or `text/plain` body is the content. Set from
+    /// the stored manifest's view type, never by the frontend.
+    pub text_ok: bool,
 }
 
-/// Sends `request` if its origin is in `approved` and parses the JSON body into rows.
+/// Sends `request` if its origin is in `approved` and parses the JSON body into rows. With
+/// `text_ok`, a `text/markdown` or `text/plain` body becomes one `{ value }` row instead.
 /// `secrets` are the resolved values, redacted from every error message.
 pub(crate) fn fetch(
     request: &Request,
@@ -98,8 +102,12 @@ pub(crate) fn fetch(
     };
     let agent = agent();
     let mut response = match request.method {
-        HttpMethod::Get => with_headers(agent.get(request.url), request.headers).call(),
-        HttpMethod::Post => with_headers(agent.post(request.url), request.headers).send_empty(),
+        HttpMethod::Get => {
+            with_headers(agent.get(request.url), request.headers, request.text_ok).call()
+        }
+        HttpMethod::Post => {
+            with_headers(agent.post(request.url), request.headers, request.text_ok).send_empty()
+        }
     }
     .map_err(failed)?;
 
@@ -134,23 +142,64 @@ pub(crate) fn fetch(
             body: redact(&text[..cut]),
         });
     }
+    let media = media_type(&response);
+    if request.text_ok && is_text(media.as_deref()) {
+        if let Some(path) = request.rows {
+            return Err(not_json(path));
+        }
+        let text = String::from_utf8_lossy(&body).into_owned();
+        return Ok(WidgetData {
+            rows: vec![serde_json::json!({ "value": text })],
+            truncated: false,
+        });
+    }
     let value: serde_json::Value = match (serde_json::from_slice(&body), request.rows) {
         (Ok(value), _) => value,
-        (Err(_), Some(path)) => {
-            return Err(RowsError::NotJson {
-                path: path.into(),
-                what: "the response was not JSON".into(),
-            }
-            .into());
-        }
+        (Err(_), Some(path)) => return Err(not_json(path)),
         (Err(e), None) => {
             return Err(HttpError::Parse {
                 origin,
-                message: e.to_string(),
+                message: parse_message(request.text_ok, media.as_deref(), &e),
             });
         }
     };
     Ok(select_rows(value, request.rows, "the output", MAX_ROWS)?)
+}
+
+fn not_json(path: &str) -> HttpError {
+    RowsError::NotJson {
+        path: path.into(),
+        what: "the response was not JSON".into(),
+    }
+    .into()
+}
+
+/// The response's media type: parameters stripped, lowercased.
+fn media_type(response: &ureq::http::Response<ureq::Body>) -> Option<String> {
+    response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .map(|m| m.trim().to_ascii_lowercase())
+}
+
+/// The media type is markdown or plain text.
+fn is_text(media: Option<&str>) -> bool {
+    matches!(media, Some("text/markdown" | "text/plain"))
+}
+
+/// A body that failed to parse as JSON; when text was acceptable and the response is not
+/// declared JSON, say what was expected instead of surfacing the JSON error.
+fn parse_message(text_ok: bool, media: Option<&str>, e: &serde_json::Error) -> String {
+    if text_ok && !media.is_some_and(|m| m.contains("json")) {
+        format!(
+            "expected text/markdown, text/plain or JSON, got {}",
+            media.unwrap_or("no content type")
+        )
+    } else {
+        e.to_string()
+    }
 }
 
 fn agent() -> ureq::Agent {
@@ -172,12 +221,20 @@ fn agent() -> ureq::Agent {
 fn with_headers<B>(
     mut builder: ureq::RequestBuilder<B>,
     headers: &[(String, String)],
+    text_ok: bool,
 ) -> ureq::RequestBuilder<B> {
     if !headers
         .iter()
         .any(|(n, _)| n.eq_ignore_ascii_case("accept"))
     {
-        builder = builder.header("Accept", "application/json");
+        builder = builder.header(
+            "Accept",
+            if text_ok {
+                "text/markdown, text/plain;q=0.9, application/json;q=0.5"
+            } else {
+                "application/json"
+            },
+        );
     }
     for (name, value) in headers {
         builder = builder.header(name, value);
@@ -216,6 +273,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unexpected_content_type_is_explained() {
+        let e = serde_json::from_str::<serde_json::Value>("<html>").unwrap_err();
+        assert_eq!(
+            parse_message(true, Some("text/html"), &e),
+            "expected text/markdown, text/plain or JSON, got text/html"
+        );
+        assert_eq!(
+            parse_message(true, None, &e),
+            "expected text/markdown, text/plain or JSON, got no content type"
+        );
+        assert_eq!(
+            parse_message(true, Some("application/json"), &e),
+            e.to_string()
+        );
+        assert_eq!(parse_message(false, Some("text/html"), &e), e.to_string());
+    }
+
+    #[test]
     fn encodes_components() {
         assert_eq!(encode_component("payments-team_1.x~"), "payments-team_1.x~");
         assert_eq!(encode_component("a/b?c=d&e#f"), "a%2Fb%3Fc%3Dd%26e%23f");
@@ -238,6 +313,7 @@ mod tests {
             url: "https://elsewhere.example/x",
             headers: &[],
             rows: None,
+            text_ok: false,
         };
         let approved = BTreeSet::from(["https://gitlab.com".to_string()]);
         assert_eq!(
@@ -254,6 +330,7 @@ mod tests {
             url: "https://gitlab.com/x",
             headers: &headers,
             rows: None,
+            text_ok: false,
         };
         let approved = BTreeSet::from(["https://gitlab.com".to_string()]);
         assert_eq!(

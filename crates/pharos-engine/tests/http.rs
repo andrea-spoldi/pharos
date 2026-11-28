@@ -62,6 +62,23 @@ fn engine_for(origin: &str, setup: bool) -> Engine {
 
 /// As `engine_for`, with extra lines in the widget's `source` (indented by four spaces).
 fn engine_with(origin: &str, setup: bool, source_extra: &str) -> Engine {
+    engine_full(
+        origin,
+        setup,
+        source_extra,
+        "",
+        "    type: table\n    columns: [ { field: id } ]\n",
+    )
+}
+
+/// As `engine_with`, with extra header lines (six spaces) and the `view` body (four spaces).
+fn engine_full(
+    origin: &str,
+    setup: bool,
+    source_extra: &str,
+    headers_extra: &str,
+    view: &str,
+) -> Engine {
     let f = Fixture::new();
     f.write(
         "widgets/local-api/widget.yaml",
@@ -77,10 +94,8 @@ spec:
     url: "{origin}/api/{{{{ inputs.project }}}}/pipelines?team={{{{ user.team }}}}"
     headers:
       PRIVATE-TOKEN: "{{{{ secrets.GITLAB_TOKEN }}}}"
-{source_extra}  view:
-    type: table
-    columns: [ {{ field: id }} ]
-"#
+{headers_extra}{source_extra}  view:
+{view}"#
         ),
     );
     f.write(
@@ -228,6 +243,98 @@ fn reports_bodies_that_are_not_json() {
         engine.run_placement("p:local", &[0]),
         Err(EngineError::Http(HttpError::Parse { .. }))
     ));
+}
+
+fn text_ok(body: &str, content_type: &str) -> String {
+    response("200 OK", &format!("Content-Type: {content_type}\r\n"), body)
+}
+
+#[test]
+fn markdown_view_accepts_text_body() {
+    let server = serve(vec![text_ok("# Runbook\n\nCaf\u{e9}", "text/markdown")]);
+    let engine = engine_full(&server.origin, true, "", "", "    type: markdown\n");
+
+    let data = engine.run_placement("p:local", &[0]).unwrap();
+
+    assert_eq!(data.rows, [json!({"value": "# Runbook\n\nCaf\u{e9}"})]);
+}
+
+#[test]
+fn text_content_type_with_params() {
+    let server = serve(vec![text_ok("plain *text*", "Text/Plain; charset=utf-8")]);
+    let engine = engine_full(&server.origin, true, "", "", "    type: markdown\n");
+
+    let data = engine.run_placement("p:local", &[0]).unwrap();
+
+    assert_eq!(data.rows, [json!({"value": "plain *text*"})]);
+}
+
+#[test]
+fn markdown_view_still_takes_json() {
+    let server = serve(vec![json_ok(r##"{"value": "# from json"}"##)]);
+    let engine = engine_full(&server.origin, true, "", "", "    type: markdown\n");
+
+    let data = engine.run_placement("p:local", &[0]).unwrap();
+
+    assert_eq!(data.rows, [json!({"value": "# from json"})]);
+}
+
+#[test]
+fn text_body_with_rows_is_not_json() {
+    let server = serve(vec![text_ok("# Hi", "text/markdown")]);
+    let engine = engine_full(
+        &server.origin,
+        true,
+        "    rows: data\n",
+        "",
+        "    type: markdown\n",
+    );
+
+    let err = engine.run_placement("p:local", &[0]).unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "`rows: data` needs JSON output, but the response was not JSON"
+    );
+}
+
+#[test]
+fn text_body_rejected_for_table_view() {
+    let server = serve(vec![text_ok("# Hi", "text/markdown")]);
+    let engine = engine_for(&server.origin, true);
+
+    assert!(matches!(
+        engine.run_placement("p:local", &[0]),
+        Err(EngineError::Http(HttpError::Parse { .. }))
+    ));
+}
+
+#[test]
+fn accept_header_follows_the_view() {
+    let server = serve(vec![text_ok("# Hi", "text/markdown")]);
+    let engine = engine_full(&server.origin, true, "", "", "    type: markdown\n");
+    engine.run_placement("p:local", &[0]).unwrap();
+    let head = server.requests.lock().unwrap()[0].to_ascii_lowercase();
+    assert!(
+        head.contains("accept: text/markdown, text/plain;q=0.9, application/json;q=0.5"),
+        "{head}"
+    );
+}
+
+#[test]
+fn author_accept_header_is_kept() {
+    let server = serve(vec![text_ok("# Hi", "text/plain")]);
+    let engine = engine_full(
+        &server.origin,
+        true,
+        "",
+        "      Accept: text/x-custom\n",
+        "    type: markdown\n",
+    );
+    engine.run_placement("p:local", &[0]).unwrap();
+    let head = server.requests.lock().unwrap()[0].to_ascii_lowercase();
+    assert!(head.contains("accept: text/x-custom"), "{head}");
+    assert!(!head.contains("text/markdown"), "{head}");
 }
 
 #[test]

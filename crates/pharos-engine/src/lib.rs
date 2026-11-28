@@ -1107,6 +1107,11 @@ impl Engine {
                     url: &url,
                     headers: &headers,
                     rows: src.rows(),
+                    text_ok: widget
+                        .spec
+                        .view
+                        .as_ref()
+                        .is_some_and(|v| v.kind == pharos_manifest::ViewType::Markdown),
                 };
                 let secrets: Vec<String> = values.secrets.into_values().collect();
                 Ok(http::fetch(&request, &approved.hosts, &secrets)?)

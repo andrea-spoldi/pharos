@@ -469,10 +469,10 @@ fn validate_view(spec: &WidgetSpec, view: &View, sink: &mut Sink) {
             );
         }
     } else if view.content.is_some() {
-        sink.warn(
-            "ignored-field",
+        sink.error(
+            "content-with-source",
             "spec.view.content",
-            "`content` is only used by widgets without a source",
+            "`content` is for widgets without a source; remove it or the source",
         );
     }
 }
