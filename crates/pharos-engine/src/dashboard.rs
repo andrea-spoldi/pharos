@@ -126,8 +126,12 @@ pub(crate) fn placement_status(
         };
     };
     let unavailable = match (&widget.spec.source, view) {
-        (Some(_), ViewType::Table | ViewType::List | ViewType::Card | ViewType::Raw) => None,
+        (
+            Some(_),
+            ViewType::Table | ViewType::List | ViewType::Card | ViewType::Raw | ViewType::Kv,
+        ) => None,
         (Some(_), ViewType::Markdown) => Some("markdown from a data source".to_string()),
+        (None, ViewType::Kv) => Some("a kv view without a data source".to_string()),
         (None, ViewType::Markdown) => return PlacementStatus::Static,
         (_, other) => Some(format!("the {} view", view_name(other))),
     };
@@ -365,7 +369,7 @@ mod tests {
                 &SetupState::default(),
                 &CapabilitySet::default()
             ),
-            not_available("the kv view")
+            PlacementStatus::Runnable
         );
         assert_eq!(
             placement_status(
@@ -375,6 +379,20 @@ mod tests {
                 &CapabilitySet::default()
             ),
             not_available("markdown from a data source")
+        );
+    }
+
+    #[test]
+    fn kv_without_source_is_not_available() {
+        let kv = widget("  view: { type: kv }\n");
+        assert_eq!(
+            placement_status(
+                Some(&kv),
+                &placement(&[]),
+                &SetupState::default(),
+                &CapabilitySet::default()
+            ),
+            not_available("a kv view without a data source")
         );
     }
 
@@ -466,7 +484,7 @@ mod tests {
             inputs: vec!["team".into()],
             secrets: vec![],
         };
-        let n_a = not_available("the kv view");
+        let n_a = not_available("a kv view without a data source");
         let status = |exists, kids: Vec<PlacementStatus>| {
             let kids: Vec<_> = kids.into_iter().map(child).collect();
             container_status(exists, &kids)
