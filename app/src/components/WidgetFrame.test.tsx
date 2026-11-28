@@ -98,6 +98,12 @@ describe("WidgetFrame", () => {
     expect(commands.runPlacement).not.toHaveBeenCalled();
   });
 
+  it("renders a runnable kv placement as a definition list", async () => {
+    const p = placement({}, { type: "command", executable: "aws", args: [], timeout: null, rows: null }, { type: "kv", columns: [], content: null });
+    const { container } = render(() => <WidgetFrame onApproved={() => {}} slot={slot} placement={p} version={0} />);
+    await waitFor(() => expect(container.querySelector("dl.kv")).toBeTruthy());
+  });
+
   it("renders static markdown", () => {
     const p = placement({ status: { kind: "static" }, reads: null }, null, {
       type: "markdown",

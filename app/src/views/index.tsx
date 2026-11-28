@@ -100,6 +100,51 @@ export function CardView(props: ViewProps) {
   );
 }
 
+const MACHINE_MADE = [/^arn:/, /^https?:\/\//, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, /^[0-9a-f]{12,}$/i];
+
+/** Identifiers a person does not read as prose (ARNs, URLs, UUIDs, hashes): shown in mono. */
+export function looksMachineMade(value: string): boolean {
+  return MACHINE_MADE.some((re) => re.test(value));
+}
+
+/** One identity or context card: the first row as label/value pairs. */
+export function KvView(props: ViewProps) {
+  const row = () => props.data.rows[0];
+  const cols = () => {
+    if (props.columns?.length) return columnsFor(props.columns, props.data.rows);
+    return Object.keys(row() ?? {})
+      .filter((k) => k !== "_source")
+      .map((k) => ({ field: k, label: k }));
+  };
+  const more = () => props.data.rows.length - 1;
+  return (
+    <Frame data={props.data}>
+      <dl class="kv">
+        <For each={cols()}>
+          {(c) => {
+            const value = () => field(row(), c.field);
+            const nested = () => typeof value() === "object" && value() !== null;
+            const text = () => (nested() ? JSON.stringify(value()) : display(value()));
+            return (
+              <>
+                <dt>{c.label}</dt>
+                <dd class="kv-value" classList={{ mono: nested() || looksMachineMade(text()) }}>
+                  {text()}
+                </dd>
+              </>
+            );
+          }}
+        </For>
+      </dl>
+      <Show when={more() > 0 && !props.data.truncated}>
+        <p class="muted">
+          + {more()} more {more() === 1 ? "row" : "rows"} — use a table view
+        </p>
+      </Show>
+    </Frame>
+  );
+}
+
 /**
  * Command output as text: a single `{ value }` row (plain stdout) is shown as is, anything
  * else (JSON output, file or http rows) pretty-printed.
