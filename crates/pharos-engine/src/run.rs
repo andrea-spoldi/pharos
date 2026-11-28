@@ -183,6 +183,17 @@ pub(crate) fn read_files(
             });
         }
         let text = fs::read_to_string(&real).map_err(|e| read_error(&rel, e))?;
+        if is_text_file(&file) {
+            if let Some(path) = rows_path {
+                return Err(RowsError::NotJson {
+                    path: path.into(),
+                    what: format!("{rel} is text"),
+                }
+                .into());
+            }
+            rows.push(with_source(serde_json::json!({ "value": text }), &rel));
+            continue;
+        }
         let value: Value = serde_yaml_ng::from_str(&text).map_err(|e| FileError::Parse {
             file: rel.clone(),
             message: e.to_string(),
@@ -196,6 +207,13 @@ pub(crate) fn read_files(
     let truncated = truncated || rows.len() > max_rows;
     rows.truncate(max_rows);
     Ok(WidgetData { rows, truncated })
+}
+
+/// `.md` and `.txt` files (any case) are read as one text row instead of parsed as YAML.
+fn is_text_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("txt"))
 }
 
 /// Rows of one parsed response: the items of a top-level list, else the value itself.
@@ -321,6 +339,40 @@ mod tests {
             MAX_FILES,
             MAX_ROWS,
         )
+    }
+
+    #[test]
+    fn md_file_reads_as_text() {
+        let (_tmp, root) = setup();
+        fs::write(root.join("data/README.MD"), "# Hi\n\n- a: b\n").unwrap();
+        let data = read(&root, "../data/README.MD", None, &["data/README.MD"]).unwrap();
+        assert_eq!(
+            data.rows,
+            [serde_json::json!({"value": "# Hi\n\n- a: b\n", "_source": "data/README.MD"})]
+        );
+    }
+
+    #[test]
+    fn mixed_glob_reads_text_and_yaml() {
+        let (_tmp, root) = setup();
+        fs::write(root.join("data/a.md"), "a: not yaml: [").unwrap();
+        let data = read(&root, "../data", Some("a.*"), &["data"]).unwrap();
+        assert_eq!(sources(&data), ["data/a.md", "data/a.yaml"]);
+        assert_eq!(data.rows[0]["value"], "a: not yaml: [");
+        assert_eq!(data.rows[1]["name"], "a");
+    }
+
+    #[test]
+    fn rows_on_text_file_is_not_json() {
+        let (_tmp, root) = setup();
+        let err = read_rows(&root, "../data/notes.txt", None, "x").unwrap_err();
+        assert_eq!(
+            err,
+            FileError::Rows(RowsError::NotJson {
+                path: "x".into(),
+                what: "data/notes.txt is text".into()
+            })
+        );
     }
 
     #[test]

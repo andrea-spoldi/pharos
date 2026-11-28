@@ -128,9 +128,13 @@ pub(crate) fn placement_status(
     let unavailable = match (&widget.spec.source, view) {
         (
             Some(_),
-            ViewType::Table | ViewType::List | ViewType::Card | ViewType::Raw | ViewType::Kv,
+            ViewType::Table
+            | ViewType::List
+            | ViewType::Card
+            | ViewType::Raw
+            | ViewType::Kv
+            | ViewType::Markdown,
         ) => None,
-        (Some(_), ViewType::Markdown) => Some("markdown from a data source".to_string()),
         (None, ViewType::Kv) => Some("a kv view without a data source".to_string()),
         (None, ViewType::Markdown) => return PlacementStatus::Static,
         (_, other) => Some(format!("the {} view", view_name(other))),
@@ -358,27 +362,16 @@ mod tests {
     }
 
     #[test]
-    fn views_without_renderer_are_not_available() {
-        let kv = widget("  source: { type: file, path: data/ }\n  view: { type: kv }\n");
+    fn markdown_with_source_is_runnable() {
         let md = widget("  source: { type: file, path: data/ }\n  view: { type: markdown }\n");
-        let p = placement(&[]);
         assert_eq!(
             placement_status(
-                Some(&kv),
-                &p,
+                Some(&md),
+                &placement(&[]),
                 &SetupState::default(),
                 &CapabilitySet::default()
             ),
             PlacementStatus::Runnable
-        );
-        assert_eq!(
-            placement_status(
-                Some(&md),
-                &p,
-                &SetupState::default(),
-                &CapabilitySet::default()
-            ),
-            not_available("markdown from a data source")
         );
     }
 

@@ -67,6 +67,9 @@ pub(crate) struct Request<'a> {
     pub headers: &'a [(String, String)],
     /// The manifest's `rows` selector.
     pub rows: Option<&'a str>,
+    /// The view is markdown, so a `text/markdown` or `text/plain` body is the content. Set from
+    /// the stored manifest's view type, never by the frontend.
+    pub text_ok: bool,
 }
 
 /// Sends `request` if its origin is in `approved` and parses the JSON body into rows.
@@ -98,8 +101,12 @@ pub(crate) fn fetch(
     };
     let agent = agent();
     let mut response = match request.method {
-        HttpMethod::Get => with_headers(agent.get(request.url), request.headers).call(),
-        HttpMethod::Post => with_headers(agent.post(request.url), request.headers).send_empty(),
+        HttpMethod::Get => {
+            with_headers(agent.get(request.url), request.headers, request.text_ok).call()
+        }
+        HttpMethod::Post => {
+            with_headers(agent.post(request.url), request.headers, request.text_ok).send_empty()
+        }
     }
     .map_err(failed)?;
 
@@ -134,6 +141,20 @@ pub(crate) fn fetch(
             body: redact(&text[..cut]),
         });
     }
+    if request.text_ok && is_text(&response) {
+        if let Some(path) = request.rows {
+            return Err(RowsError::NotJson {
+                path: path.into(),
+                what: "the response was not JSON".into(),
+            }
+            .into());
+        }
+        let text = String::from_utf8_lossy(&body).into_owned();
+        return Ok(WidgetData {
+            rows: vec![serde_json::json!({ "value": text })],
+            truncated: false,
+        });
+    }
     let value: serde_json::Value = match (serde_json::from_slice(&body), request.rows) {
         (Ok(value), _) => value,
         (Err(_), Some(path)) => {
@@ -151,6 +172,17 @@ pub(crate) fn fetch(
         }
     };
     Ok(select_rows(value, request.rows, "the output", MAX_ROWS)?)
+}
+
+/// The response's media type (parameters stripped, case ignored) is markdown or plain text.
+fn is_text(response: &ureq::http::Response<ureq::Body>) -> bool {
+    let media = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .map(|m| m.trim().to_ascii_lowercase());
+    matches!(media.as_deref(), Some("text/markdown" | "text/plain"))
 }
 
 fn agent() -> ureq::Agent {
@@ -172,12 +204,20 @@ fn agent() -> ureq::Agent {
 fn with_headers<B>(
     mut builder: ureq::RequestBuilder<B>,
     headers: &[(String, String)],
+    text_ok: bool,
 ) -> ureq::RequestBuilder<B> {
     if !headers
         .iter()
         .any(|(n, _)| n.eq_ignore_ascii_case("accept"))
     {
-        builder = builder.header("Accept", "application/json");
+        builder = builder.header(
+            "Accept",
+            if text_ok {
+                "text/markdown, text/plain;q=0.9, application/json;q=0.5"
+            } else {
+                "application/json"
+            },
+        );
     }
     for (name, value) in headers {
         builder = builder.header(name, value);
@@ -238,6 +278,7 @@ mod tests {
             url: "https://elsewhere.example/x",
             headers: &[],
             rows: None,
+            text_ok: false,
         };
         let approved = BTreeSet::from(["https://gitlab.com".to_string()]);
         assert_eq!(
@@ -254,6 +295,7 @@ mod tests {
             url: "https://gitlab.com/x",
             headers: &headers,
             rows: None,
+            text_ok: false,
         };
         let approved = BTreeSet::from(["https://gitlab.com".to_string()]);
         assert_eq!(
